@@ -2,7 +2,7 @@
 # MG-CFD #
 ##########
 
-<a href="https://github.com/warwick-hpsc/MG-CFD-app-plain">
+https://github.com/warwick-hpsc/MG-CFD-app-plain
 
 An unstructured grid, multigrid (MG), finite-volume computational fluid dynamics (CFD) solver for inviscid flow. 
 Capturing key performance characteristics of this class of code, it has the goal of serving as a platform for evaluating emerging architectures, programming paradigms and algorithmic optimisations.
