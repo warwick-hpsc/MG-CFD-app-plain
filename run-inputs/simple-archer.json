@@ -1,0 +1,18 @@
+{
+    "compile": {
+        "compiler": "intel"
+    },
+
+    "run": {
+        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "num threads": [1], 
+        "mg cycles": 25
+    },
+
+    "setup": {
+        "jobs dir": "./run-jobs.simple",
+        "job scheduler": "pbs", 
+        "partition": "standard",
+        "budget code": "e609"
+    }
+}

@@ -1,0 +1,27 @@
+{
+    "compile": {
+        "compiler": "intel",
+        "base flags": "-DTIME -DPAPI",
+        "perm flags": [ ["", "-DFLUX_CRIPPLE"],
+                        ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
+                        ["", "-DFLUX_REUSE_DIV"],
+                        ["", "-DFLUX_REUSE_FACTOR"],
+                        ["", "-DFLUX_REUSE_FLUX"] ],
+        "insn sets": [ "SSE42", "AVX" ]
+    },
+
+    "run": {
+        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "num threads": [1], 
+        "num repeats": 3,
+        "mg cycles": 50,
+        "unit walltime": 0.41
+    },
+
+    "setup": {
+        "jobs dir": "./run-jobs.assess-compute",
+        "job scheduler": "pbs", 
+        "partition": "standard",
+        "budget code": "e609"
+    }
+}

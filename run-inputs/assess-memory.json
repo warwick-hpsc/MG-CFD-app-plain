@@ -1,0 +1,20 @@
+{
+    "compile": {
+        "compiler": "intel",
+        "insn sets": [ "SSE42", "AVX2" ], 
+        "base flags": "-DTIME -DPAPI -DOMP -DOMP_SCATTERS"
+    },
+
+    "run": {
+        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "num threads": [1, 2, 4, 6, 8, 12, 16, 20, 24], 
+        "num repeats": 3,
+        "mg cycles": 50
+    },
+
+    "setup": {
+        "jobs dir": "./run-jobs.assess-memory",
+        "job scheduler": "slurm", 
+        "partition": "skylake"
+    }
+}
