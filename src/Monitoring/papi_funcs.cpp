@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "common.h"
-#include "io.h"
+#include "io_enhanced.h"
 #include "papi_funcs.h"
 
 int papi_monitoring_state;
@@ -343,7 +343,7 @@ void dump_papi_counters_to_file(int size)
 
     std::string header_s;
     std::string data_line_s;
-    prepare_csv_identification(write_header, &header_s, &data_line_s, size, mesh_name);
+    prepare_csv_identification(write_header, &header_s, &data_line_s, size);
 
     if (write_header) {
         std::ostringstream header;

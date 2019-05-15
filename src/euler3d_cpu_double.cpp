@@ -15,6 +15,7 @@
 // Base:
 #include "common.h"
 #include "io.h"
+#include "io_enhanced.h"
 
 // Kernels:
 #include "flux_kernels.h"
@@ -30,10 +31,10 @@
 #include "validation.h"
 
 // Globals:
-int levels;
-int level;
+int levels=0;
+int level=0;
 int current_kernel;
-MeshName::MeshName mesh_name;
+int mesh_variant;
 double ff_variable[NVAR];
 double3 ff_flux_contribution_momentum_x;
 double3 ff_flux_contribution_momentum_y;
@@ -110,7 +111,7 @@ int main(int argc, char** argv)
     std::string* layers = NULL;
     std::string* mg_connectivity_filename = NULL;
     log("Reading .dat file");
-    read_input_dat(input_file_name, &mesh_name, &problem_size, &levels, &layers, &mg_connectivity_filename);
+    read_input_dat(input_file_name, &problem_size, &layers, &mg_connectivity_filename);
     if (strcmp(input_directory, "")!=0) {
         for (int l=0; l<levels; l++) {
             layers[l] = (std::string(input_directory) + "/" + layers[l]).c_str();
@@ -319,6 +320,27 @@ int main(int argc, char** argv)
         zero_array(NVAR*nel[i], residuals[i]);
     }
 
+    // For these meshes, NaN's appear after few solver iterations. 
+    // Until root cause identified and addresses, reduce edge 
+    // weights to delay appearance, allowing collection of useful 
+    // duration of performance data.
+    if (mesh_variant == MESH_M6_WING) {
+        for (int l=0; l<levels; l++) {
+            adjust_ewt(coords[l], number_of_edges[l], edges[l]);
+            dampen_ewt(number_of_edges[l], edges[l], 5e-8);
+        }
+    } else if (mesh_variant == MESH_LA_CASCADE) {
+        for (int l=0; l<levels; l++) {
+            adjust_ewt(coords[l], number_of_edges[l], edges[l]);
+            dampen_ewt(number_of_edges[l], edges[l], 1e-7);
+        }
+    } else if (mesh_variant == MESH_ROTOR_37) {
+        for (int l=0; l<levels; l++) {
+            adjust_ewt(coords[l], number_of_edges[l], edges[l]);
+            dampen_ewt(number_of_edges[l], edges[l], 2e-7);
+        }
+    }
+
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double* edge_weights[levels];
         for (int i=0; i<levels; i++) {
@@ -354,7 +376,7 @@ int main(int argc, char** argv)
             variables[level], 
             nel[level]*NVAR);
 
-        if (mesh_name == MeshName::fvcorr) {
+        if (mesh_variant == MESH_FVCORR) {
             // Use the original 'incorrect' step factor calculation, 
             // enabling validation against original code 'rodinia/cfd':
             compute_step_factor_legacy(nel[level], variables[level], volumes[level], step_factors[level]);
@@ -459,6 +481,8 @@ int main(int argc, char** argv)
                 old_variables[level], 
                 variables[level]);
 
+            check_for_invalid_variables(variables[level], nel[level]);
+
             indirect_rw(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
@@ -490,15 +514,38 @@ int main(int argc, char** argv)
             ///////////////////////////////////////////
             if (levels > 1)
             {
+                // My understanding of geometric multigrid is that 
+                // the residual error should be restricted up, not 
+                // the grid state itself. However, doing this 
+                // immediately introduces NaN's.
+                // #define UP_RESIDUALS 1
                 if(mg_direction == MG_UP)
                 {
                     level++;
-                    up(variables[level-1], 
-                       variables[level], 
-                       nel[level], 
-                       mg_connectivity[level-1], 
-                       up_scratch, 
-                       mg_connectivity_size[level-1]);
+                    #ifdef UP_RESIDUALS
+                        if (level == 1) {
+                            up(residuals[level-1], 
+                               variables[level], 
+                               nel[level], 
+                               mg_connectivity[level-1], 
+                               up_scratch, 
+                               mg_connectivity_size[level-1]);
+                        } else {
+                            up(variables[level-1], 
+                               variables[level], 
+                               nel[level], 
+                               mg_connectivity[level-1], 
+                               up_scratch, 
+                               mg_connectivity_size[level-1]);
+                        }
+                    #else
+                        up(variables[level-1], 
+                           variables[level], 
+                           nel[level], 
+                           mg_connectivity[level-1], 
+                           up_scratch, 
+                           mg_connectivity_size[level-1]);
+                    #endif
 
                     if(level == (levels-1))
                     {
@@ -508,16 +555,146 @@ int main(int argc, char** argv)
                 else
                 {
                     level--;
-                    down_residuals(
-                        residuals[level+1], 
-                        nel[level+1], 
-                        variables[level], 
-                        residuals[level], 
-                        nel[level], 
-                        mg_connectivity[level], 
-                        mg_connectivity_size[level], 
-                        coords[level+1], 
-                        coords[level]);
+
+                    // down() generates NaN's after 3 MG cycles
+                    // down(
+                    //     variables[level+1], 
+                    //     nel[level+1], 
+                    //     variables[level], 
+                    //     nel[level], 
+                    //     mg_connectivity[level], 
+                    //     mg_connectivity_size[level], 
+                    //     coords[level+1], 
+                    //     coords[level]);
+
+                    // down_interpolate() generates NaN's after 33 MG cycles
+                    // down_interpolate(
+                    //     variables[level+1], 
+                    //     nel[level+1], 
+                    //     variables[level], 
+                    //     nel[level], 
+                    //     mg_connectivity[level], 
+                    //     mg_connectivity_size[level], 
+                    //     coords[level+1], 
+                    //     coords[level]);
+
+                    // down_residuals() generates NaN's after 1 MG cycles
+                    // #ifdef UP_RESIDUAL
+                    //     if (level == 0) {
+                    //         down_residuals(
+                    //             variables[level+1], 
+                    //             nel[level+1], 
+                    //             variables[level], 
+                    //             residuals[level], 
+                    //             nel[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level], 
+                    //             coords[level+1], 
+                    //             coords[level]);
+                    //     } 
+                    //     else {
+                    //         down_residuals(
+                    //             variables[level+1], 
+                    //             nel[level+1], 
+                    //             residuals[level], 
+                    //             residuals[level], 
+                    //             nel[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level], 
+                    //             coords[level+1], 
+                    //             coords[level]);
+                    //     }
+                    // #else
+                    //     down_residuals(
+                    //         residuals[level+1], 
+                    //         nel[level+1], 
+                    //         variables[level], 
+                    //         residuals[level], 
+                    //         nel[level], 
+                    //         mg_connectivity[level], 
+                    //         mg_connectivity_size[level], 
+                    //         coords[level+1], 
+                    //         coords[level]);
+                    // #endif
+
+                    // #ifdef UP_RESIDUAL
+                    //     if (level == 0) {
+                    //         down_residuals_interpolate_crude(
+                    //             variables[level+1], 
+                    //             nel[level+1], 
+                    //             residuals[level], 
+                    //             variables[level], 
+                    //             nel[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level], 
+                    //             coords[level+1], 
+                    //             coords[level]);
+                    //     } 
+                    //     else {
+                    //         down_residuals_interpolate_crude(
+                    //             variables[level+1], 
+                    //             nel[level+1], 
+                    //             variables[level], 
+                    //             variables[level], 
+                    //             nel[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level], 
+                    //             coords[level+1], 
+                    //             coords[level]);
+                    //     }
+                    // #else
+                    //     down_residuals_interpolate_crude(
+                    //         residuals[level+1], 
+                    //         nel[level+1], 
+                    //         residuals[level], 
+                    //         variables[level], 
+                    //         nel[level], 
+                    //         mg_connectivity[level], 
+                    //         mg_connectivity_size[level], 
+                    //         coords[level+1], 
+                    //         coords[level]);
+                    // #endif
+
+                    #ifdef UP_RESIDUAL
+                        if (level == 0) {
+                            down_residuals_interpolate_proper(
+                                edges[level], 
+                                num_internal_edges[level],
+                                variables[level+1], 
+                                residuals[level], 
+                                variables[level], 
+                                nel[level], 
+                                mg_connectivity[level], 
+                                mg_connectivity_size[level], 
+                                coords[level+1], 
+                                coords[level]);
+                        } 
+                        else {
+                            down_residuals_interpolate_proper(
+                                edges[level], 
+                                num_internal_edges[level],
+                                variables[level+1], 
+                                variables[level], 
+                                variables[level], 
+                                nel[level], 
+                                mg_connectivity[level], 
+                                mg_connectivity_size[level], 
+                                coords[level+1], 
+                                coords[level]);
+                        }
+                    #else
+                        down_residuals_interpolate_proper(
+                            edges[level], 
+                            num_internal_edges[level],
+                            residuals[level+1], 
+                            residuals[level], 
+                            variables[level], 
+                            nel[level], 
+                            mg_connectivity[level], 
+                            mg_connectivity_size[level], 
+                            coords[level+1], 
+                            coords[level]);
+                    #endif
 
                     if (level == 0)
                     {

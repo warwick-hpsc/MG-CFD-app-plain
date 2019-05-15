@@ -332,9 +332,7 @@ bool write_grid_to_bin(
 
 void read_input_dat(
     const char* file_name, 
-    MeshName::MeshName* mesh_name, 
     int* problem_size, 
-    int* levels, 
     std::string** layers, 
     std::string** mg_connectivity)
 {
@@ -364,8 +362,8 @@ void read_input_dat(
                         DEBUGGABLE_ABORT
                     }
                     have_mesh_filenames = true;
-                    *layers = new std::string[(*levels)];
-                    for (int i=0; i<(*levels); i++)
+                    *layers = new std::string[levels];
+                    for (int i=0; i<levels; i++)
                     {
                         std::string key;
                         std::string value;
@@ -403,8 +401,8 @@ void read_input_dat(
                         DEBUGGABLE_ABORT
                     }
                     have_mg_mapping = true;
-                    *mg_connectivity = new std::string[(*levels)-1];
-                    for (int i=0; i<(*levels)-1; i++)
+                    *mg_connectivity = new std::string[levels-1];
+                    for (int i=0; i<levels-1; i++)
                     {
                         std::string key;
                         std::string value;
@@ -449,20 +447,24 @@ void read_input_dat(
                             have_size = true;
                         }
                         else if (strcmp(key.c_str(), "num_levels")==0) {
-                            *levels = atoi(value.c_str());
+                            levels = atoi(value.c_str());
                             have_num_levels = true;
                         }
                         else if (strcmp(key.c_str(), "mesh_name")==0) {
                             if (strcmp(value.c_str(), "la_cascade")==0) {
-                                *mesh_name = MeshName::LA_Cascade;
+                                mesh_variant = MESH_LA_CASCADE;
                                 have_mesh_name = true;
                             }
                             else if (strcmp(value.c_str(), "rotor37")==0) {
-                                *mesh_name = MeshName::Rotor37;
+                                mesh_variant = MESH_ROTOR_37;
                                 have_mesh_name = true;
                             }
                             else if (strcmp(value.c_str(), "fvcorr")==0) {
-                                *mesh_name = MeshName::fvcorr;
+                                mesh_variant = MESH_FVCORR;
+                                have_mesh_name = true;
+                            }
+                            else if (strcmp(value.c_str(), "m6wing")==0) {
+                                mesh_variant = MESH_M6_WING;
                                 have_mesh_name = true;
                             }
                             else {
@@ -494,8 +496,8 @@ void read_input_dat(
     }
 
     if (!have_mg_mapping) {
-        *mg_connectivity = new std::string[(*levels)-1];
-        for (int i=0; i<(*levels)-1; i++) {
+        *mg_connectivity = new std::string[levels-1];
+        for (int i=0; i<levels-1; i++) {
             (*mg_connectivity)[i] = (char*)malloc(sizeof(char));
             (*mg_connectivity)[i][0] = '\0';
         }
@@ -784,8 +786,7 @@ void prepare_csv_identification(
     bool write_header,
     std::string *header_s,
     std::string *data_line_s,
-    int input_size, 
-    MeshName::MeshName mesh_name)
+    int input_size)
 {
     log("prepare_csv_identification() called");
 
@@ -795,10 +796,14 @@ void prepare_csv_identification(
     data_line << input_size << "," ;
 
     if (write_header) header << "Mesh," ;
-    if (mesh_name == MeshName::LA_Cascade) {
+    if (mesh_variant == MESH_LA_CASCADE) {
         data_line << "la_cascade,";
-    } else if (mesh_name == MeshName::Rotor37) {
+    } else if (mesh_variant == MESH_ROTOR_37) {
         data_line << "rotor37,";
+    } else if (mesh_variant == MESH_FVCORR) {
+        data_line << "fvcorr,";
+    } else if (mesh_variant == MESH_M6_WING) {
+        data_line << "m6wing,";
     } else {
         data_line << "unknown,";
     }

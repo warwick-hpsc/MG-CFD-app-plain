@@ -26,6 +26,55 @@
 #include "validation.h"
 #include "common.h"
 
+void adjust_ewt(
+    const double3 *restrict coords, 
+    int num_edges, 
+    edge_neighbour *restrict edges)
+{
+    // |ewt| currently is face area. Divide through by distance 
+    // to produce 'surface vector' with magnitude (area/dm):
+
+    log("adjust_ewt()\n");
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
+    for (int i=0; i<num_edges; i++) {
+        int a = edges[i].a;
+        int b = edges[i].b;
+
+        if (a >= 0 && b >= 0) {
+            double dist = 0.0, d;
+            d = coords[b].x - coords[a].x;
+            dist += d*d;
+            d = coords[b].y - coords[a].y;
+            dist += d*d;
+            d = coords[b].z - coords[a].z;
+            dist += d*d;
+            dist = sqrt(dist);
+
+            edges[i].x /= dist;
+            edges[i].y /= dist;
+            edges[i].z /= dist;
+        }
+    }
+}
+
+void dampen_ewt(
+    int num_edges, 
+    edge_neighbour *restrict edges, 
+    double damping_factor)
+{
+    log("dampen_ewt()\n");
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
+    for (int i=0; i<num_edges; i++) {
+        edges[i].x *= damping_factor;
+        edges[i].y *= damping_factor;
+        edges[i].z *= damping_factor;
+    }
+}
+
 void residual(
     int nel, 
     const double *restrict old_variables, 

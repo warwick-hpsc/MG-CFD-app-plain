@@ -24,6 +24,14 @@
 
 #include "common.h"
 
+void up(
+    double *restrict variables1, 
+    double *restrict variables2, 
+    int nel2, 
+    int *restrict mapping, 
+    int *restrict up_scratch, 
+    int mgc);
+
 void down(
     double *restrict variables1, 
     int nel1, 
@@ -37,20 +45,49 @@ void down(
 void down_residuals(
     double *restrict residuals1, 
     int nel1, 
-    double *restrict variables2, 
-    double *restrict residuals2, 
+    // double *restrict variables2, 
+    // double *restrict residuals2, 
+    // Depending on MG configuration, variables2 and residuals2
+    // may point to the same array.
+    double *variables2, 
+    double *residuals2, 
     int nel2, 
     int *restrict mapping, 
     int mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 
-void up(
+void down_interpolate(
     double *restrict variables1, 
+    int nel1, 
     double *restrict variables2, 
     int nel2, 
     int *restrict mapping, 
-    int *restrict up_scratch, 
-    int mgc);
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2);
+
+void down_residuals_interpolate_crude(
+    double *restrict residuals1, 
+    int nel1, 
+    double *restrict residuals2,
+    double *restrict variables2, 
+    int nel2, 
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2);
+
+void down_residuals_interpolate_proper(
+    edge_neighbour *edges,
+    int num_edges,
+    double *restrict residuals1, 
+    double *restrict residuals2,
+    double *restrict variables2, 
+    int nel2,
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2);
 
 #endif

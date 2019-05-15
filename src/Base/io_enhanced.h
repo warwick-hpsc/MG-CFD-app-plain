@@ -59,9 +59,7 @@ bool write_grid_to_bin(
 
 void read_input_dat(
     const char* file_name, 
-    MeshName::MeshName* mesh_name, 
     int* problem_size, 
-    int* levels, 
     std::string** layers, 
     std::string** mg_connectivity);
 
@@ -101,8 +99,7 @@ void prepare_csv_identification(
     bool write_header,
     std::string *header_s,
     std::string *data_line_s,
-    int input_size, 
-    MeshName::MeshName mesh_name);
+    int input_size);
 
 #endif
 

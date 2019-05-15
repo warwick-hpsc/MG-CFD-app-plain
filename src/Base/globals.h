@@ -3,7 +3,7 @@
 
 extern config conf;
 
-extern MeshName::MeshName mesh_name;
+extern int mesh_variant;
 
 extern int levels;
 extern int level;

@@ -3,6 +3,16 @@
 
 #include "definitions.h"
 
+void adjust_ewt(
+    const double3 *restrict coords,
+    int num_edges, 
+    edge_neighbour *restrict edges);
+
+void dampen_ewt(
+    int num_edges, 
+    edge_neighbour *restrict edges, 
+    double damping_factor);
+
 void residual(
     int nel, 
     const double *restrict old_variables, 

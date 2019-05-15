@@ -37,4 +37,9 @@
 #define DOWN 6
 #define NUM_KERNELS (DOWN+1)
 
+#define MESH_FVCORR 0
+#define MESH_M6_WING 2
+#define MESH_LA_CASCADE 3
+#define MESH_ROTOR_37 4
+
 #endif

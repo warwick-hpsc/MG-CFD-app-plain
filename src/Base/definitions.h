@@ -87,16 +87,6 @@ namespace Filetype
     };
 }
 
-namespace MeshName
-{
-    enum MeshName {
-        Unknown,
-        LA_Cascade,
-        Rotor37,
-        fvcorr
-    };
-}
-
 struct double3 { double x, y, z; };
 struct edge { double a, b; };
 struct edge_neighbour { int a, b; double x, y, z; };

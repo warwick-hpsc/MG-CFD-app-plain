@@ -27,76 +27,6 @@
 #include "timer.h"
 #include "loop_stats.h"
 
-void down_residuals(
-    double *restrict residuals1, 
-    int nel1, 
-    double *restrict variables2, 
-    double *restrict residuals2, 
-    int nel2, 
-    int *restrict mapping, 
-    int mgc, 
-    double3 *restrict coords1, 
-    double3 *restrict coords2)
-{
-    log("down()");
-    current_kernel = DOWN;
-
-    int loop_start = 0;
-    int loop_end = mgc;
-
-    #ifdef OMP
-        #pragma omp parallel firstprivate(loop_start, loop_end)
-        {
-            openmp_distribute_loop_iterations(&loop_start, &loop_end);
-    #endif
-
-    #ifdef PAPI
-    start_papi();
-    #endif
-    #ifdef TIME
-    start_timer();
-    #endif
-    for(int i=loop_start; i<loop_end; i++)
-    {
-        const int p1 = mapping[i];
-        
-        //1. Calculate dx, dy, dz, dm
-        double dx = fabs(coords2[i].x - coords1[p1].x);
-        double dy = fabs(coords2[i].y - coords1[p1].y);
-        double dz = fabs(coords2[i].z - coords1[p1].z);
-        double dm = sqrt(dx*dx + dy*dy + dz*dz);
-
-        const int p_idx2  = NVAR*i + VAR_DENSITY;
-        const int mx_idx2 = NVAR*i + VAR_MOMENTUMX;
-        const int my_idx2 = NVAR*i + VAR_MOMENTUMY;
-        const int mz_idx2 = NVAR*i + VAR_MOMENTUMZ;
-        const int pe_idx2 = NVAR*i + VAR_DENSITY_ENERGY;
-
-        const int p_idx1  = NVAR*p1 + VAR_DENSITY;
-        const int mx_idx1 = NVAR*p1 + VAR_MOMENTUMX;
-        const int my_idx1 = NVAR*p1 + VAR_MOMENTUMY;
-        const int mz_idx1 = NVAR*p1 + VAR_MOMENTUMZ;
-        const int pe_idx1 = NVAR*p1 + VAR_DENSITY_ENERGY;
-
-        variables2[p_idx2]  -= (residuals1[p_idx1 ] - residuals2[p_idx2 ])*dm;
-        variables2[mx_idx2] -= (residuals1[mx_idx1] - residuals2[mx_idx2])*dx;
-        variables2[my_idx2] -= (residuals1[my_idx1] - residuals2[my_idx2])*dy;
-        variables2[mz_idx2] -= (residuals1[mz_idx1] - residuals2[mz_idx2])*dz;
-        variables2[pe_idx2] -= (residuals1[pe_idx1] - residuals2[pe_idx2])*dm;
-    }
-    #ifdef TIME
-    stop_timer();
-    #endif
-    #ifdef PAPI
-    stop_papi();
-    #endif
-    record_iters(loop_start, loop_end);
-
-    #ifdef OMP
-    }
-    #endif
-}
-
 void up(
     double *restrict variables1, 
     double *restrict variables2, 
@@ -248,5 +178,664 @@ void up(
         #ifdef OMP
         }
         #endif
+    }
+}
+
+void down(
+    double *restrict variables1, 
+    int nel1, 
+    double *restrict variables2, 
+    int nel2, 
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2)
+{
+    // This is the original 'up' operator added by my predecessor. 
+    // I think it is mathematically flawed, quickly corrupting the solution.
+    // Attempts to fix are made in later functions.
+
+    log("down()");
+    current_kernel = DOWN;
+
+    int loop_start = 0;
+    int loop_end = mgc;
+
+    #ifdef OMP
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    for(int i=loop_start; i<loop_end; i++)
+    {
+        const int p1 = mapping[i];
+        
+        //1. Calculate dx, dy, dz, dm
+        double dx = fabs(coords2[i].x - coords1[p1].x);
+        double dy = fabs(coords2[i].y - coords1[p1].y);
+        double dz = fabs(coords2[i].z - coords1[p1].z);
+        double dm = sqrt(dx*dx + dy*dy + dz*dz);
+
+        const int p_idx2  = NVAR*i + VAR_DENSITY;
+        const int mx_idx2 = NVAR*i + VAR_MOMENTUMX;
+        const int my_idx2 = NVAR*i + VAR_MOMENTUMY;
+        const int mz_idx2 = NVAR*i + VAR_MOMENTUMZ;
+        const int pe_idx2 = NVAR*i + VAR_DENSITY_ENERGY;
+
+        const int p_idx1  = NVAR*p1 + VAR_DENSITY;
+        const int mx_idx1 = NVAR*p1 + VAR_MOMENTUMX;
+        const int my_idx1 = NVAR*p1 + VAR_MOMENTUMY;
+        const int mz_idx1 = NVAR*p1 + VAR_MOMENTUMZ;
+        const int pe_idx1 = NVAR*p1 + VAR_DENSITY_ENERGY;
+
+        variables2[p_idx2]  -= (variables1[p_idx1 ] - variables2[p_idx2 ])*dm;
+        variables2[mx_idx2] -= (variables1[mx_idx1] - variables2[mx_idx2])*dx;
+        variables2[my_idx2] -= (variables1[my_idx1] - variables2[my_idx2])*dy;
+        variables2[mz_idx2] -= (variables1[mz_idx1] - variables2[mz_idx2])*dz;
+        variables2[pe_idx2] -= (variables1[pe_idx1] - variables2[pe_idx2])*dm;
+    }
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+    record_iters(loop_start, loop_end);
+
+    #ifdef OMP
+    }
+    #endif
+}
+
+void down_residuals(
+    double *restrict residuals1, 
+    int nel1, 
+    // double *restrict variables2, 
+    // double *restrict residuals2, 
+    // Depending on MG configuration, variables2 and residuals2
+    // may point to the same array.
+    double *variables2, 
+    double *residuals2, 
+    int nel2, 
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2)
+{
+    log("down_residuals()");
+    current_kernel = DOWN;
+
+    int loop_start = 0;
+    int loop_end = mgc;
+
+    #ifdef OMP
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    for(int i=loop_start; i<loop_end; i++)
+    {
+        const int p1 = mapping[i];
+        
+        //1. Calculate dx, dy, dz, dm
+        double dx = fabs(coords2[i].x - coords1[p1].x);
+        double dy = fabs(coords2[i].y - coords1[p1].y);
+        double dz = fabs(coords2[i].z - coords1[p1].z);
+        double dm = sqrt(dx*dx + dy*dy + dz*dz);
+
+        const int p_idx2  = NVAR*i + VAR_DENSITY;
+        const int mx_idx2 = NVAR*i + VAR_MOMENTUMX;
+        const int my_idx2 = NVAR*i + VAR_MOMENTUMY;
+        const int mz_idx2 = NVAR*i + VAR_MOMENTUMZ;
+        const int pe_idx2 = NVAR*i + VAR_DENSITY_ENERGY;
+
+        const int p_idx1  = NVAR*p1 + VAR_DENSITY;
+        const int mx_idx1 = NVAR*p1 + VAR_MOMENTUMX;
+        const int my_idx1 = NVAR*p1 + VAR_MOMENTUMY;
+        const int mz_idx1 = NVAR*p1 + VAR_MOMENTUMZ;
+        const int pe_idx1 = NVAR*p1 + VAR_DENSITY_ENERGY;
+
+        variables2[p_idx2]  += (residuals2[p_idx1 ] - residuals1[p_idx2 ]);
+        variables2[mx_idx2] += (residuals2[mx_idx1] - residuals1[mx_idx2]);
+        variables2[my_idx2] += (residuals2[my_idx1] - residuals1[my_idx2]);
+        variables2[mz_idx2] += (residuals2[mz_idx1] - residuals1[mz_idx2]);
+        variables2[pe_idx2] += (residuals2[pe_idx1] - residuals1[pe_idx2]);
+    }
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+    record_iters(loop_start, loop_end);
+
+    #ifdef OMP
+    }
+    #endif
+}
+
+void down_interpolate(
+    double *restrict variables1, 
+    int nel1, 
+    double *restrict variables2, 
+    int nel2, 
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2)
+{
+    log("down_interpolate()");
+    current_kernel = DOWN;
+
+    int loop_start = 0;
+    int loop_end = mgc;
+
+    #ifdef OMP
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    for(int i=loop_start; i<loop_end; i++)
+    {
+        const int p2 = i;
+
+        const int p1  = mapping[p2];
+
+        // It would be better to get actual neighbours 
+        // of node p1, but for now am just experimenting:
+        int p1a, p1b;
+        if (p1==0) {
+            p1a = p1+1;
+            p1b = p1+2;
+        }
+        else if (p1==(nel1-1)) {
+            p1a = p1-2;
+            p1b = p1-1;
+        }
+        else {
+            p1a = p1-1;
+            p1b = p1+1;
+        }
+
+        double dx = fabs(coords2[p2].x - coords1[p1].x);
+        double dy = fabs(coords2[p2].y - coords1[p1].y);
+        double dz = fabs(coords2[p2].z - coords1[p1].z);
+        double dm = sqrt(dx*dx + dy*dy + dz*dz);
+
+        double dx_a = fabs(coords2[p2].x - coords1[p1a].x);
+        double dy_a = fabs(coords2[p2].y - coords1[p1a].y);
+        double dz_a = fabs(coords2[p2].z - coords1[p1a].z);
+        double dm_a = sqrt(dx_a*dx_a + dy_a*dy_a + dz_a*dz_a);
+
+        double dx_b = fabs(coords2[p2].x - coords1[p1b].x);
+        double dy_b = fabs(coords2[p2].y - coords1[p1b].y);
+        double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
+        double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
+
+        double dm_sum = dm + dm_a + dm_b;
+
+        double p2_factor, p2a_factor, p2b_factor, w_sum;
+        if (dm == 0.0) {
+            // Simply transfer the value down:
+            p2_factor = 1.0;
+            p2a_factor = 0.0;
+            p2b_factor = 0.0;
+            w_sum = 1.0;
+        }
+        else {
+            // Interpolate:
+            // p2_factor  = (dm  ==0.0) ? 0.0 : dm  /dm_sum;
+            // p2a_factor = (dm_a==0.0) ? 0.0 : dm_a/dm_sum;
+            // p2b_factor = (dm_b==0.0) ? 0.0 : dm_b/dm_sum;
+            p2_factor  = (dm  ==0.0) ? 0.0 : 1.0 / dm;
+            p2a_factor = (dm_a==0.0) ? 0.0 : 1.0 / dm_a;
+            p2b_factor = (dm_b==0.0) ? 0.0 : 1.0 / dm_b;
+            w_sum = p2_factor + p2a_factor + p2b_factor;
+        }
+
+        const int p_idx2  = NVAR*p2 + VAR_DENSITY;
+        const int mx_idx2 = NVAR*p2 + VAR_MOMENTUMX;
+        const int my_idx2 = NVAR*p2 + VAR_MOMENTUMY;
+        const int mz_idx2 = NVAR*p2 + VAR_MOMENTUMZ;
+        const int pe_idx2 = NVAR*p2 + VAR_DENSITY_ENERGY;
+
+        const int p_idx1  = NVAR*p1 + VAR_DENSITY;
+        const int mx_idx1 = NVAR*p1 + VAR_MOMENTUMX;
+        const int my_idx1 = NVAR*p1 + VAR_MOMENTUMY;
+        const int mz_idx1 = NVAR*p1 + VAR_MOMENTUMZ;
+        const int pe_idx1 = NVAR*p1 + VAR_DENSITY_ENERGY;
+
+        const int p_idx1a  = NVAR*p1a + VAR_DENSITY;
+        const int mx_idx1a = NVAR*p1a + VAR_MOMENTUMX;
+        const int my_idx1a = NVAR*p1a + VAR_MOMENTUMY;
+        const int mz_idx1a = NVAR*p1a + VAR_MOMENTUMZ;
+        const int pe_idx1a = NVAR*p1a + VAR_DENSITY_ENERGY;
+
+        const int p_idx1b  = NVAR*p1b + VAR_DENSITY;
+        const int mx_idx1b = NVAR*p1b + VAR_MOMENTUMX;
+        const int my_idx1b = NVAR*p1b + VAR_MOMENTUMY;
+        const int mz_idx1b = NVAR*p1b + VAR_MOMENTUMZ;
+        const int pe_idx1b = NVAR*p1b + VAR_DENSITY_ENERGY;
+
+        variables2[p_idx2] = p2_factor*variables1[p_idx1] 
+                           + p2a_factor*variables1[p_idx1a]
+                           + p2b_factor*variables1[p_idx1b];
+
+        variables2[mx_idx2] = p2_factor*variables1[mx_idx1] 
+                            + p2a_factor*variables1[mx_idx1a]
+                            + p2b_factor*variables1[mx_idx1b];
+                           
+        variables2[my_idx2] = p2_factor*variables1[my_idx1] 
+                            + p2a_factor*variables1[my_idx1a]
+                            + p2b_factor*variables1[my_idx1b];
+                           
+        variables2[mz_idx2] = p2_factor*variables1[mz_idx1] 
+                            + p2a_factor*variables1[mz_idx1a]
+                            + p2b_factor*variables1[mz_idx1b];
+
+        variables2[pe_idx2] = p2_factor*variables1[pe_idx1] 
+                            + p2a_factor*variables1[pe_idx1a]
+                            + p2b_factor*variables1[pe_idx1b];
+
+        variables2[p_idx2]  /= w_sum;
+        variables2[mx_idx2] /= w_sum;
+        variables2[my_idx2] /= w_sum;
+        variables2[mz_idx2] /= w_sum;
+        variables2[pe_idx2] /= w_sum;
+    }
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+    record_iters(loop_start, loop_end);
+
+    #ifdef OMP
+    }
+    #endif
+}
+
+void down_residuals_interpolate_crude(
+    double *restrict residuals1, 
+    int nel1, 
+    double *restrict residuals2,
+    double *restrict variables2, 
+    int nel2, 
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2)
+{
+    log("down_residuals_interpolate_crude()");
+    current_kernel = DOWN;
+
+    int loop_start = 0;
+    int loop_end = mgc;
+
+    #ifdef OMP
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    for(int i=loop_start; i<loop_end; i++)
+    {
+        const int p2 = i;
+
+        const int p1  = mapping[p2];
+
+        // It would be better to get actual neighbours of node p1, but that 
+        // requires generating a mapping of node -> N nearest neighbours 
+        // (where N is constant to simplify mapping access, eg 3).
+        int p1a, p1b;
+        if (p1==0) {
+            p1a = p1+1;
+            p1b = p1+2;
+        }
+        else if (p1==(nel1-1)) {
+            p1a = p1-2;
+            p1b = p1-1;
+        }
+        else {
+            p1a = p1-1;
+            p1b = p1+1;
+        }
+
+        double dx = fabs(coords2[p2].x - coords1[p1].x);
+        double dy = fabs(coords2[p2].y - coords1[p1].y);
+        double dz = fabs(coords2[p2].z - coords1[p1].z);
+        double dm = sqrt(dx*dx + dy*dy + dz*dz);
+
+        double dx_a = fabs(coords2[p2].x - coords1[p1a].x);
+        double dy_a = fabs(coords2[p2].y - coords1[p1a].y);
+        double dz_a = fabs(coords2[p2].z - coords1[p1a].z);
+        double dm_a = sqrt(dx_a*dx_a + dy_a*dy_a + dz_a*dz_a);
+
+        double dx_b = fabs(coords2[p2].x - coords1[p1b].x);
+        double dy_b = fabs(coords2[p2].y - coords1[p1b].y);
+        double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
+        double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
+
+        double dm_sum = dm + dm_a + dm_b;
+
+        double p2_factor, p2a_factor, p2b_factor, w_sum;
+        if (dm == 0.0) {
+            // Simply transfer the value down:
+            p2_factor = 1.0;
+            p2a_factor = 0.0;
+            p2b_factor = 0.0;
+            w_sum = 1.0;
+        }
+        else {
+            // Interpolate:
+            // p2_factor  = (dm  ==0.0) ? 0.0 : dm  /dm_sum;
+            // p2a_factor = (dm_a==0.0) ? 0.0 : dm_a/dm_sum;
+            // p2b_factor = (dm_b==0.0) ? 0.0 : dm_b/dm_sum;
+            p2_factor  = (dm  ==0.0) ? 0.0 : 1.0 / dm;
+            p2a_factor = (dm_a==0.0) ? 0.0 : 1.0 / dm_a;
+            p2b_factor = (dm_b==0.0) ? 0.0 : 1.0 / dm_b;
+            w_sum = p2_factor + p2a_factor + p2b_factor;
+        }
+
+        const int p_idx2  = NVAR*p2 + VAR_DENSITY;
+        const int mx_idx2 = NVAR*p2 + VAR_MOMENTUMX;
+        const int my_idx2 = NVAR*p2 + VAR_MOMENTUMY;
+        const int mz_idx2 = NVAR*p2 + VAR_MOMENTUMZ;
+        const int pe_idx2 = NVAR*p2 + VAR_DENSITY_ENERGY;
+
+        const int p_idx1  = NVAR*p1 + VAR_DENSITY;
+        const int mx_idx1 = NVAR*p1 + VAR_MOMENTUMX;
+        const int my_idx1 = NVAR*p1 + VAR_MOMENTUMY;
+        const int mz_idx1 = NVAR*p1 + VAR_MOMENTUMZ;
+        const int pe_idx1 = NVAR*p1 + VAR_DENSITY_ENERGY;
+
+        const int p_idx1a  = NVAR*p1a + VAR_DENSITY;
+        const int mx_idx1a = NVAR*p1a + VAR_MOMENTUMX;
+        const int my_idx1a = NVAR*p1a + VAR_MOMENTUMY;
+        const int mz_idx1a = NVAR*p1a + VAR_MOMENTUMZ;
+        const int pe_idx1a = NVAR*p1a + VAR_DENSITY_ENERGY;
+
+        const int p_idx1b  = NVAR*p1b + VAR_DENSITY;
+        const int mx_idx1b = NVAR*p1b + VAR_MOMENTUMX;
+        const int my_idx1b = NVAR*p1b + VAR_MOMENTUMY;
+        const int mz_idx1b = NVAR*p1b + VAR_MOMENTUMZ;
+        const int pe_idx1b = NVAR*p1b + VAR_DENSITY_ENERGY;
+
+
+        // variables2[p_idx2]  += p2_factor *residuals1[p_idx1] 
+        //                     +  p2a_factor*residuals1[p_idx1a]
+        //                     +  p2b_factor*residuals1[p_idx1b];
+
+        // variables2[mx_idx2] += p2_factor *residuals1[mx_idx1] 
+        //                     +  p2a_factor*residuals1[mx_idx1a]
+        //                     +  p2b_factor*residuals1[mx_idx1b];
+                           
+        // variables2[my_idx2] += p2_factor *residuals1[my_idx1] 
+        //                     +  p2a_factor*residuals1[my_idx1a]
+        //                     +  p2b_factor*residuals1[my_idx1b];
+                           
+        // variables2[mz_idx2] += p2_factor *residuals1[mz_idx1] 
+        //                     +  p2a_factor*residuals1[mz_idx1a]
+        //                     +  p2b_factor*residuals1[mz_idx1b];
+
+        // variables2[pe_idx2] += p2_factor *residuals1[pe_idx1] 
+        //                     +  p2a_factor*residuals1[pe_idx1a]
+        //                     +  p2b_factor*residuals1[pe_idx1b];
+        
+        // variables2[p_idx2]  /= w_sum;
+        // variables2[mx_idx2] /= w_sum;
+        // variables2[my_idx2] /= w_sum;
+        // variables2[mz_idx2] /= w_sum;
+        // variables2[pe_idx2] /= w_sum;
+
+        double E[NVAR];
+        E[VAR_DENSITY]   = p2_factor *residuals1[p_idx1] 
+                         + p2a_factor*residuals1[p_idx1a]
+                         + p2b_factor*residuals1[p_idx1b];
+
+        E[VAR_MOMENTUMX] = p2_factor *residuals1[mx_idx1] 
+                         + p2a_factor*residuals1[mx_idx1a]
+                         + p2b_factor*residuals1[mx_idx1b];
+                           
+        E[VAR_MOMENTUMY] = p2_factor *residuals1[my_idx1] 
+                         + p2a_factor*residuals1[my_idx1a]
+                         + p2b_factor*residuals1[my_idx1b];
+                           
+        E[VAR_MOMENTUMZ] = p2_factor *residuals1[mz_idx1] 
+                         + p2a_factor*residuals1[mz_idx1a]
+                         + p2b_factor*residuals1[mz_idx1b];
+
+        E[VAR_DENSITY_ENERGY] = p2_factor *residuals1[pe_idx1] 
+                              + p2a_factor*residuals1[pe_idx1a]
+                              + p2b_factor*residuals1[pe_idx1b];
+
+        E[VAR_DENSITY]  /= w_sum;
+        E[VAR_MOMENTUMX] /= w_sum;
+        E[VAR_MOMENTUMY] /= w_sum;
+        E[VAR_MOMENTUMZ] /= w_sum;
+        E[VAR_DENSITY_ENERGY] /= w_sum;
+      
+        variables2[p_idx2]  += residuals2[p_idx2]  - E[VAR_DENSITY];
+        variables2[mx_idx2] += residuals2[mx_idx2] - E[VAR_MOMENTUMX];
+        variables2[my_idx2] += residuals2[my_idx2] - E[VAR_MOMENTUMY];
+        variables2[mz_idx2] += residuals2[mz_idx2] - E[VAR_MOMENTUMZ];
+        variables2[pe_idx2] += residuals2[pe_idx2] - E[VAR_DENSITY_ENERGY];
+    }
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+    record_iters(loop_start, loop_end);
+
+    #ifdef OMP
+    }
+    #endif
+}
+
+void down_residuals_interpolate_proper(
+    edge_neighbour *edges,
+    int num_edges,
+    double *restrict residuals1, 
+    double *restrict residuals2,
+    double *restrict variables2, 
+    int nel2,
+    int *restrict mapping, 
+    int mgc, 
+    double3 *restrict coords1, 
+    double3 *restrict coords2)
+{
+    // Goal: interpolate residuals of level above to estimate residuals of level below.
+    // Achieve this by computing a weighted average, where weight is 1.0/distance.
+
+    log("down_residuals_interpolate_proper()");
+    current_kernel = DOWN;
+
+    double* w_sums = alloc<double>(nel2);
+    for (int i=0; i<nel2; i++) {
+        w_sums[i] = 0.0;
+    }
+
+    double* res2_wavg = alloc<double>(nel2*NVAR);
+    for (int i=0; i<nel2*NVAR; i++) {
+        res2_wavg[i] = 0.0;
+    }
+
+    // Perform the summing stage of weighted average:
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    for (int i=0; i<num_edges; i++) {
+        const int a2 = edges[i].a;
+        const int a1 = mapping[a2];
+        const double3 ca1 = coords1[a1];
+        const double3 ca2 = coords2[a2];
+
+        const int b2 = edges[i].b;
+        const int b1 = mapping[b2];
+        const double3 cb1 = coords1[b1];
+        const double3 cb2 = coords2[b2];
+
+        // Process a2:
+        double dx_a2a1 = ca2.x - ca1.x;
+        double dy_a2a1 = ca2.y - ca1.y;
+        double dz_a2a1 = ca2.z - ca1.z;
+        if (dx_a2a1 == 0.0 && dy_a2a1 == 0.0 && dz_a2a1 == 0.0) {
+            // a2 == a1:
+            res2_wavg[a2*NVAR + VAR_DENSITY]        = residuals1[a1*NVAR + VAR_DENSITY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      = residuals1[a1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      = residuals1[a1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      = residuals1[a1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] = residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[a2] = 1.0;
+        } else {
+            // Interpolate a2 -> a1:
+            const double idist_a2a1 = 1.0/sqrt(dx_a2a1*dx_a2a1 + dy_a2a1*dy_a2a1 + dz_a2a1*dz_a2a1);
+            // if (isinf(idist_a2a1)) {
+            //     fprintf(stderr, "ERROR: idist_a2a1 is inf\n");
+            //     DEBUGGABLE_ABORT
+            // }
+            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_a2a1*residuals1[a1*NVAR + VAR_DENSITY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_a2a1*residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[a2] += idist_a2a1;
+
+            // Interpolate a2 -> b1:
+            double dx_a2b1 = ca2.x - cb1.x;
+            double dy_a2b1 = ca2.y - cb1.y;
+            double dz_a2b1 = ca2.z - cb1.z;
+
+            const double idist_a2b1 = 1.0/sqrt(dx_a2b1*dx_a2b1 + dy_a2b1*dy_a2b1 + dz_a2b1*dz_a2b1);
+            // if (isinf(idist_a2b1)) {
+            //     fprintf(stderr, "ERROR: idist_a2b1 is inf\n");
+            //     DEBUGGABLE_ABORT
+            // }
+            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_a2b1*residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_a2b1*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[a2] += idist_a2b1;
+        }
+
+        // Process b2:
+        double dx_b2b1 = cb2.x - cb1.x;
+        double dy_b2b1 = cb2.y - cb1.y;
+        double dz_b2b1 = cb2.z - cb1.z;
+        if (dx_b2b1 == 0.0 && dy_b2b1 == 0.0 && dz_b2b1 == 0.0) {
+            // b2 == b1:
+            res2_wavg[b2*NVAR + VAR_DENSITY]        = residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      = residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      = residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      = residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] = residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[b2] = 1.0;
+        } else {
+            // Interpolate b2 -> b1:
+            const double idist_b2b1 = 1.0/sqrt(dx_b2b1*dx_b2b1 + dy_b2b1*dy_b2b1 + dz_b2b1*dz_b2b1);
+            // if (isinf(idist_b2b1)) {
+            //     fprintf(stderr, "ERROR: idist_b2b1 is inf\n");
+            //     DEBUGGABLE_ABORT
+            // }
+            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_b2b1*residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_b2b1*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[b2] += idist_b2b1;
+
+            // Interpolate b2 -> a1:
+            double dx_b2a1 = cb2.x - ca1.x;
+            double dy_b2a1 = cb2.y - ca1.y;
+            double dz_b2a1 = cb2.z - ca1.z;
+
+            const double idist_b2a1 = 1.0/sqrt(dx_b2a1*dx_b2a1 + dy_b2a1*dy_b2a1 + dz_b2a1*dz_b2a1);
+            // if (isinf(idist_b2a1)) {
+            //     fprintf(stderr, "ERROR: idist_b2a1 is inf\n");
+            //     fprintf(stderr, "       e=%d,  a2=%d -- b2=%d , a1=%d, b1=%d\n", i, a2, b2, a1, b1);
+            //     fprintf(stderr, "       ca2: %.5e, %.5e, %.5e\n", ca2.x, ca2.y, ca2.z);
+            //     fprintf(stderr, "       cb2: %.5e, %.5e, %.5e\n", cb2.x, cb2.y, cb2.z);
+            //     fprintf(stderr, "       ca1: %.5e, %.5e, %.5e\n", ca1.x, ca1.y, ca1.z);
+            //     fprintf(stderr, "       cb2: %.5e, %.5e, %.5e\n", cb2.x, cb2.y, cb2.z);
+            //     fprintf(stderr, "       d_b2a1: %.5e, %.5e, %.5e\n", dx_b2a1, dy_b2a1, dz_b2a1);
+            //     DEBUGGABLE_ABORT
+            // }
+            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_b2a1*residuals1[a1*NVAR + VAR_DENSITY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_b2a1*residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[b2] += idist_b2a1;
+        }
+    }
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+    record_iters(0, num_edges);
+
+    // Divide through by sum of weights:
+    for (int i=0; i<nel2; i++) {
+        for (int j=0; j<NVAR; j++) {
+            res2_wavg[i*NVAR +j] /= w_sums[i];
+
+            // if (isnan(res2_wavg[i*NVAR +j])) {
+            //     fprintf(stderr, "ERROR: nan detected\n");
+            //     fprintf(stderr, "res2 = %.5e, w_sum = %.5e\n", res2_wavg[i*NVAR +j], w_sums[i]);
+            //     fprintf(stderr, "i = %d, j = %d\n", i, j);
+            //     exit(EXIT_FAILURE);
+            // }
+        }
+    }
+
+    // Apply residuals estimate to grid:
+    for (int i=0; i<nel2; i++) {
+        const int p_idx2  = NVAR*i + VAR_DENSITY;
+        const int mx_idx2 = NVAR*i + VAR_MOMENTUMX;
+        const int my_idx2 = NVAR*i + VAR_MOMENTUMY;
+        const int mz_idx2 = NVAR*i + VAR_MOMENTUMZ;
+        const int pe_idx2 = NVAR*i + VAR_DENSITY_ENERGY;
+
+        variables2[p_idx2]  += residuals2[p_idx2]  - res2_wavg[p_idx2];
+        variables2[mx_idx2] += residuals2[mx_idx2] - res2_wavg[mx_idx2];
+        variables2[my_idx2] += residuals2[my_idx2] - res2_wavg[my_idx2];
+        variables2[mz_idx2] += residuals2[mz_idx2] - res2_wavg[mz_idx2];
+        variables2[pe_idx2] += residuals2[pe_idx2] - res2_wavg[pe_idx2];
     }
 }

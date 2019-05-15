@@ -116,7 +116,7 @@ void compute_flux_edge(
     #else
         #ifdef FLUX_FISSION
             // SIMD is safe
-            #pragma omp simd simdlen(SIMD_LEN)
+            #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined __AVX512CD__ && defined __ICC
