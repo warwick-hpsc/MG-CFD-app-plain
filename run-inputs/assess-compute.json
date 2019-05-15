@@ -11,15 +11,16 @@
     },
 
     "run": {
-        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "data dirpath": "../../MG-CFD-app-plain-datasets/m6wing",
         "num threads": [1], 
         "num repeats": 3,
-        "mg cycles": 50
+        "mg cycles": 25,
+        "min mesh multi": 2
     },
 
     "setup": {
         "jobs dir": "./run-jobs.assess-compute",
-        "job scheduler": "slurm", 
-        "partition": "skylake"
+        "job scheduler": "?", 
+        "partition": "?"
     }
 }

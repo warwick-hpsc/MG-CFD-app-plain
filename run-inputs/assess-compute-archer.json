@@ -11,17 +11,18 @@
     },
 
     "run": {
-        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "data dirpath": "../../MG-CFD-app-plain-datasets/m6wing",
         "num threads": [1], 
         "num repeats": 3,
         "mg cycles": 50,
-        "unit walltime": 0.41
+        "unit walltime": 1.0,
+        "min mesh multi": 2
     },
 
     "setup": {
         "jobs dir": "./run-jobs.assess-compute",
-        "job scheduler": "pbs", 
-        "partition": "standard",
-        "budget code": "e609"
+        "job scheduler": "?", 
+        "partition": "?",
+        "budget code": ""
     }
 }

@@ -1,17 +1,18 @@
 {
     "compile": {
-        "compiler": "intel"
+        "compiler": "intel",
+        "base flags": "-DOMP -DFLUX_FISSION -DSIMD -DDBLS_PER_SIMD=4"
     },
 
     "run": {
-        "data dirpath": "../../MG-CFD-app-plain-datasets/fvcorr.domn.097K",
-        "num threads": [1], 
+        "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
+        "num threads": [4], 
         "mg cycles": 25
     },
 
     "setup": {
         "jobs dir": "./run-jobs.simple",
-        "job scheduler": "slurm", 
-        "partition": "skylake"
+        "job scheduler": "?", 
+        "partition": "?"
     }
 }

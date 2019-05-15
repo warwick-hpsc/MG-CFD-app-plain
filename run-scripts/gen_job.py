@@ -29,6 +29,7 @@ defaults["perm flags"] = [""]
 defaults["num threads"] = [1]
 defaults["num repeats"] = 1
 defaults["mg cycles"] = 50
+defaults["min mesh multi"] = 1
 ## Approximate runtime of a single MG cycle of LA_cascade mesh:
 defaults["unit walltime"] = 0.2
 defaults["budget code"] = "NotSpecified"
@@ -129,6 +130,8 @@ if __name__=="__main__":
     if len(perm_flags_permutations) == 0:
         perm_flags_permutations = [""]
 
+    min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
+
     num_jobs = len(perm_flags_permutations) * len(isas) * len(threads) * num_repeats
     submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
 
@@ -171,7 +174,6 @@ if __name__=="__main__":
                     py_sed(job_run_filepath, "<NUM_THREADS>", nt)
                     py_sed(job_run_filepath, "<MG_CYCLES>", mg_cycles)
 
-                    mesh_multi = 10
                     while (mesh_multi % nt) > 0:
                         mesh_multi += 1
                     py_sed(job_run_filepath, "<MESH_MULTI>", mesh_multi)

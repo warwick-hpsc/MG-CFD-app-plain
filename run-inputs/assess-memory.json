@@ -6,10 +6,11 @@
     },
 
     "run": {
-        "data dirpath": "../../MG-CFD-app-plain-datasets/la_cascade",
+        "data dirpath": "../../MG-CFD-app-plain-datasets/m6wing",
         "num threads": [1, 2, 4, 6, 8, 12, 16, 20, 24], 
         "num repeats": 3,
-        "mg cycles": 50
+        "mg cycles": 25,
+        "min mesh multi": 2
     },
 
     "setup": {
