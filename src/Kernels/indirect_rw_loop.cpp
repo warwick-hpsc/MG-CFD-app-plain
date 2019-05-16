@@ -1,13 +1,13 @@
-#include "indirect_rw_kernel.h"
-#include "kernels.h"
+#include "indirect_rw_loop.h"
+#include "cfd_loops.h"
 
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"
 
 // Indirect R/W kernel
-// - performs same data movement as compute_flux_edge() but with minimal arithmetic, 
-//   measuring upper bound on performance achievable by compute_flux_edge()
+// - performs same data movement as compute_flux_edge() but with minimal arithmetic. 
+//   Measures upper bound on performance achievable by compute_flux_edge()
 void indirect_rw(
     int first_edge,
     int nedges,
@@ -52,7 +52,7 @@ void indirect_rw(
             // Conflict avoidance is required for safe SIMD
             #if defined __AVX512CD__ && defined __ICC
                 #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into flux.elemfunc.c to 
+                // TODO: Insert the following pragma into indirect_rw_kernel.elemfunc.c to 
                 //       enable safe AVX-512-CD SIMD:
                 // #pragma omp ordered simd overlap(...)
             #endif

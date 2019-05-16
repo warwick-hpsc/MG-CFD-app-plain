@@ -10,6 +10,39 @@
 
 #include "common.h"
 
+void compute_step_factor(
+    int nel, 
+    const double *restrict variables, 
+    const double *restrict volumes, 
+    double *restrict step_factors);
+
+void compute_step_factor_legacy(
+    int nel, 
+    const double *restrict variables, 
+    const double *restrict areas, 
+    double *restrict step_factors);
+
+void update_edges(
+    int first_edge, 
+    int nedges, 
+    const edge_neighbour *restrict edges,
+    int nel, 
+    const edge *restrict edge_variables,
+    double *restrict fluxes);
+
+void time_step(
+    int j, 
+    int nel, 
+    const double *restrict step_factors, 
+    const double *restrict volumes, 
+    double *restrict fluxes, 
+    const double *restrict old_variables, 
+    double *restrict variables);
+
+void zero_fluxes(
+    int nel, 
+    double *restrict array);
+
 inline void initialize_variables(
     int nel, 
     double* restrict variables)
@@ -177,38 +210,5 @@ inline void update_b(
     fluxes[my_idx] += my_val;
     fluxes[mz_idx] += mz_val;
 }
-
-void compute_step_factor(
-    int nel, 
-    const double *restrict variables, 
-    const double *restrict volumes, 
-    double *restrict step_factors);
-
-void compute_step_factor_legacy(
-    int nel, 
-    const double *restrict variables, 
-    const double *restrict areas, 
-    double *restrict step_factors);
-
-void update_edges(
-    int first_edge, 
-    int nedges, 
-    const edge_neighbour *restrict edges,
-    int nel, 
-    const edge *restrict edge_variables,
-    double *restrict fluxes);
-
-void time_step(
-    int j, 
-    int nel, 
-    const double *restrict step_factors, 
-    const double *restrict volumes, 
-    double *restrict fluxes, 
-    const double *restrict old_variables, 
-    double *restrict variables);
-
-void zero_fluxes(
-    int nel, 
-    double *restrict array);
 
 #endif

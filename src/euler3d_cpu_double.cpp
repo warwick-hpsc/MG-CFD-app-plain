@@ -18,10 +18,10 @@
 #include "io_enhanced.h"
 
 // Kernels:
-#include "flux_kernels.h"
-#include "kernels.h"
-#include "mg.h"
-#include "indirect_rw_kernel.h"
+#include "flux_loops.h"
+#include "indirect_rw_loop.h"
+#include "cfd_loops.h"
+#include "mg_loops.h"
 
 // Monitoring:
 #include "papi_funcs.h"

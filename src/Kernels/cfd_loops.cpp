@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <cmath>
 
-#include "kernels.h"
+#include "cfd_loops.h"
+
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"

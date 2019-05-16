@@ -22,7 +22,8 @@
 #include <stdlib.h>
 #include <cmath>
 
-#include "mg.h"
+#include "mg_loops.h"
+
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"

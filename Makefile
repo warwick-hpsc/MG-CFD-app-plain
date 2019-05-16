@@ -142,10 +142,10 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Base/config.cpp \
 		  src/Base/io.cpp \
 		  src/Base/io_enhanced.cpp \
-		  src/Kernels/flux_kernels.cpp \
-		  src/Kernels/kernels.cpp \
-		  src/Kernels/mg.cpp \
-		  src/Kernels/indirect_rw_kernel.cpp \
+		  src/Kernels/flux_loops.cpp \
+		  src/Kernels/cfd_loops.cpp \
+		  src/Kernels/mg_loops.cpp \
+		  src/Kernels/indirect_rw_loop.cpp \
 		  src/Kernels/validation.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \

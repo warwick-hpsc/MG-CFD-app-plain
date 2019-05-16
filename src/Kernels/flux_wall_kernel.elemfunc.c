@@ -1,6 +1,17 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
+// void compute_wall_flux_edge(
+//     int first_edge,
+//     int nedges,
+//     const edge_neighbour *restrict edges, 
+//     const double *restrict variables, 
+//     #ifdef FLUX_FISSION
+//         edge *restrict edge_variables
+//     #else
+//         double *restrict fluxes
+//     #endif)
+
 int b = edges[i].b;
 
 double p_b, pe_b, pressure_b;

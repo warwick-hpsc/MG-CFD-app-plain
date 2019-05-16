@@ -1,5 +1,5 @@
-#include "flux_kernels.h"
-#include "kernels.h"
+#include "flux_loops.h"
+#include "cfd_loops.h"
 
 #include "papi_funcs.h"
 #include "timer.h"
@@ -30,7 +30,7 @@ void compute_boundary_flux_edge(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux_boundary.elemfunc.c"
+        #include "flux_boundary_kernel.elemfunc.c"
     }
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         }
@@ -64,7 +64,7 @@ void compute_wall_flux_edge(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux_wall.elemfunc.c"
+        #include "flux_wall_kernel.elemfunc.c"
     }
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         }
@@ -121,7 +121,7 @@ void compute_flux_edge(
             // Conflict avoidance is required for safe SIMD
             #if defined __AVX512CD__ && defined __ICC
                 #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into flux.elemfunc.c to 
+                // TODO: Insert the following pragma into flux_kernel.elemfunc.c to 
                 //       enable safe AVX-512-CD SIMD:
                 // #pragma omp ordered simd overlap(...)
             #endif
@@ -129,7 +129,7 @@ void compute_flux_edge(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux.elemfunc.c"
+        #include "flux_kernel.elemfunc.c"
     }
     #ifdef FLUX_CRIPPLE
         iters_monitoring_state = 1;
@@ -202,7 +202,7 @@ void compute_flux_edge_crippled(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux-crippled.elemfunc.c"
+        #include "flux_kernel_crippled.elemfunc.c"
     }
     #ifdef TIME
     stop_timer();
