@@ -10,5 +10,3 @@
 #BSUB -q <PARTITION>
 
 cd <RUN_DIR>
-
-module load intel

@@ -23,15 +23,16 @@ js_to_submit_cmd["pbs"] = "qsub"
 
 defaults = {}
 defaults["compiler"] = "intel"
+defaults["debug"] = False
 defaults["insn sets"] = [ "Host"]
 defaults["base flags"] = "-DTIME"
 defaults["perm flags"] = [""]
 defaults["num threads"] = [1]
 defaults["num repeats"] = 1
-defaults["mg cycles"] = 50
+defaults["mg cycles"] = 10
+defaults["validate result"] = False
 defaults["min mesh multi"] = 1
-## Approximate runtime of a single MG cycle of LA_cascade mesh:
-defaults["unit walltime"] = 0.2
+defaults["unit walltime"] = 0.5
 defaults["budget code"] = "NotSpecified"
 
 def get_key_value(profile, cat, key):
@@ -122,8 +123,10 @@ if __name__=="__main__":
     threads = get_key_value(profile, "run", "num threads")
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
+    validate = get_key_value(profile, "run", "validate result")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     compiler = get_key_value(profile, "compile", "compiler")
+    debug = get_key_value(profile, "compile", "debug")
     base_flags = get_key_value(profile, "compile", "base flags")
     perm_flags = get_key_value(profile, "compile", "perm flags")
     perm_flags_permutations = prune_perm_flags_permutations(itertools.product(*perm_flags))
@@ -172,12 +175,22 @@ if __name__=="__main__":
                     py_sed(job_run_filepath, "<ISA>", isa)
                     py_sed(job_run_filepath, "<BUILD_FLAGS>", build_flags)
                     py_sed(job_run_filepath, "<COMPILER>", compiler)
+                    if debug:
+                        py_sed(job_run_filepath, "<DEBUG>", "true")
+                    else:
+                        py_sed(job_run_filepath, "<DEBUG>", "false")
                     py_sed(job_run_filepath, "<NUM_THREADS>", nt)
 
                     mesh_multi = min_mesh_multi
                     py_sed(job_run_filepath, "<MG_CYCLES>", mg_cycles)
-                    while (mesh_multi % nt) > 0:
-                        mesh_multi += 1
+                    if validate:
+                        py_sed(job_run_filepath, "<VALIDATE_RESULT>", "true")
+                    else:
+                        py_sed(job_run_filepath, "<VALIDATE_RESULT>", "false")
+                    if not "-DFLUX_FISSION" in build_flags:
+                        ## Duplicate mesh to ensure each thread has a whole copy:
+                        while (mesh_multi % nt) > 0:
+                            mesh_multi += 1
                     py_sed(job_run_filepath, "<MESH_MULTI>", mesh_multi)
 
                     if js != "":

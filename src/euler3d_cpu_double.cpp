@@ -265,17 +265,37 @@ int main(int argc, char** argv)
         problem_size *= conf.mesh_duplicate_count;
 
         for(int i = 0; i < levels; i++) {
-            duplicate_mesh(
-                &nel[i],
-                &volumes[i],
-                &coords[i],
-                &number_of_edges[i],
-                &num_internal_edges[i], 
-                &num_boundary_edges[i], 
-                &num_wall_edges[i], 
-                &boundary_edge_starts[i], 
-                &wall_edge_starts[i],
-                &edges[i]);
+            if (i < (levels-1)) {
+                duplicate_mesh(
+                    &nel[i],
+                    &volumes[i],
+                    &coords[i],
+                    &number_of_edges[i],
+                    &num_internal_edges[i], 
+                    &num_boundary_edges[i], 
+                    &num_wall_edges[i], 
+                    &boundary_edge_starts[i], 
+                    &wall_edge_starts[i],
+                    &edges[i],
+                    nel[i+1],
+                    &mg_connectivity[i], 
+                    &mg_connectivity_size[i]);
+            } else {
+                duplicate_mesh(
+                    &nel[i],
+                    &volumes[i],
+                    &coords[i],
+                    &number_of_edges[i],
+                    &num_internal_edges[i], 
+                    &num_boundary_edges[i], 
+                    &num_wall_edges[i], 
+                    &boundary_edge_starts[i], 
+                    &wall_edge_starts[i],
+                    &edges[i],
+                    0,
+                    NULL, 
+                    NULL);
+            }
 
             dealloc<double>(variables[i]);
             variables[i] = alloc<double>((nel[i])*NVAR);
@@ -717,45 +737,47 @@ int main(int argc, char** argv)
     // Validate solution:
     ////////////////////////////////////
     printf("\n");
-    printf("Beginning validation of variables[]\n");
-    for (int level=0; level<levels; level++) {
-        check_for_invalid_variables(variables[level], nel[level]);
-    }
-    printf("  NaN check passed\n");
-    bool data_check_passed = true;
-    bool res;
-    // for (int level=0; level<levels; level++) {
-    // Update: only interested in the finest mesh:
-    for (int level=0; level<1; level++) {
-        // printf("Validating variables[] for level %d\n", level);
-        std::string solution_filepath = generate_solution_filepath(std::string("variables"), level);
-        std::ifstream file(solution_filepath.c_str());
-        if(!file.is_open())
-        {
-            printf("  could not open variables solution file:\n");
-            printf("    %s\n", solution_filepath.c_str());
-            printf("  aborting validation\n");
-            data_check_passed = false;
-            break;
+    if (conf.validate_result) {
+        printf("Beginning validation of variables[]\n");
+        for (int level=0; level<levels; level++) {
+            check_for_invalid_variables(variables[level], nel[level]);
         }
+        printf("  NaN check passed\n");
+        bool data_check_passed = true;
+        bool res;
+        // for (int level=0; level<levels; level++) {
+        // Update: only interested in the finest mesh:
+        for (int level=0; level<1; level++) {
+            // printf("Validating variables[] for level %d\n", level);
+            std::string solution_filepath = generate_solution_filepath(std::string("variables"), level);
+            std::ifstream file(solution_filepath.c_str());
+            if(!file.is_open())
+            {
+                printf("  could not open variables solution file:\n");
+                printf("    %s\n", solution_filepath.c_str());
+                printf("  aborting validation\n");
+                data_check_passed = false;
+                break;
+            }
 
-        double* variables_solution = alloc<double>(nel[level]*NVAR);
-        res = read_double_array(variables_solution, std::string("variables"), NVAR, nel[level], level);
-        if (!res) {
-            data_check_passed = false;
-            break;
-        } else {
-            printf("  scanning variables[] on level %d for errors\n", level);
-            identify_differences(variables[level], variables_solution, nel[level]);
+            double* variables_solution = alloc<double>(nel[level]*NVAR);
+            res = read_double_array(variables_solution, std::string("variables"), NVAR, nel[level], level);
+            if (!res) {
+                data_check_passed = false;
+                break;
+            } else {
+                printf("  scanning variables[] on level %d for errors\n", level);
+                identify_differences(variables[level], variables_solution, nel[level]);
+            }
+            dealloc<double>(variables_solution);
         }
-        dealloc<double>(variables_solution);
+        if (data_check_passed) {
+            printf("PASS: variables[] validated successfully\n");
+        // } else {
+        //     printf("FAIL: variables[] validation failed\n");
+        }
+        printf("\n");
     }
-    if (data_check_passed) {
-        printf("PASS: variables[] validated successfully\n");
-    // } else {
-    //     printf("FAIL: variables[] validation failed\n");
-    }
-    printf("\n");
 
     ////////////////////////////////////
     // Write out array data to file:

@@ -117,10 +117,10 @@ def analyse_object_files():
                 raise IOError("Cannot find a log file for run: " + output_dirpath)
 
             if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, log_filename)):
-                kernel_to_object["compute_flux_edge_crippled"] = "flux_kernels.o"
+                kernel_to_object["compute_flux_edge_crippled"] = "flux_loops.o"
             else:
-                kernel_to_object["compute_flux_edge"] = "flux_kernels.o"
-            kernel_to_object["indirect_rw"] = "indirect_rw_kernel.o"
+                kernel_to_object["compute_flux_edge"] = "flux_loops.o"
+            kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
             loops_tally_df = None
             for k in kernel_to_object.keys():

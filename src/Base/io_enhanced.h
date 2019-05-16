@@ -23,7 +23,10 @@ void duplicate_mesh(
     int* num_wall_edges, 
     int* boundary_edges_start, 
     int* wall_edges_start,
-    edge_neighbour** edges);
+    edge_neighbour** edges,
+    int nel_above,
+    int** mg_mapping,
+    int* mgc);
 
 bool read_grid_from_bin(
     const char* data_file_name, 

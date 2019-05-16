@@ -9,6 +9,6 @@
 #SBATCH --exclusive
 #SBATCH --partition=<PARTITION>
 
-cd <RUN_DIR>
+#SBATCH --export=NONE
 
-module load intel
+cd <RUN_DIR>

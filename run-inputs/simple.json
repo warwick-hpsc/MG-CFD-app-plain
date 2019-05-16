@@ -5,9 +5,10 @@
     },
 
     "run": {
-        "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
+        "data dirpath": "../MG-CFD-app-plain-datasets/fvcorr.domn.097K",
         "num threads": [4], 
-        "mg cycles": 25
+        "mg cycles": 10,
+        "validate result": true
     },
 
     "setup": {

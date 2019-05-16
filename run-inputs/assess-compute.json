@@ -11,10 +11,10 @@
     },
 
     "run": {
-        "data dirpath": "../../MG-CFD-app-plain-datasets/m6wing",
+        "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
         "num threads": [1], 
         "num repeats": 3,
-        "mg cycles": 25,
+        "mg cycles": 5,
         "min mesh multi": 2
     },
 

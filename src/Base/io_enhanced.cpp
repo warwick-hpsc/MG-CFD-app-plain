@@ -96,7 +96,10 @@ void duplicate_mesh(
     int* num_wall_edges, 
     int* boundary_edges_start, 
     int* wall_edges_start,
-    edge_neighbour** edges)
+    edge_neighbour** edges,
+    int nel_above,
+    int** mg_mapping,
+    int* mgc)
 {
     log("Entering duplicate_mesh()");
 
@@ -127,7 +130,6 @@ void duplicate_mesh(
     int wall_edges_start_duplicated     = (*wall_edges_start)*m;
 
     edge_neighbour* edges_duplicated = alloc<edge_neighbour>(number_of_edges_duplicated);
-
     int j=0;
     for (int i=0; i<m; i++) {
         const int n = *num_internal_edges;
@@ -164,6 +166,19 @@ void duplicate_mesh(
     for (; j<number_of_edges_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
+    }
+
+    if (mg_mapping != NULL) {
+        int mgc_duplicated = m*(*mgc);
+        int* mg_mapping_duplicated = alloc<int>(mgc_duplicated);
+        for (int i=0; i<m; i++) {
+            for (int n=0; n<(*mgc); n++) {
+                mg_mapping_duplicated[i*(*mgc) + n] = (*mg_mapping)[n] + (nel_above*i);
+            }
+        }
+        dealloc<int>(*mg_mapping);
+        *mg_mapping = mg_mapping_duplicated;
+        *mgc = mgc_duplicated;
     }
 
     *nel *= m;

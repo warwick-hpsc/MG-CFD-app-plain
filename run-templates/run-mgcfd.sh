@@ -11,6 +11,9 @@ _t=<NUM_THREADS>
 data_dirpath="<DATA_DIRPATH>"
 _m=<MESH_MULTI>
 mg_cycles=<MG_CYCLES>
+validate_result=<VALIDATE_RESULT>
+
+debug=<DEBUG>
 
 if [ -f "${run_outdir}/Times.csv" ]; then
     echo "Times.csv already exists, meaning this job has already run."
@@ -24,8 +27,13 @@ if [ "$isa" != "" ]; then
 fi
 export BUILD_FLAGS="$flags_final"
 cd "${app_dirpath}"
-CC="$_cc" make -j4
-bin_filename=euler3d_cpu_double_"${_cc}"
+if $debug ; then
+	CC="$_cc" make -j4 debug
+	bin_filename=euler3d_cpu_double_debug_"${_cc}"
+else
+	CC="$_cc" make -j4
+	bin_filename=euler3d_cpu_double_"${_cc}"
+fi
 bin_filename="$bin_filename"`echo "$flags_final" | tr -d " "`.b
 
 # Grab object files:
@@ -35,12 +43,18 @@ fi
 obj_dir="${app_dirpath}/obj/`hostname`/"
 obj_dir="${obj_dir}$_cc"
 obj_dir="${obj_dir}"`echo "$flags_final" | tr -d " "`
-cp "${obj_dir}"/Kernels/flux_kernels.o "${run_outdir}/objects/"
-cp "${obj_dir}"/Kernels/indirect_rw_kernel.o "${run_outdir}/objects/"
+cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
+cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
 
 # Execute:
 cd "${data_dirpath}"
 bin_filepath="${app_dirpath}/bin/`hostname`/${bin_filename}"
 export OMP_NUM_THREADS=$_t
 echo "EXECUTING $bin_filepath"
-eval "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles
+if $debug ; then
+	gdb --args "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles
+elif $validate_result ; then
+	eval "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles -v
+else
+	eval "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles
+fi

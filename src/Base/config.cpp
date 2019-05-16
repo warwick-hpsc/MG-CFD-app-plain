@@ -45,6 +45,8 @@ void set_config_defaults() {
 
     conf.num_cycles = 25;
 
+    conf.validate_result = false;
+
     #ifdef OMP
     conf.omp_num_threads = omp_get_max_threads();
     #else
@@ -227,6 +229,8 @@ bool parse_arguments(int argc, char** argv) {
             case 'g':
                 conf.num_cycles = atoi(optarg);
                 break;
+            case 'v':
+                conf.validate_result = true;
             case '\0':
                 break;
             default:
@@ -275,6 +279,7 @@ void print_help(void)
     fprintf(stderr, "\n");
     fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
+    fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "DEBUGGING ARGUMENTS\n");
     fprintf(stderr, "  --output-variables               Write Euler equation variable values to file\n");

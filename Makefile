@@ -170,13 +170,21 @@ main: generic
 debug: BIN_NAME := $(BIN_DIR)/euler3d_cpu_double_debug_$(BIN_NAME_SUFFIX).b
 debug: OPTIMISATION := -g -pg -O0
 debug: BUILD_FLAGS += -DDEBUG
-debug: generic
+debug: generic_debug
 
 $(OBJ_DIR)/%.o: src/%.cpp
 	mkdir -p $(@D)
 	$(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES)
 
 generic: $(OBJECTS)
+	mkdir -p $(BIN_DIR)
+	$(CPP) $(CFLAGS) $(OPTIMISATION) $^ -o $(BIN_NAME) $(BUILD_FLAGS) $(INCLUDES) $(LIBS)
+
+$(OBJ_DIR_DBG)/%.o: src/%.cpp
+	mkdir -p $(@D)
+	$(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES)
+
+generic_debug: $(OBJECTS_DBG)
 	mkdir -p $(BIN_DIR)
 	$(CPP) $(CFLAGS) $(OPTIMISATION) $^ -o $(BIN_NAME) $(BUILD_FLAGS) $(INCLUDES) $(LIBS)
 

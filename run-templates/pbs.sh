@@ -11,8 +11,6 @@
 
 cd <RUN_DIR>
 
-module load intel
-
 module load papi
 echo "CRAY_LD_LIBRARY_PATH = $CRAY_LD_LIBRARY_PATH"
 if [ "$CRAY_LD_LIBRARY_PATH" != "" ]; then
