@@ -168,18 +168,20 @@ if __name__=="__main__":
                     py_sed(job_run_filepath, "<RUN_OUTDIR>", job_dir)
                     py_sed(job_run_filepath, "<APP_DIRPATH>", app_dirpath)
                     py_sed(job_run_filepath, "<DATA_DIRPATH>", data_dirpath)
+
                     py_sed(job_run_filepath, "<ISA>", isa)
                     py_sed(job_run_filepath, "<BUILD_FLAGS>", build_flags)
                     py_sed(job_run_filepath, "<COMPILER>", compiler)
                     py_sed(job_run_filepath, "<NUM_THREADS>", nt)
-                    py_sed(job_run_filepath, "<MG_CYCLES>", mg_cycles)
 
+                    mesh_multi = min_mesh_multi
+                    py_sed(job_run_filepath, "<MG_CYCLES>", mg_cycles)
                     while (mesh_multi % nt) > 0:
                         mesh_multi += 1
                     py_sed(job_run_filepath, "<MESH_MULTI>", mesh_multi)
 
-                    ## Prepare job scheduling:
                     if js != "":
+                        ## Prepare job scheduling:
                         js_filepath = os.path.join(job_dir, js_filename)
                         shutil.copyfile(os.path.join(template_dirpath, js_filename), js_filepath)
                         py_sed(js_filepath, "<PARTITION>", job_queue)
@@ -211,7 +213,9 @@ if __name__=="__main__":
                                 for line in f_in.readlines():
                                     f_out.write(line)
                             os.remove(js_filepath)
-                            f_out.write("\n")
+                        else:
+                            f_out.write("#!/bin/bash\n")
+                        f_out.write("\n")
                         with open(job_run_filepath, "r") as f_in:
                             for line in f_in.readlines():
                                 f_out.write(line)

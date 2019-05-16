@@ -1,5 +1,5 @@
 set -e
-set -o
+set -u
 
 isa=<ISA>
 run_outdir="<RUN_OUTDIR>"
