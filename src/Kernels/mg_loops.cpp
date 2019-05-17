@@ -676,7 +676,13 @@ void down_residuals_interpolate_proper(
     double3 *restrict coords2)
 {
     // Goal: interpolate residuals of level above to estimate residuals of level below.
-    // Achieve this by computing a weighted average, where weight is 1.0/distance.
+    //
+    // For each node that has the same coordinates as its MG node parent, 
+    // the 'prolonged residual' is simply taken directly from the MG node. 
+    //
+    // For each other node N, the 'prolonged residuals' is the weighted average 
+    // across N's MG node and MG nodes of N's neighbours, requiring an 
+    // edge-based loop. The weight is 1.0/distance.
 
     log("down_residuals_interpolate_proper()");
     current_kernel = DOWN;
@@ -690,6 +696,8 @@ void down_residuals_interpolate_proper(
     for (int i=0; i<nel2*NVAR; i++) {
         res2_wavg[i] = 0.0;
     }
+
+    // a1 and b1 belong to level above (L+1); a2 and b2 belong to level below (L)
 
     // Perform the summing stage of weighted average:
     #ifdef PAPI
@@ -710,10 +718,10 @@ void down_residuals_interpolate_proper(
         const double3 cb2 = coords2[b2];
 
         // Process a2:
-        double dx_a2a1 = ca2.x - ca1.x;
-        double dy_a2a1 = ca2.y - ca1.y;
-        double dz_a2a1 = ca2.z - ca1.z;
-        if (dx_a2a1 == 0.0 && dy_a2a1 == 0.0 && dz_a2a1 == 0.0) {
+        double dx_a1a2 = ca2.x - ca1.x;
+        double dy_a1a2 = ca2.y - ca1.y;
+        double dz_a1a2 = ca2.z - ca1.z;
+        if (dx_a1a2 == 0.0 && dy_a1a2 == 0.0 && dz_a1a2 == 0.0) {
             // a2 == a1:
             res2_wavg[a2*NVAR + VAR_DENSITY]        = residuals1[a1*NVAR + VAR_DENSITY];
             res2_wavg[a2*NVAR + VAR_MOMENTUMX]      = residuals1[a1*NVAR + VAR_MOMENTUMX];
@@ -722,42 +730,34 @@ void down_residuals_interpolate_proper(
             res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] = residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
             w_sums[a2] = 1.0;
         } else {
-            // Interpolate a2 -> a1:
-            const double idist_a2a1 = 1.0/sqrt(dx_a2a1*dx_a2a1 + dy_a2a1*dy_a2a1 + dz_a2a1*dz_a2a1);
-            // if (isinf(idist_a2a1)) {
-            //     fprintf(stderr, "ERROR: idist_a2a1 is inf\n");
-            //     DEBUGGABLE_ABORT
-            // }
-            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_a2a1*residuals1[a1*NVAR + VAR_DENSITY];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMX];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMY];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_a2a1*residuals1[a1*NVAR + VAR_MOMENTUMZ];
-            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_a2a1*residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
-            w_sums[a2] += idist_a2a1;
+            // Calculate contribution of a1 -> a2:
+            const double idist_a1a2 = 1.0/sqrt(dx_a1a2*dx_a1a2 + dy_a1a2*dy_a1a2 + dz_a1a2*dz_a1a2);
+            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_a1a2*residuals1[a1*NVAR + VAR_DENSITY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_a1a2*residuals1[a1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_a1a2*residuals1[a1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_a1a2*residuals1[a1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_a1a2*residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[a2] += idist_a1a2;
 
-            // Interpolate a2 -> b1:
-            double dx_a2b1 = ca2.x - cb1.x;
-            double dy_a2b1 = ca2.y - cb1.y;
-            double dz_a2b1 = ca2.z - cb1.z;
+            // Calculate contribution of b1 >- a2:
+            double dx_b1a2 = cb1.x - ca2.x;
+            double dy_b1a2 = cb1.y - ca2.y;
+            double dz_b1a2 = cb1.z - ca2.z;
 
-            const double idist_a2b1 = 1.0/sqrt(dx_a2b1*dx_a2b1 + dy_a2b1*dy_a2b1 + dz_a2b1*dz_a2b1);
-            // if (isinf(idist_a2b1)) {
-            //     fprintf(stderr, "ERROR: idist_a2b1 is inf\n");
-            //     DEBUGGABLE_ABORT
-            // }
-            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_a2b1*residuals1[b1*NVAR + VAR_DENSITY];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMX];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMY];
-            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_a2b1*residuals1[b1*NVAR + VAR_MOMENTUMZ];
-            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_a2b1*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
-            w_sums[a2] += idist_a2b1;
+            const double idist_b1a2 = 1.0/sqrt(dx_b1a2*dx_b1a2 + dy_b1a2*dy_b1a2 + dz_b1a2*dz_b1a2);
+            res2_wavg[a2*NVAR + VAR_DENSITY]        += idist_b1a2*residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMX]      += idist_b1a2*residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMY]      += idist_b1a2*residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[a2*NVAR + VAR_MOMENTUMZ]      += idist_b1a2*residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[a2*NVAR + VAR_DENSITY_ENERGY] += idist_b1a2*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[a2] += idist_b1a2;
         }
 
         // Process b2:
-        double dx_b2b1 = cb2.x - cb1.x;
-        double dy_b2b1 = cb2.y - cb1.y;
-        double dz_b2b1 = cb2.z - cb1.z;
-        if (dx_b2b1 == 0.0 && dy_b2b1 == 0.0 && dz_b2b1 == 0.0) {
+        double dx_b1b2 = cb2.x - cb1.x;
+        double dy_b1b2 = cb2.y - cb1.y;
+        double dz_b1b2 = cb2.z - cb1.z;
+        if (dx_b1b2 == 0.0 && dy_b1b2 == 0.0 && dz_b1b2 == 0.0) {
             // b2 == b1:
             res2_wavg[b2*NVAR + VAR_DENSITY]        = residuals1[b1*NVAR + VAR_DENSITY];
             res2_wavg[b2*NVAR + VAR_MOMENTUMX]      = residuals1[b1*NVAR + VAR_MOMENTUMX];
@@ -766,41 +766,27 @@ void down_residuals_interpolate_proper(
             res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] = residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
             w_sums[b2] = 1.0;
         } else {
-            // Interpolate b2 -> b1:
-            const double idist_b2b1 = 1.0/sqrt(dx_b2b1*dx_b2b1 + dy_b2b1*dy_b2b1 + dz_b2b1*dz_b2b1);
-            // if (isinf(idist_b2b1)) {
-            //     fprintf(stderr, "ERROR: idist_b2b1 is inf\n");
-            //     DEBUGGABLE_ABORT
-            // }
-            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_b2b1*residuals1[b1*NVAR + VAR_DENSITY];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMX];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMY];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_b2b1*residuals1[b1*NVAR + VAR_MOMENTUMZ];
-            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_b2b1*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
-            w_sums[b2] += idist_b2b1;
+            // Calculate contribution of b1 -> b2:
+            const double idist_b1b2 = 1.0/sqrt(dx_b1b2*dx_b1b2 + dy_b1b2*dy_b1b2 + dz_b1b2*dz_b1b2);
+            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_b1b2*residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_b1b2*residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_b1b2*residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_b1b2*residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_b1b2*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[b2] += idist_b1b2;
 
-            // Interpolate b2 -> a1:
-            double dx_b2a1 = cb2.x - ca1.x;
-            double dy_b2a1 = cb2.y - ca1.y;
-            double dz_b2a1 = cb2.z - ca1.z;
+            // Calculate contribution of a1 -> b2:
+            double dx_a1b2 = ca1.x - cb2.x;
+            double dy_a1b2 = ca1.y - cb2.y;
+            double dz_a1b2 = ca1.z - cb2.z;
 
-            const double idist_b2a1 = 1.0/sqrt(dx_b2a1*dx_b2a1 + dy_b2a1*dy_b2a1 + dz_b2a1*dz_b2a1);
-            // if (isinf(idist_b2a1)) {
-            //     fprintf(stderr, "ERROR: idist_b2a1 is inf\n");
-            //     fprintf(stderr, "       e=%d,  a2=%d -- b2=%d , a1=%d, b1=%d\n", i, a2, b2, a1, b1);
-            //     fprintf(stderr, "       ca2: %.5e, %.5e, %.5e\n", ca2.x, ca2.y, ca2.z);
-            //     fprintf(stderr, "       cb2: %.5e, %.5e, %.5e\n", cb2.x, cb2.y, cb2.z);
-            //     fprintf(stderr, "       ca1: %.5e, %.5e, %.5e\n", ca1.x, ca1.y, ca1.z);
-            //     fprintf(stderr, "       cb2: %.5e, %.5e, %.5e\n", cb2.x, cb2.y, cb2.z);
-            //     fprintf(stderr, "       d_b2a1: %.5e, %.5e, %.5e\n", dx_b2a1, dy_b2a1, dz_b2a1);
-            //     DEBUGGABLE_ABORT
-            // }
-            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_b2a1*residuals1[a1*NVAR + VAR_DENSITY];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMX];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMY];
-            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_b2a1*residuals1[a1*NVAR + VAR_MOMENTUMZ];
-            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_b2a1*residuals1[a1*NVAR + VAR_DENSITY_ENERGY];
-            w_sums[b2] += idist_b2a1;
+            const double idist_a1b2 = 1.0/sqrt(dx_a1b2*dx_a1b2 + dy_a1b2*dy_a1b2 + dz_a1b2*dz_a1b2);
+            res2_wavg[b2*NVAR + VAR_DENSITY]        += idist_a1b2*residuals1[b1*NVAR + VAR_DENSITY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMX]      += idist_a1b2*residuals1[b1*NVAR + VAR_MOMENTUMX];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMY]      += idist_a1b2*residuals1[b1*NVAR + VAR_MOMENTUMY];
+            res2_wavg[b2*NVAR + VAR_MOMENTUMZ]      += idist_a1b2*residuals1[b1*NVAR + VAR_MOMENTUMZ];
+            res2_wavg[b2*NVAR + VAR_DENSITY_ENERGY] += idist_a1b2*residuals1[b1*NVAR + VAR_DENSITY_ENERGY];
+            w_sums[b2] += idist_a1b2;
         }
     }
     #ifdef TIME
@@ -811,8 +797,9 @@ void down_residuals_interpolate_proper(
     #endif
     record_iters(0, num_edges);
 
-    // Divide through by sum of weights:
+    // Apply:
     for (int i=0; i<nel2; i++) {
+        // Divide through by sum of weights:
         for (int j=0; j<NVAR; j++) {
             res2_wavg[i*NVAR +j] /= w_sums[i];
 
@@ -822,21 +809,9 @@ void down_residuals_interpolate_proper(
             //     fprintf(stderr, "i = %d, j = %d\n", i, j);
             //     exit(EXIT_FAILURE);
             // }
+
+            const int idx = NVAR*i + j;
+            variables2[idx] += residuals2[idx] - res2_wavg[idx];
         }
-    }
-
-    // Apply residuals estimate to grid:
-    for (int i=0; i<nel2; i++) {
-        const int p_idx2  = NVAR*i + VAR_DENSITY;
-        const int mx_idx2 = NVAR*i + VAR_MOMENTUMX;
-        const int my_idx2 = NVAR*i + VAR_MOMENTUMY;
-        const int mz_idx2 = NVAR*i + VAR_MOMENTUMZ;
-        const int pe_idx2 = NVAR*i + VAR_DENSITY_ENERGY;
-
-        variables2[p_idx2]  += residuals2[p_idx2]  - res2_wavg[p_idx2];
-        variables2[mx_idx2] += residuals2[mx_idx2] - res2_wavg[mx_idx2];
-        variables2[my_idx2] += residuals2[my_idx2] - res2_wavg[my_idx2];
-        variables2[mz_idx2] += residuals2[mz_idx2] - res2_wavg[mz_idx2];
-        variables2[pe_idx2] += residuals2[pe_idx2] - res2_wavg[pe_idx2];
     }
 }
