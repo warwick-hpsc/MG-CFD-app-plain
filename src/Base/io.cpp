@@ -114,12 +114,22 @@ void read_grid(
                 edge_bin[edge_count].y = edge_weight.y;
                 edge_bin[edge_count].z = edge_weight.z;
 
-                if (i2 >= 0) {
-                    // Is an internal edge, added backwards, so 
-                    // need to flip the weight:
+                if (mesh_variant == MESH_FVCORR) {
+                    // rodinia/cfd is flipping all normals, so repeat here
                     edge_bin[edge_count].x *= -1;
                     edge_bin[edge_count].y *= -1;
                     edge_bin[edge_count].z *= -1;
+                }
+                else {
+                    // ... but blindly flipping all normals makes no sense, 
+                    // so handle other meshes differently.
+                    if (i2 >= 0) {
+                        // Is an internal edge, added backwards, so 
+                        // need to flip the weight:
+                        edge_bin[edge_count].x *= -1;
+                        edge_bin[edge_count].y *= -1;
+                        edge_bin[edge_count].z *= -1;
+                    }
                 }
 
                 edge_count++;

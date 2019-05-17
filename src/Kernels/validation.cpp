@@ -159,6 +159,13 @@ void identify_differences(
 
     const double acceptable_relative_difference = 10.0e-9;
 
+    double absolute_threshold = 3.0e-19;
+    if (mesh_variant == MESH_FVCORR) {
+        // Relax threshold for this mesh, as original code performs 
+        // arithmetic in a hugely different order.
+        absolute_threshold = 1.0e-15;
+    }
+
     for (int i=0; i<n; i++) {
         for (int v=0; v<NVAR; v++) {
             const int idx = i*NVAR + v;
@@ -169,8 +176,8 @@ void identify_differences(
             }
 
             // Ignore any differences smaller than 3e-19:
-            if (acceptable_difference < 3.0e-19) {
-                acceptable_difference = 3.0e-19;
+            if (acceptable_difference < absolute_threshold) {
+                acceptable_difference = absolute_threshold;
             }
 
             double diff = test_values[idx] - master_values[idx];
