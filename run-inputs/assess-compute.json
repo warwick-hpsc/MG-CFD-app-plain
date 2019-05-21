@@ -2,11 +2,11 @@
     "compile": {
         "compiler": "intel",
         "base flags": "-DTIME -DPAPI",
-        "perm flags": [ ["", "-DFLUX_CRIPPLE"],
-                        ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
-                        ["", "-DFLUX_REUSE_DIV"],
-                        ["", "-DFLUX_REUSE_FACTOR"],
-                        ["", "-DFLUX_REUSE_FLUX"] ],
+        "permutable flags": [ ["", "-DFLUX_CRIPPLE"],
+                              ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
+                              ["", "-DFLUX_REUSE_DIV"],
+                              ["", "-DFLUX_REUSE_FACTOR"],
+                              ["", "-DFLUX_REUSE_FLUX"] ],
         "insn sets": [ "SSE42", "AVX2" ]
     },
 
@@ -15,12 +15,14 @@
         "num threads": [1], 
         "num repeats": 3,
         "mg cycles": 5,
+        "unit walltime": 1.0,
         "min mesh multi": 2
     },
 
     "setup": {
         "jobs dir": "./run-jobs.assess-compute",
         "job scheduler": "?", 
-        "partition": "?"
+        "partition": "?",
+        "budget code": ""
     }
 }

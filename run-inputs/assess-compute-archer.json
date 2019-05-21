@@ -1,12 +1,13 @@
 {
     "compile": {
         "compiler": "intel",
+        "cpp override": "CC",
         "base flags": "-DTIME -DPAPI",
-        "perm flags": [ ["", "-DFLUX_CRIPPLE"],
-                        ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
-                        ["", "-DFLUX_REUSE_DIV"],
-                        ["", "-DFLUX_REUSE_FACTOR"],
-                        ["", "-DFLUX_REUSE_FLUX"] ],
+        "permutable flags": [ ["", "-DFLUX_CRIPPLE"],
+                              ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
+                              ["", "-DFLUX_REUSE_DIV"],
+                              ["", "-DFLUX_REUSE_FACTOR"],
+                              ["", "-DFLUX_REUSE_FLUX"] ],
         "insn sets": [ "SSE42", "AVX" ]
     },
 
@@ -21,8 +22,8 @@
 
     "setup": {
         "jobs dir": "./run-jobs.assess-compute",
-        "job scheduler": "?", 
-        "partition": "?",
+        "job scheduler": "pbs", 
+        "partition": "standard",
         "budget code": ""
     }
 }

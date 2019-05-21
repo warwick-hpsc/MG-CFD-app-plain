@@ -5,6 +5,8 @@
 #include "timer.h"
 #include "loop_stats.h"
 
+#include <omp.h>
+
 void compute_boundary_flux_edge(
     int first_edge,
     int nedges, 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#MSUB -N MG-CFD
+#MSUB -N MG-CFD.<RUN ID>
 #MSUB -o moab.stdout
 #MSUB -e moab.stderr
 
@@ -8,5 +8,3 @@
 #MSUB -l walltime=<HOURS>:<MINUTES>:00
 #MSUB -n
 #MSUB -q <PARTITION>
-
-cd <RUN_DIR>

@@ -5,7 +5,7 @@
 #define KERNELS_H
 
 #ifdef PAPI
-#include "papi.h"
+#include <papi.h>
 #endif
 
 #include "common.h"

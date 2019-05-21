@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=MG-CFD
+#SBATCH --job-name=MG-CFD.<RUN ID>
 #SBATCH --output=sbatch.stdout
 #SBATCH --error=sbatch.stderr
 
@@ -10,5 +10,3 @@
 #SBATCH --partition=<PARTITION>
 
 #SBATCH --export=NONE
-
-cd <RUN_DIR>

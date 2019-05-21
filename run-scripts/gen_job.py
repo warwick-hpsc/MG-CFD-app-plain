@@ -22,18 +22,22 @@ js_to_submit_cmd["lsf"] = "bsub"
 js_to_submit_cmd["pbs"] = "qsub"
 
 defaults = {}
+# Compilation:
 defaults["compiler"] = "intel"
+defaults["cpp override"] = ""
 defaults["debug"] = False
 defaults["insn sets"] = [ "Host"]
 defaults["base flags"] = "-DTIME"
-defaults["perm flags"] = [""]
+defaults["permutable flags"] = [""]
+# Job scheduling:
+defaults["unit walltime"] = 0.5
+defaults["budget code"] = "NotSpecified"
+# MG-CFD execution:
 defaults["num threads"] = [1]
 defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
 defaults["min mesh multi"] = 1
-defaults["unit walltime"] = 0.5
-defaults["budget code"] = "NotSpecified"
 
 def get_key_value(profile, cat, key):
     if not cat in profile.keys():
@@ -73,6 +77,8 @@ def prune_perm_flags_permutations(perm_flags_permutations):
             pass
         else:
             perm_flags_permutations_pruned.append(p)
+    if len(perm_flags_permutations_pruned) == 0:
+        perm_flags_permutations_pruned = [""]
     return perm_flags_permutations_pruned
 
 def delete_folder_contents(dirpath):
@@ -91,6 +97,7 @@ if __name__=="__main__":
     with open(args.json, 'r') as f:
         profile = json.load(f)
 
+    ## Read file/folder paths and prepare folders:
     jobs_dir = profile["setup"]["jobs dir"]
     if jobs_dir[0] != '/':
         jobs_dir = os.path.join(app_dirpath, jobs_dir)
@@ -103,55 +110,49 @@ if __name__=="__main__":
     if data_dirpath[0] != '/':
         data_dirpath = os.path.join(app_dirpath, data_dirpath)
 
-    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
-    submit_all_file = open(submit_all_filepath, "w")
-    submit_all_file.write("#!/bin/bash\n\n")
-
-    js = profile["setup"]["job scheduler"]
-    js_filename = js_to_filename[js]
-    submit_all_file.write("# {0}:\n".format(js))
-    submit_all_file.write("submit_cmd={0}\n\n".format(js_to_submit_cmd[js]))
-
+    ## Read parameters from json:
     job_queue = get_key_value(profile, "setup", "partition")
     budget_code = get_key_value(profile, "setup", "budget code")
-
-    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
-        f.write("PAPI_TOT_INS\n")
-        f.write("PAPI_TOT_CYC\n")
+    js = get_key_value(profile, "setup", "job scheduler")
 
     isas = get_key_value(profile, "compile", "insn sets")
+    compiler = get_key_value(profile, "compile", "compiler")
+    cpp_override = get_key_value(profile, "compile", "cpp override")
+    debug = get_key_value(profile, "compile", "debug")
+    base_flags = get_key_value(profile, "compile", "base flags")
+    perm_flags = get_key_value(profile, "compile", "permutable flags")
+    perm_flags_permutations = prune_perm_flags_permutations(itertools.product(*perm_flags))
+
     threads = get_key_value(profile, "run", "num threads")
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
     validate = get_key_value(profile, "run", "validate result")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
-    compiler = get_key_value(profile, "compile", "compiler")
-    debug = get_key_value(profile, "compile", "debug")
-    base_flags = get_key_value(profile, "compile", "base flags")
-    perm_flags = get_key_value(profile, "compile", "perm flags")
-    perm_flags_permutations = prune_perm_flags_permutations(itertools.product(*perm_flags))
-    if len(perm_flags_permutations) == 0:
-        perm_flags_permutations = [""]
-
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
 
     num_jobs = len(perm_flags_permutations) * len(isas) * len(threads) * num_repeats
+
+    ## Init the master job submission script:
+    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
+    submit_all_file = open(submit_all_filepath, "w")
+    submit_all_file.write("#!/bin/bash\n\n")
+    js_filename = js_to_filename[js]
+    submit_all_file.write("# {0}:\n".format(js))
+    submit_all_file.write("submit_cmd={0}\n\n".format(js_to_submit_cmd[js]))
     submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+
+    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
+        f.write("PAPI_TOT_INS\n")
+        f.write("PAPI_TOT_CYC\n")
 
     n = 0
     for p in perm_flags_permutations:
-        flags = ""
-        for pi in p:
-            if pi != "":
-                if flags != "":
-                    flags += " "
-                flags += pi
+        flags = ' '.join([pi for pi in p if pi != ""])
         for isa in isas:
             for nt in threads:
                 for repeat in range(num_repeats):
                     n += 1
                     job_id = str(n).zfill(3)
-
                     print("Creating job {0}/{1}".format(n, num_jobs))
 
                     job_dir = os.path.join(jobs_dir, job_id)
@@ -161,10 +162,10 @@ if __name__=="__main__":
                     ## Prepare MG-CFD execution
                     build_flags = base_flags + " " + flags
 
-                    dest_filepath = os.path.join(job_dir, "papi.conf")
-                    if os.path.isfile(dest_filepath):
-                        os.remove(dest_filepath)
-                    os.symlink(os.path.join(jobs_dir, "papi.conf"), dest_filepath)
+                    papi_dest_filepath = os.path.join(job_dir, "papi.conf")
+                    if os.path.isfile(papi_dest_filepath):
+                        os.remove(papi_dest_filepath)
+                    os.symlink(os.path.join(jobs_dir, "papi.conf"), papi_dest_filepath)
 
                     job_run_filepath = os.path.join(job_dir, "run-mgcfd.sh")
                     shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
@@ -175,6 +176,7 @@ if __name__=="__main__":
                     py_sed(job_run_filepath, "<ISA>", isa)
                     py_sed(job_run_filepath, "<BUILD_FLAGS>", build_flags)
                     py_sed(job_run_filepath, "<COMPILER>", compiler)
+                    py_sed(job_run_filepath, "<CPP_OVERRIDE>", cpp_override)
                     if debug:
                         py_sed(job_run_filepath, "<DEBUG>", "true")
                     else:
@@ -197,9 +199,11 @@ if __name__=="__main__":
                         ## Prepare job scheduling:
                         js_filepath = os.path.join(job_dir, js_filename)
                         shutil.copyfile(os.path.join(template_dirpath, js_filename), js_filepath)
+                        py_sed(js_filepath, "<RUN ID>", job_id)
                         py_sed(js_filepath, "<PARTITION>", job_queue)
                         py_sed(js_filepath, "<RUN_DIR>", job_dir)
                         py_sed(js_filepath, "<BUDGET CODE>", budget_code)
+                        py_sed(js_filepath, "<COMPILER>", compiler)
 
                         est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
                         est_runtime_secs = 1.2*est_runtime_secs + 10.0 ## Add a small buffer

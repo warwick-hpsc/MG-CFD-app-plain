@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#BSUB -J MG-CFD
+#BSUB -J MG-CFD.<RUN ID>
 #BSUB -o lsf.stdout
 #BSUB -e lsf.stderr
 
@@ -8,5 +8,3 @@
 #BSUB -W <HOURS>:<MINUTES>
 #BSUB -x
 #BSUB -q <PARTITION>
-
-cd <RUN_DIR>

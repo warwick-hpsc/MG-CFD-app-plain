@@ -26,12 +26,17 @@
 
 WARNINGS := -w
 
-ifeq ($(CC),gnu)
-	CPP := g++
-	CPP += -fopenmp
+ifeq ($(COMPILER),gnu)
+	ifdef CPP_OVERRIDE
+		CPP := $(CPP_OVERRIDE)
+	else
+		CPP := g++
+	endif
+	CFLAGS += -fopenmp
+	CFLAGS += -fmax-errors=1
 
 	GCC_OPT_REPORT_OPTIONS := 
-	CPP += $(GCC_OPT_REPORT_OPTIONS)
+	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -march=native
 	CPU_SSE41_EXEC_TARGET = -msse4.1
@@ -41,12 +46,17 @@ ifeq ($(CC),gnu)
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 
-else ifeq ($(CC),intel)
-	CPP := icpc
-	CPP += -qopenmp
+else ifeq ($(COMPILER),intel)
+	ifdef CPP_OVERRIDE
+		CPP := $(CPP_OVERRIDE)
+	else
+		CPP := icpc
+	endif
+	CFLAGS += -qopenmp
+	CFLAGS += -fmax-errors=1
 
 	INTEL_OPT_REPORT_OPTIONS := 
-	CPP += $(INTEL_OPT_REPORT_OPTIONS)
+	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -xHost
 	CPU_SSE41_EXEC_TARGET = -xSSE4.1
@@ -56,12 +66,17 @@ else ifeq ($(CC),intel)
 	KNL_AVX512_EXEC_TARGET = -xMIC-AVX512 -qopt-zmm-usage=high
 	CPU_AVX512_EXEC_TARGET = -xCORE-AVX512 -qopt-zmm-usage=high
 
-else ifeq ($(CC),clang)
-	CPP := clang++
-	CPP += -fopenmp
+else ifeq ($(COMPILER),clang)
+	ifdef CPP_OVERRIDE
+		CPP := $(CPP_OVERRIDE)
+	else
+		CPP := clang++
+	endif
+	CFLAGS += -fopenmp
+	CFLAGS += -fmax-errors=1
 
 	OPT_REPORT_OPTIONS := 
-	CPP += $(OPT_REPORT_OPTIONS)
+	CFLAGS += $(OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -march=native
 	CPU_SSE41_EXEC_TARGET = -msse4.1
@@ -71,11 +86,29 @@ else ifeq ($(CC),clang)
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 
+else ifeq ($(COMPILER),cray)
+	ifdef CPP_OVERRIDE
+		CPP := $(CPP_OVERRIDE)
+	else
+		CPP := CC
+	endif
+	# CFLAGS += -craype-verbose
+
+	WARNINGS := 
+
+	HOST_EXEC_TARGET = 
+	# Cray does not support Intel architectures older than Sandy Bridge.
+	# CPU_SSE41_EXEC_TARGET = -target-cpu=barcelona
+	# CPU_SSE42_EXEC_TARGET = -target-cpu=barcelona
+	CPU_AVX_EXEC_TARGET = -target-cpu=sandybridge
+	CPU_AVX2_EXEC_TARGET = -target-cpu=haswell
+	CPU_AVX512_EXEC_TARGET = -target-cpu=skylake
+	KNL_AVX512_EXEC_TARGET = -target-cpu=mic-knl
+
 else
-$(error Compiler not specified, aborting. Set 'CC' to either "intel", "gnu" or "clang")
+$(error Compiler not specified, aborting. Set 'COMPILER' to either "intel", "gnu", "clang" or "cray")
 endif
-CPP += $(WARNINGS)
-CPP += -fmax-errors=1
+CFLAGS += $(WARNINGS)
 
 ifdef OPT_LEVEL
 	OPTIMISATION := -O$(OPT_LEVEL)
@@ -85,11 +118,11 @@ endif
 
 ## Disable aggressive floating-point optimization, to improve ability 
 ## of MG-CFD to assess floating-point performance
-ifeq ($(CC),gnu)
+ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -fno-fast-math
-else ifeq ($(CC),intel)
+else ifeq ($(COMPILER),intel)
 	OPTIMISATION += -fp-model precise
-else ifeq ($(CC),clang)
+else ifeq ($(COMPILER),clang)
 	OPTIMISATION += -fno-fast-math
 endif
 
@@ -127,7 +160,7 @@ ifneq (,$(findstring PAPI,$(BUILD_FLAGS)))
 endif
 
 # BUILD_FLAGS_COMPRESSED := $(shell echo $(BUILD_FLAGS) | tr -d " ")
-BUILD_FLAGS_COMPRESSED := $(CC)$(shell echo $(BUILD_FLAGS) | tr -d " ")
+BUILD_FLAGS_COMPRESSED := $(COMPILER)$(shell echo $(BUILD_FLAGS) | tr -d " ")
 
 BIN_DIR = bin/$(shell hostname)
 OBJ_DIR = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)
