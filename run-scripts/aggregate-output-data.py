@@ -12,7 +12,7 @@ mg_cfd_dirpath = os.path.join(script_dirpath, "../")
 parser = argparse.ArgumentParser()
 parser.add_argument('--assembly-dirpath', required=True, help="Dirpath to AssemblyLoopExtractor")
 parser.add_argument('--output-dirpath', required=True, help="Dirpath to generated processed data")
-parser.add_argument('--data-dirpaths', nargs='+', default=[], required=True, help="Dirpaths to output data of MG-CFD runs")
+parser.add_argument('--data-dirpaths', nargs='+', default=[], required=True, help="Dirpath(s) to output data of MG-CFD runs")
 args = parser.parse_args()
 assembly_analyser_dirpath = args.assembly_dirpath
 mg_cfd_output_dirpaths = args.data_dirpaths
