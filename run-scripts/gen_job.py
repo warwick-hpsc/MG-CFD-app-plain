@@ -31,7 +31,7 @@ defaults["insn sets"] = [ "Host"]
 defaults["base flags"] = "-DTIME"
 defaults["permutable flags"] = [""]
 # Job scheduling:
-defaults["unit walltime"] = 0.5
+defaults["unit walltime"] = 0.0
 defaults["budget code"] = "NotSpecified"
 # MG-CFD execution:
 defaults["num threads"] = [1]
@@ -168,64 +168,20 @@ if __name__=="__main__":
                     if not os.path.isdir(job_dir):
                         os.mkdir(job_dir)
 
-                    ## Prepare MG-CFD execution
+                    ## Link to papi config file:
                     papi_dest_filepath = os.path.join(job_dir, "papi.conf")
                     if os.path.isfile(papi_dest_filepath):
                         os.remove(papi_dest_filepath)
                     os.symlink(os.path.join(jobs_dir, "papi.conf"), papi_dest_filepath)
 
+                    ## Instantiate MG-CFD run script:
                     job_run_filepath = os.path.join(job_dir, "run-mgcfd.sh")
                     shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
-                    py_sed(job_run_filepath, "<RUN_OUTDIR>", job_dir)
-                    py_sed(job_run_filepath, "<APP_DIRPATH>", app_dirpath)
-                    py_sed(job_run_filepath, "<DATA_DIRPATH>", data_dirpath)
 
-                    py_sed(job_run_filepath, "<ISA>", isa)
-                    py_sed(job_run_filepath, "<BUILD_FLAGS>", build_flags)
-                    py_sed(job_run_filepath, "<COMPILER>", compiler)
-                    py_sed(job_run_filepath, "<CPP_WRAPPER>", cpp_wrapper)
-                    if debug:
-                        py_sed(job_run_filepath, "<DEBUG>", "true")
-                    else:
-                        py_sed(job_run_filepath, "<DEBUG>", "false")
-                    py_sed(job_run_filepath, "<NUM_THREADS>", nt)
-
-                    mesh_multi = min_mesh_multi
-                    py_sed(job_run_filepath, "<MG_CYCLES>", mg_cycles)
-                    if validate:
-                        py_sed(job_run_filepath, "<VALIDATE_RESULT>", "true")
-                    else:
-                        py_sed(job_run_filepath, "<VALIDATE_RESULT>", "false")
-                    if not "-DFLUX_FISSION" in build_flags:
-                        ## Duplicate mesh to ensure each thread has a whole copy:
-                        while (mesh_multi % nt) > 0:
-                            mesh_multi += 1
-                    py_sed(job_run_filepath, "<MESH_MULTI>", mesh_multi)
-
+                    ## Instantiate job scheduling header:
                     if js != "":
-                        ## Prepare job scheduling:
                         js_filepath = os.path.join(job_dir, js_filename)
                         shutil.copyfile(os.path.join(template_dirpath, js_filename), js_filepath)
-                        py_sed(js_filepath, "<RUN ID>", job_id)
-                        py_sed(js_filepath, "<PARTITION>", job_queue)
-                        py_sed(js_filepath, "<RUN_DIR>", job_dir)
-                        py_sed(js_filepath, "<BUDGET CODE>", budget_code)
-                        py_sed(js_filepath, "<COMPILER>", compiler)
-                        py_sed(js_filepath, "<NUM_THREADS>", nt)
-
-                        est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
-                        est_runtime_secs *= 1.2 ## Add a buffer
-                        est_runtime_secs += 20 ## Add time for file load
-                        est_runtime_secs = int(round(est_runtime_secs))
-                        est_runtime_hours = est_runtime_secs/60/60
-                        est_runtime_secs -= est_runtime_hours*60*60
-                        est_runtime_minutes = est_runtime_secs/60
-                        est_runtime_secs -= est_runtime_minutes*60
-                        if est_runtime_secs > 0:
-                            est_runtime_minutes += 1
-                            est_runtime_secs = 0
-                        py_sed(js_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
-                        py_sed(js_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
                     ## Combine into a batch submission script:
                     if js == "":
@@ -241,11 +197,62 @@ if __name__=="__main__":
                             os.remove(js_filepath)
                         else:
                             f_out.write("#!/bin/bash\n")
-                        f_out.write("\n")
+                        f_out.write("\n\n")
                         with open(job_run_filepath, "r") as f_in:
                             for line in f_in.readlines():
                                 f_out.write(line)
                         os.remove(job_run_filepath)
+
+                    ## Now replace variables in script:
+
+                    ## - File/dir paths:
+                    py_sed(batch_filepath, "<RUN_OUTDIR>", job_dir)
+                    py_sed(batch_filepath, "<APP_DIRPATH>", app_dirpath)
+                    py_sed(batch_filepath, "<DATA_DIRPATH>", data_dirpath)
+
+                    ## - Scheduling:
+                    py_sed(batch_filepath, "<RUN ID>", job_id)
+                    py_sed(batch_filepath, "<PARTITION>", job_queue)
+                    py_sed(batch_filepath, "<RUN_DIR>", job_dir)
+                    py_sed(batch_filepath, "<BUDGET CODE>", budget_code)
+
+                    ## - Parallelism:
+                    py_sed(batch_filepath, "<NUM_THREADS>", nt)
+                    mesh_multi = min_mesh_multi
+                    if not "-DFLUX_FISSION" in build_flags:
+                        ## Duplicate mesh to ensure each thread has a whole copy:
+                        while (mesh_multi % nt) > 0:
+                            mesh_multi += 1
+                    py_sed(batch_filepath, "<MESH_MULTI>", mesh_multi)
+
+                    ## - Compilation:
+                    py_sed(batch_filepath, "<COMPILER>", compiler)
+                    py_sed(batch_filepath, "<ISA>", isa)
+                    py_sed(batch_filepath, "<BUILD_FLAGS>", build_flags)
+                    py_sed(batch_filepath, "<CPP_WRAPPER>", cpp_wrapper)
+                    py_sed(batch_filepath, "<DEBUG>", str(debug).lower())
+
+                    ## - Execution:
+                    py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
+
+                    ## - Walltime estimation:
+                    if mgcfd_unit_runtime_secs == 0.0:
+                        est_runtime_hours = 0
+                        est_runtime_minutes = 10
+                    else:
+                        est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
+                        est_runtime_secs *= 1.2 ## Allow for estimation error
+                        est_runtime_secs += 20  ## Add time for file load
+                        est_runtime_secs = int(round(est_runtime_secs))
+                        est_runtime_hours = est_runtime_secs/60/60
+                        est_runtime_secs -= est_runtime_hours*60*60
+                        est_runtime_minutes = est_runtime_secs/60
+                        est_runtime_secs -= est_runtime_minutes*60
+                        if est_runtime_secs > 0:
+                            est_runtime_minutes += 1
+                            est_runtime_secs = 0
+                    py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
+                    py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
                     ## Make batch script executable:
                     os.chmod(batch_filepath, 0755)
