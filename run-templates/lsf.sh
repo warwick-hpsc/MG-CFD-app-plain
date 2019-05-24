@@ -8,3 +8,6 @@
 #BSUB -W <HOURS>:<MINUTES>
 #BSUB -x
 #BSUB -q <PARTITION>
+#BSUB -P <BUDGET CODE>
+
+RUN_CMD="mpirun"

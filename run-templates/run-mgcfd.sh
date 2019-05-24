@@ -1,10 +1,15 @@
 set -e
 set -u
 
+touch job-is-running.txt
+if [ -f job-in-queue.txt ]; then
+    rm job-in-queue.txt
+fi
+
 # Compilation variables:
 isa="<ISA>"
 compiler="<COMPILER>"
-cpp_override="<CPP_OVERRIDE>"
+cpp_wrapper="<CPP_WRAPPER>"
 flags_final="<BUILD_FLAGS>"
 debug=<DEBUG>
 
@@ -21,8 +26,10 @@ mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
 
 
+## Exit early if output csv files already exist.
 if [ -f "${run_outdir}/Times.csv" ]; then
     echo "Times.csv already exists, meaning this job has already run."
+    rm "${run_outdir}"/job-is-running.txt
     exit 0
 fi
 
@@ -37,23 +44,42 @@ else
 	bin_filename=euler3d_cpu_double_"${compiler}"
 fi
 bin_filename="$bin_filename"`echo "$flags_final" | tr -d " "`.b
-bin_filepath="${app_dirpath}/bin/`hostname`/${bin_filename}"
+# bin_filepath="${app_dirpath}/bin/`hostname`/${bin_filename}"
+bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
 if [ ! -f "$bin_filepath" ]; then
-	# Compile:
-	export BUILD_FLAGS="$flags_final"
-	cd "${app_dirpath}"
-	make_cmd="COMPILER=${compiler} "
-	if [ "$cpp_override" != "" ]; then
-		make_cmd+="CPP_OVERRIDE=$cpp_override "
+	if [[ `hostname` == *"login"* ]]; then
+		## On login node, compile
+		export BUILD_FLAGS="$flags_final"
+		cd "${app_dirpath}"
+		make_cmd="COMPILER=${compiler} "
+		if [ "$cpp_wrapper" != "" ]; then
+			make_cmd+="CPP_WRAPPER=$cpp_wrapper "
+		fi
+		make_cmd+="make -j4 "
+		if $debug ; then
+			make_cmd+="debug"
+		fi
+		echo "$make_cmd"
+		eval "$make_cmd"
+		chmod a+x "$bin_filepath"
+	else
+		echo "ERROR: Cannot find binary: $bin_filepath"
+		rm "${run_outdir}"/job-is-running.txt
+		exit 1
 	fi
-	make_cmd+="make -j4 "
-	if $debug ; then
-		make_cmd+="debug"
-	fi
-	echo "$make_cmd"
-	eval "$make_cmd"
 fi
+
+# Grab object files:
+if [ ! -d "${run_outdir}/objects" ]; then
+    mkdir "${run_outdir}/objects"
+fi
+# obj_dir="${app_dirpath}/obj/`hostname`/"
+obj_dir="${app_dirpath}/obj/"
+obj_dir+="${compiler}"
+obj_dir+=`echo "$flags_final" | tr -d " "`
+cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
+cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
 
 if [[ `hostname` == *"login"* ]]; then
 	## Assume on a login node, do not execute the code.
@@ -61,24 +87,19 @@ if [[ `hostname` == *"login"* ]]; then
 	exit 0
 fi
 
-# Grab object files:
-if [ ! -d "${run_outdir}/objects" ]; then
-    mkdir "${run_outdir}/objects"
-fi
-obj_dir="${app_dirpath}/obj/`hostname`/"
-obj_dir="${obj_dir}${compiler}"
-obj_dir="${obj_dir}"`echo "$flags_final" | tr -d " "`
-cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
-cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
-
 # Execute:
 cd "${data_dirpath}"
 export OMP_NUM_THREADS=$_t
 echo "EXECUTING $bin_filepath"
-if $debug ; then
-	gdb --args "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles
-elif $validate_result ; then
-	eval "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles -v
+if [ ! -z ${RUN_CMD+x} ]; then
+	exec_command="$RUN_CMD "
 else
-	eval "$bin_filepath" -i input.dat -m $_m -p "${parent_dir}"/papi.conf -o "${run_outdir}/" -g $mg_cycles
+	exec_command=""
 fi
+exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o ${run_outdir}/ -g $mg_cycles"
+if $validate_result ; then
+	exec_command+=" -v"
+fi
+echo "$exec_command"
+eval "$exec_command"
+rm "${run_outdir}"/job-is-running.txt

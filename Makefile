@@ -27,11 +27,7 @@
 WARNINGS := -w
 
 ifeq ($(COMPILER),gnu)
-	ifdef CPP_OVERRIDE
-		CPP := $(CPP_OVERRIDE)
-	else
-		CPP := g++
-	endif
+	CPP := g++
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
 
@@ -47,11 +43,7 @@ ifeq ($(COMPILER),gnu)
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 
 else ifeq ($(COMPILER),intel)
-	ifdef CPP_OVERRIDE
-		CPP := $(CPP_OVERRIDE)
-	else
-		CPP := icpc
-	endif
+	CPP := icpc
 	CFLAGS += -qopenmp
 	CFLAGS += -fmax-errors=1
 
@@ -67,11 +59,7 @@ else ifeq ($(COMPILER),intel)
 	CPU_AVX512_EXEC_TARGET = -xCORE-AVX512 -qopt-zmm-usage=high
 
 else ifeq ($(COMPILER),clang)
-	ifdef CPP_OVERRIDE
-		CPP := $(CPP_OVERRIDE)
-	else
-		CPP := clang++
-	endif
+	CPP := clang++
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
 
@@ -87,17 +75,13 @@ else ifeq ($(COMPILER),clang)
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 
 else ifeq ($(COMPILER),cray)
-	ifdef CPP_OVERRIDE
-		CPP := $(CPP_OVERRIDE)
-	else
-		CPP := CC
-	endif
-	# CFLAGS += -craype-verbose
+	CPP := CC
 
 	WARNINGS := 
 
 	HOST_EXEC_TARGET = 
-	# Cray does not support Intel architectures older than Sandy Bridge.
+	# Cray does not support Intel architectures older than Sandy Bridge, so cannot 
+	# target SSE4.x 
 	# CPU_SSE41_EXEC_TARGET = -target-cpu=barcelona
 	# CPU_SSE42_EXEC_TARGET = -target-cpu=barcelona
 	CPU_AVX_EXEC_TARGET = -target-cpu=sandybridge
@@ -109,6 +93,10 @@ else
 $(error Compiler not specified, aborting. Set 'COMPILER' to either "intel", "gnu", "clang" or "cray")
 endif
 CFLAGS += $(WARNINGS)
+
+ifdef CPP_WRAPPER
+	CPP := $(CPP_WRAPPER)
+endif
 
 ifdef OPT_LEVEL
 	OPTIMISATION := -O$(OPT_LEVEL)
@@ -162,9 +150,12 @@ endif
 # BUILD_FLAGS_COMPRESSED := $(shell echo $(BUILD_FLAGS) | tr -d " ")
 BUILD_FLAGS_COMPRESSED := $(COMPILER)$(shell echo $(BUILD_FLAGS) | tr -d " ")
 
-BIN_DIR = bin/$(shell hostname)
-OBJ_DIR = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)
-OBJ_DIR_DBG = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)_debug
+# BIN_DIR = bin/$(shell hostname)
+# OBJ_DIR = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)
+# OBJ_DIR_DBG = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)_debug
+BIN_DIR = bin
+OBJ_DIR = obj/$(BUILD_FLAGS_COMPRESSED)
+OBJ_DIR_DBG = obj/$(BUILD_FLAGS_COMPRESSED)_debug
 
 #####################################################
 ## Now customise build to comply with BUILD_FLAGS: ##
@@ -223,4 +214,5 @@ generic_debug: $(OBJECTS_DBG)
 
 clean:
 	rm -rf $(BIN_DIR)
-	rm -rf obj/$(shell hostname)
+	# rm -rf obj/$(shell hostname)
+	rm -rf obj
