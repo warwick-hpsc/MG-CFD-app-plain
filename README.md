@@ -35,7 +35,9 @@ MG-CFD requires the [PAPI](https://icl.utk.edu/papi) library for collection of p
 Datasets
 ==========================================
 
-A release is provided that includes mesh of the [Onera M6 wing](https://www.grc.nasa.gov/WWW/wind/valid/m6wing/m6wing.html). It consists of 300K nodes (930K edges), and three additional multigrid meshes with respective node counts of 165K, 111K, and 81K. 
+A release is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original CFD code, enabling numerical validation between that and CFD. 
+
+The second mesh is of the [Onera M6 wing](https://www.grc.nasa.gov/WWW/wind/valid/m6wing/m6wing.html). It consists of 300K nodes (930K edges), and three additional multigrid meshes with respective node counts of 165K, 111K, and 81K.
 
 Authorship
 ==========================================
