@@ -8,8 +8,6 @@ import argparse
 script_dirpath = os.path.dirname(os.path.realpath(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
 
-# mg_cfd_output_dirpath = os.path.join(mg_cfd_dirpath, "run-scripts/Output")
-# assembly_analyser_dirpath = os.path.join(os.getenv("HOME"), "Working/AssemblyLoopExtractor")
 parser = argparse.ArgumentParser()
 parser.add_argument('--assembly-dirpath', required=True, help="Dirpath to AssemblyLoopExtractor")
 parser.add_argument('--output-dirpath', required=True, help="Dirpath to generated processed data")
@@ -107,7 +105,7 @@ def analyse_object_files():
             kernel_to_object = {}
 
             log_filename = ""
-            log_filename_candidates = [x+".stdout" for x in ["sbatch", "moab", "lsf"]]
+            log_filename_candidates = [x+".stdout" for x in ["sbatch", "moab", "lsf", "pbs"]]
             log_filename_candidates.append("submit.log")
             for lfc in log_filename_candidates:
                 if os.path.isfile(os.path.join(output_dirpath, lfc)):
@@ -142,7 +140,8 @@ def analyse_object_files():
                         loop_tally[f] = 0
                     for f in Set(loop_tally.keys()).difference(Set(loops_tally_df.keys())):
                         loops_tally_df[f] = 0
-                    loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()}), sort=True)
+                    # loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()}), sort=True)
+                    loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()}))
 
             job_id_df = get_output_run_config(output_dirpath)
             df = job_id_df.join(loops_tally_df)
@@ -179,7 +178,8 @@ def collate_csvs():
                                 if d in df_agg_data_col_names:
                                     df_agg[d] = 0
 
-                        df_agg = df_agg.append(df, sort=True)
+                        # df_agg = df_agg.append(df, sort=True)
+                        df_agg = df_agg.append(df)
 
         if cat == "instruction-counts":
             df_agg = df_agg.drop("Size", axis=1)
