@@ -1,0 +1,53 @@
+{
+    "compile": {
+        "compiler comment": "Which compiler to use. Supported are 'intel', 'gnu', 'clang', 'cray'",
+        "compiler": "intel",
+
+        "cpp wrapper comment": "If target system requires use of a wrapper around compiler (eg Archer), state that here",
+        "cpp wrapper": "",
+
+        "base flags comment": "Compile-time options to enable for each run",
+        "base flags": "-DOMP -DFLUX_FISSION -DSIMD -DDBLS_PER_SIMD=4",
+
+        "permutable flags comment": "OPTIONAL. List of lists of compile-time options. gen_job.py iterates over the cartesian product of inner lists.",
+        "permutable flags": [ ["", "-DFLAG_1"],
+                              ["", "-DFLAG_2"] ],
+
+        "insn sets comment": "OPTIONAL. Iterable: instruction sets to target. If not specified, then target is host.",
+        "insn sets": [ "SSE42", "AVX" ]
+    },
+
+    "run": {
+        "data dirpath comment": "Directory path to folder containing desired hdf5 files and input.dat",
+        "data dirpath": "./dirpath/to/input/HDF5/deck",
+
+        "unit walltime comment": "Runtime of a single multigrid cycle of this dataset on a single core of Intel Xeon. Used to estimate job scheduling walltime.",
+        "unit walltime": 1.0,
+
+        "num threads comment": "Iterable: Number of OpenMP threads",
+        "num threads": [4, 8], 
+
+        "num repeats comment": "Number of runs at each distinct job configuration",
+        "num repeats": 1,
+
+        "mg cycles comment": "Number of multigrid cycles to perform.",
+        "mg cycles": 10,
+
+        "validate result comment": "Toggle whether to compare final grid state against a precomputed solution. If check fails, MG-CFD will exit with error.",
+        "validate result": true
+    },
+
+    "setup": {
+        "jobs dir comment": "Directory path to folder containing created jobs.",
+        "jobs dir": "./dirpath/to/generated/jobs",
+
+        "job scheduler comment": "Specify job scheduler. Supported are 'slurm', 'moab', 'lsf', 'pbs'. Alternatively, set as empty string '' for local execution.", 
+        "job scheduler": "", 
+
+        "partition comment": "Specify which job queue to target",
+        "partition": "",
+
+        "budget code comment": "Specify which project code to use",
+        "budget code": ""
+    }
+}
