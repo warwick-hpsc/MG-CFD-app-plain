@@ -58,7 +58,3 @@ If you wish to cite this work then please refer to our (pending) journal publica
 
 * Owenson A.M.B., Wright S.A., Bunt R.A., Ho Y.K., Street M.J., and Jarvis S.A. (2019), An Unstructured CFD Mini-Application for the Performance Prediction of a Production CFD Code, Concurrency Computat: Pract Exper., 2019
 
-Release
-==========================================
-
-MG-CFD is released under a MIT license.
