@@ -275,10 +275,10 @@ void print_help(void)
     fprintf(stderr, "OPTIONAL ARGUMENTS\n");
     fprintf(stderr, "  -d, --input-directory=DIRPATH    Directory path to input files\n");
     fprintf(stderr, "  -o, --output-file-prefix=STRING  String to prepend to output filenames\n");
-    fprintf(stderr, "  -i, --papi-config-file=FILEPATH  PAPI events to monitor\n");
+    fprintf(stderr, "  -p, --papi-config-file=FILEPATH  PAPI events to monitor\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
+    fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "DEBUGGING ARGUMENTS\n");
