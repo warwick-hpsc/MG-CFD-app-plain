@@ -78,15 +78,6 @@
 //////////////////////
 //////////////////////
 
-namespace Filetype
-{
-    enum Filetype {
-        Unknown,
-        HDF5,
-        Old_style,
-    };
-}
-
 struct double3 { double x, y, z; };
 struct edge { double a, b; };
 struct edge_neighbour { int a, b; double x, y, z; };

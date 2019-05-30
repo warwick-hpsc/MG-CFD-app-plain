@@ -18,10 +18,10 @@
     },
 
     "run": {
-        "data dirpath comment": "Directory path to folder containing desired hdf5 files and input.dat",
-        "data dirpath": "./dirpath/to/input/HDF5/deck",
+        "data dirpath comment": "Directory path to folder containing desired input files and input.dat",
+        "data dirpath": "./dirpath/to/input/deck",
 
-        "unit walltime comment": "Runtime of a single multigrid cycle of this dataset on a single core of Intel Xeon. Used to estimate job scheduling walltime.",
+        "unit walltime comment": "Runtime of a single multigrid cycle of this dataset on a single core. Used to estimate job scheduling walltime.",
         "unit walltime": 1.0,
 
         "num threads comment": "Iterable: Number of OpenMP threads",
