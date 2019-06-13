@@ -15,9 +15,13 @@ Compiling and executing
 
 3) Compile: `COMPILER=intel make`
 
-A summary of MG-CFD's command-line options is displayed by the `--help` option: `./bin/euler3d*.b --help`
+4) Navigate to input data folder and quick run: `path/to/bin/euler3d*.b -i input.dat`
 
-To fully evaluate a system, MG-CFD requires the [PAPI](https://icl.utk.edu/papi) library for collection of performance counter data.
+MG-CFD has more command-line arguments to ease file/directory interaction, and control execution parameters. View the help page for more information:
+
+```Shell
+     $ ./path/to/euler3d*.b --help
+```
 
 ### Generating batch submission scripts:
 
@@ -42,10 +46,19 @@ MG-CFD comes with templates and logic for generating submission scripts to one o
               --data-dirpaths path/to/job-group-1-output [path/to/job-group-2-output ...]
 ```
 
+Performance assessment
+==========================================
+
+One role of MG-CFD is to evaluate a single compute node in regards to performance of this class of code. This involves measuring the throughputs of floating-point arithmetic, loads & stores, and main memory performance. To collect this data, two script generation templates have been provided with MG-CFD, named `assess-compute.json` and `assess-memory.json`. 
+
+To assess compute performance, MG-CFD requires the [PAPI](https://icl.utk.edu/papi) library for collection of performance counter data (counts of instructions and clock cycles).
+
+Once collected and aggregated, this data can be passed into the [MG-CFD performance model](https://github.com/warwick-hpsc/MG-CFD-performance-model) to estimate the throughput rates.
+
 Datasets
 ==========================================
 
-A release is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original CFD code, enabling numerical validation between that and CFD. 
+A release is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original `CFD` code, enabling numerical validation between that and `CFD`. 
 
 The second mesh is of the [Onera M6 wing](https://www.grc.nasa.gov/WWW/wind/valid/m6wing/m6wing.html). It consists of 300K nodes (930K edges), and three additional multigrid meshes with respective node counts of 165K, 111K, and 81K.
 
