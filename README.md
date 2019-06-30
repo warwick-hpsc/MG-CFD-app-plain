@@ -67,7 +67,9 @@ Authorship
 
 Andrew Owenson: a.m.b.owenson@warwick.ac.uk
 
-If you wish to cite this work then please refer to our (pending) journal publication:
+For more information on the design of MG-CFD and performance model, please refer to our publication: http://wrap.warwick.ac.uk/119788
+
+If you wish to cite this work then please use the following:
 
 * Owenson A.M.B., Wright S.A., Bunt R.A., Ho Y.K., Street M.J., and Jarvis S.A. (2019), An Unstructured CFD Mini-Application for the Performance Prediction of a Production CFD Code, Concurrency Computat: Pract Exper., 2019
 
