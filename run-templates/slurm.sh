@@ -8,5 +8,8 @@
 #SBATCH --time=<HOURS>:<MINUTES>:00
 #SBATCH --exclusive
 #SBATCH --partition=<PARTITION>
+#SBATCH --account=<BUDGET CODE>
 
-#SBATCH --export=NONE
+#SBATCH --export=ALL
+
+RUN_CMD="srun"

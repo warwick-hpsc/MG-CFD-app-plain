@@ -8,3 +8,6 @@
 #MSUB -l walltime=<HOURS>:<MINUTES>:00
 #MSUB -n
 #MSUB -q <PARTITION>
+#MSUB -A <BUDGET CODE>
+
+RUN_CMD="srun"

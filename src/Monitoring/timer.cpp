@@ -164,14 +164,12 @@ void dump_timers_to_file(int size, double total_time)
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
         {
-            // cpu_ids[omp_get_thread_num()] = sched_getcpu();
-            cpu_ids[omp_get_thread_num()] = -1;
+            cpu_ids[omp_get_thread_num()] = sched_getcpu();
         }
         for (int tid=0; tid<conf.omp_num_threads; tid++) {
             const int cpu_id = cpu_ids[tid];
     #else
-        // const int cpu_id = sched_getcpu();
-        const int cpu_id =  -1;
+        const int cpu_id = sched_getcpu();
         tid = 0;
     #endif
 
