@@ -234,6 +234,7 @@ if __name__=="__main__":
 
                     ## - Execution:
                     py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
+                    py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
 
                     ## - Walltime estimation:
                     if mgcfd_unit_runtime_secs == 0.0:
@@ -243,6 +244,7 @@ if __name__=="__main__":
                         est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
                         est_runtime_secs *= 1.2 ## Allow for estimation error
                         est_runtime_secs += 20  ## Add time for file load
+                        est_runtime_secs += 60
                         est_runtime_secs = int(round(est_runtime_secs))
                         est_runtime_hours = est_runtime_secs/60/60
                         est_runtime_secs -= est_runtime_hours*60*60
