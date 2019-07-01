@@ -234,6 +234,7 @@ if __name__=="__main__":
 
                     ## - Execution:
                     py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
+                    py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
 
                     ## - Walltime estimation:
                     if mgcfd_unit_runtime_secs == 0.0:
