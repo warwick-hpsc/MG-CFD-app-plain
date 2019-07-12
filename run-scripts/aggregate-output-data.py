@@ -136,17 +136,23 @@ def analyse_object_files():
                 loop_tally["kernel"] = k
 
                 if loops_tally_df is None:
-                    loops_tally_df = pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()})
+                    tmp_dict = {}
+                    for k,v in loop_tally.iteritems():
+                        tmp_dict[k] = [v]
+                    loops_tally_df = pd.DataFrame.from_dict(tmp_dict)
                 else:
                     for f in Set(loops_tally_df.keys()).difference(Set(loop_tally.keys())):
                         loop_tally[f] = 0
                     for f in Set(loop_tally.keys()).difference(Set(loops_tally_df.keys())):
                         loops_tally_df[f] = 0
 
+                    tmp_dict = {}
+                    for k,v in loop_tally.iteritems():
+                        tmp_dict[k] = [v]
                     if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
-                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()}), sort=True)
+                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
                     else:
-                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict({k:[v] for k,v in loop_tally.iteritems()}))
+                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict))
 
             job_id_df = get_output_run_config(output_dirpath)
             df = job_id_df.join(loops_tally_df)
