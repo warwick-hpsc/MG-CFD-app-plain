@@ -150,16 +150,16 @@ if __name__=="__main__":
         f.write("PAPI_TOT_CYC\n")
 
     n = 0
-    for p in perm_flags_permutations:
-        flags = ' '.join([pi for pi in p if pi != ""])
-        build_flags = base_flags + " " + flags
+    for repeat in range(num_repeats):
+        for p in perm_flags_permutations:
+            flags = ' '.join([pi for pi in p if pi != ""])
+            build_flags = base_flags + " " + flags
 
-        for isa in isas:
-            bin_filename = "euler3d_cpu_double_" + compiler
-            bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"
-            bin_filepath = os.path.join(app_dirpath, "bin", bin_filename)
-            for nt in threads:
-                for repeat in range(num_repeats):
+            for isa in isas:
+                bin_filename = "euler3d_cpu_double_" + compiler
+                bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"
+                bin_filepath = os.path.join(app_dirpath, "bin", bin_filename)
+                for nt in threads:
                     n += 1
                     job_id = str(n).zfill(3)
                     print("Creating job {0}/{1}".format(n, num_jobs))
