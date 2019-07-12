@@ -239,10 +239,15 @@ def aggregate():
     df_mean = df_mean.drop("ThreadNum", axis=1)
     df_agg2 = df_mean.groupby(job_id_colnames, as_index=False)
     df_sum = df_agg2.sum()
+    for pe in Set(df_sum["PAPI counter"]):
+        df_sum.loc[df_sum["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
     df_max = df_agg2.max()
     for pe in Set(df_max["PAPI counter"]):
         df_max.loc[df_max["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
-    df_agg3 = df_sum.append(df_max)
+    df_mean = df_agg2.mean()
+    for pe in Set(df_mean["PAPI counter"]):
+        df_mean.loc[df_mean["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
+    df_agg3 = df_sum.append(df_max, sort=True).append(df_mean, sort=True)
     out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
     df_agg3.to_csv(out_filepath, index=False)
 
