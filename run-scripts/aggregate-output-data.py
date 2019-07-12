@@ -10,18 +10,19 @@ script_dirpath = os.path.dirname(os.path.realpath(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--assembly-dirpath', required=True, help="Dirpath to AssemblyLoopExtractor")
 parser.add_argument('--output-dirpath', required=True, help="Dirpath to generated processed data")
 parser.add_argument('--data-dirpaths', nargs='+', default=[], required=True, help="Dirpath(s) to output data of MG-CFD runs")
+parser.add_argument('--assembly-dirpath', required=False, help="Dirpath to AssemblyLoopExtractor")
 args = parser.parse_args()
 assembly_analyser_dirpath = args.assembly_dirpath
 mg_cfd_output_dirpaths = args.data_dirpaths
 
 prepared_output_dirpath = args.output_dirpath
 
-import imp
-imp.load_source('assembly_analysis', os.path.join(assembly_analyser_dirpath, "assembly_analysis.py"))
-from assembly_analysis import *
+if not assembly_analyser_dirpath is None:
+    import imp
+    imp.load_source('assembly_analysis', os.path.join(assembly_analyser_dirpath, "assembly_analysis.py"))
+    from assembly_analysis import *
 
 compile_info = {}
 compile_info["compiler"] = "intel"
@@ -187,6 +188,10 @@ def collate_csvs():
                         else:
                             df_agg = df_agg.append(df)
 
+        if df_agg is None:
+            print("WARNING: Failed to find any '{0}' output files to collates".format(cat))
+            continue
+
         if cat == "instruction-counts":
             df_agg = df_agg.drop("Size", axis=1)
         else:
@@ -204,7 +209,10 @@ def collate_csvs():
 def aggregate():
     for cat in ["Times", "instruction-counts", "LoopNumIters"]:
         print("Aggregating " + cat)
-        df = clean_pd_read_csv(os.path.join(prepared_output_dirpath,cat+".csv"))
+        df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+        if not os.path.isfile(df_filepath):
+            continue
+        df = clean_pd_read_csv(df_filepath)
         if "ThreadNum" in df.columns.values:
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
@@ -232,7 +240,8 @@ def aggregate():
     out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
     df_agg3.to_csv(out_filepath, index=False)
 
-analyse_object_files()
+if not assembly_analyser_dirpath is None:
+    analyse_object_files()
 collate_csvs()
 aggregate()
 
