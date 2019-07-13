@@ -6,7 +6,7 @@ import fnmatch
 import argparse
 import inspect
 
-script_dirpath = os.path.dirname(os.path.realpath(__file__))
+script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
 
 parser = argparse.ArgumentParser()
