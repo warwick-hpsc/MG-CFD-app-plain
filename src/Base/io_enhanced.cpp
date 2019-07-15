@@ -873,6 +873,8 @@ void prepare_csv_identification(
                 intel_update_minor = 2;
             } else if (__INTEL_COMPILER_BUILD_DATE == 20190206) {
                 intel_update_minor = 3;
+            } else if (__INTEL_COMPILER_BUILD_DATE == 20190416) {
+                intel_update_minor = 4;
             } else {
                 printf("WARNING: Cannot determine minor version of this Intel compiler\n");
                 intel_update_minor = -1;
