@@ -102,9 +102,9 @@ def calc_ins_per_iter(output_dirpath, kernel):
         papi = pd.read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
             papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
-            flux0_ins = papi.loc[0,kernel_to_timer[k]]
+            flux0_ins = papi.loc[0,timer]
             iters = pd.read_csv(loop_num_iters_filepath)
-            flux0_iters = iters.loc[0,kernel_to_timer[k]]
+            flux0_iters = iters.loc[0,timer]
             ins_per_iter = float(flux0_ins) / float(flux0_iters)
 
     return ins_per_iter
@@ -152,7 +152,7 @@ def analyse_object_files():
                 kernel_to_object["compute_flux_edge"] = "flux_loops.o"
             kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
-            compile_info["compiler"] == infer_compiler(output_dirpath)
+            compile_info["compiler"] = infer_compiler(output_dirpath)
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
