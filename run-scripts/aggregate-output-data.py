@@ -25,9 +25,7 @@ if not assembly_analyser_dirpath is None:
     from assembly_analysis import *
 
 compile_info = {}
-compile_info["compiler"] = "intel"
 compile_info["SIMD len"] = 1
-ins_per_iter = -1
 
 kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
 
@@ -87,6 +85,38 @@ def get_output_run_config(output_dirpath):
     job_id_df = job_id_df.transpose()
     return job_id_df
 
+def calc_ins_per_iter(output_dirpath, kernel):
+    if kernel == "compute_flux_edge" or kernel == "compute_flux_edge_crippled":
+        timer = "flux0"
+    elif kernel == "indirect_rw":
+        timer = "indirect_rw0"
+    else:
+        return -1
+
+    ins_per_iter = -1
+
+    papi_filepath = os.path.join(output_dirpath, "PAPI.csv")
+    loop_num_iters_filepath = os.path.join(output_dirpath, "LoopNumIters.csv")
+
+    if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
+        papi = pd.read_csv(papi_filepath)
+        if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
+            papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
+            flux0_ins = papi.loc[0,kernel_to_timer[k]]
+            iters = pd.read_csv(loop_num_iters_filepath)
+            flux0_iters = iters.loc[0,kernel_to_timer[k]]
+            ins_per_iter = float(flux0_ins) / float(flux0_iters)
+
+    return ins_per_iter
+
+def infer_compiler(output_dirpath):
+    times_filepath = os.path.join(output_dirpath, "Times.csv")
+    if not os.path.isfile(times_filepath):
+        return "UNKNOWN"
+    else:
+        times = pd.read_csv(times_filepath)
+        return times.loc[0, "CC"]
+
 def analyse_object_files():
     print("Analysing object files")
 
@@ -122,8 +152,12 @@ def analyse_object_files():
                 kernel_to_object["compute_flux_edge"] = "flux_loops.o"
             kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
+            compile_info["compiler"] == infer_compiler(output_dirpath)
+
             loops_tally_df = None
             for k in kernel_to_object.keys():
+                ins_per_iter = calc_ins_per_iter(output_dirpath, k)
+
                 obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
                 loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
                 loop_tally = count_loop_instructions(asm_loop_filepath, loop)
