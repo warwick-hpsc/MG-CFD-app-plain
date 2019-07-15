@@ -854,6 +854,8 @@ void prepare_csv_identification(
         data_line << "intel" << "," ;
     #elif defined __clang__
         data_line << "clang" << "," ;
+    #elif defined _CRAYC
+        data_line << "cray" << "," ;
     #elif defined __GNUC__
         data_line << "gnu" << "," ;
     #else
@@ -871,6 +873,8 @@ void prepare_csv_identification(
                 intel_update_minor = 2;
             } else if (__INTEL_COMPILER_BUILD_DATE == 20190206) {
                 intel_update_minor = 3;
+            } else if (__INTEL_COMPILER_BUILD_DATE == 20190416) {
+                intel_update_minor = 4;
             } else {
                 printf("WARNING: Cannot determine minor version of this Intel compiler\n");
                 intel_update_minor = -1;
@@ -879,6 +883,8 @@ void prepare_csv_identification(
         data_line << XMACRO_TO_STR(__ICC) << "u" << intel_update_minor << "," ;
     #elif defined __clang__
         data_line << XMACRO_TO_STR(__clang_major__) << "." << XMACRO_TO_STR(__clang_minor__) << "." << XMACRO_TO_STR(__clang_patchlevel__) << "," ;
+    #elif defined _CRAYC
+        data_line << XMACRO_TO_STR(_RELEASE) << "." << XMACRO_TO_STR(_RELEASE_MINOR) << "," ;
     #elif defined __GNUC__
         data_line << XMACRO_TO_STR(__GNUC__) << "." << XMACRO_TO_STR(__GNUC_MINOR__) << "." << XMACRO_TO_STR(__GNUC_PATCHLEVEL__) << "," ;
     #else
