@@ -266,7 +266,7 @@ def aggregate():
     df = clean_pd_read_csv(os.path.join(prepared_output_dirpath,cat+".csv"))
     job_id_colnames = get_job_id_colnames(df)
     ## First, compute per-thread average across repeat runs:
-    df_agg = df.groupby(get_job_id_colnames(df), as_index=False)
+    df_agg = df.groupby(job_id_colnames, as_index=False)
     df_mean = df_agg.mean()
     ## Next, compute sum and max across threads within each run:
     del job_id_colnames[job_id_colnames.index("ThreadNum")]
