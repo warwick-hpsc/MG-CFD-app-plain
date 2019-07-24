@@ -20,7 +20,7 @@ js_to_submit_cmd[""] = ""
 js_to_submit_cmd["slurm"] = "sbatch"
 js_to_submit_cmd["moab"] = "msub"
 js_to_submit_cmd["lsf"] = "bsub"
-js_to_submit_cmd["pbs"] = "qsub"
+js_to_submit_cmd["pbs"] = "qsub -V"
 
 defaults = {}
 # Compilation:
@@ -140,10 +140,18 @@ if __name__=="__main__":
     submit_all_file.write("set -e\n")
     submit_all_file.write("set -u\n")
     submit_all_file.write("\n")
-    js_filename = js_to_filename[js]
     submit_all_file.write("# {0}:\n".format(js))
-    submit_all_file.write("submit_cmd={0}\n\n".format(js_to_submit_cmd[js]))
+    submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
     submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+
+    if js != "":
+        js_filename = js_to_filename[js]
+    if "batch header filepath" in profile["setup"].keys():
+        src_js_filepath = profile["setup"]["batch header filepath"]
+        if not os.path.isfile(src_js_filepath):
+            raise Exception("Cannot find provided 'batch header filepath': '{0}'".format(src_js_filepath))
+    else:
+        src_js_filepath = None
 
     with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
         f.write("PAPI_TOT_INS\n")
@@ -179,9 +187,12 @@ if __name__=="__main__":
                     shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
 
                     ## Instantiate job scheduling header:
-                    if js != "":
-                        js_filepath = os.path.join(job_dir, js_filename)
-                        shutil.copyfile(os.path.join(template_dirpath, js_filename), js_filepath)
+                    if (src_js_filepath is None) and (js != ""):
+                        ## Use bundled scheduler options
+                        src_js_filepath = os.path.join(template_dirpath, js_filename)
+                    if not src_js_filepath is None:
+                        out_js_filepath = os.path.join(job_dir, js_filename)
+                        shutil.copyfile(src_js_filepath, out_js_filepath)
 
                     ## Combine into a batch submission script:
                     if js == "":
@@ -191,10 +202,10 @@ if __name__=="__main__":
                     batch_filepath = os.path.join(job_dir, batch_filename)
                     with open(batch_filepath, "w") as f_out:
                         if js != "":
-                            with open(js_filepath, "r") as f_in:
+                            with open(out_js_filepath, "r") as f_in:
                                 for line in f_in.readlines():
                                     f_out.write(line)
-                            os.remove(js_filepath)
+                            os.remove(out_js_filepath)
                         else:
                             f_out.write("#!/bin/bash\n")
                         f_out.write("\n\n")
@@ -276,10 +287,8 @@ if __name__=="__main__":
                     submit_all_file.write("\n\n")
                     with open(submit_tmp_filepath, 'r') as f:
                         for line in f:
-                            # if not re.match(r''+"^[\s]*#", line):
                             submit_all_file.write(line)
-
-                    ## Now close (and delete) submit_tmp file
+                    # Now close (and delete) submit_tmp file
                     submit_tmp.close()
                     if os.path.isfile(submit_tmp_filepath):
                         os.unlink(submit_tmp_filepath)
@@ -290,3 +299,12 @@ if __name__=="__main__":
     submit_all_file.close()
     st = os.stat(submit_all_filepath)
     os.chmod(submit_all_filepath, st.st_mode | stat.S_IEXEC)
+
+    ## Create a little script for listing jobs that failed during execution:
+    error_scan_filepath = os.path.join(jobs_dir, "list_errored_jobs.sh")
+    error_scan_file = open(error_scan_filepath, "w")
+    error_scan_file.write("#!/bin/bash\n")
+    error_scan_file.write("find . -name pbs.stderr | while read F ; do wc -l \"$F\" ; done | grep -v \"^0 \"\n")
+    error_scan_file.close()
+    st = os.stat(error_scan_filepath)
+    os.chmod(error_scan_filepath, st.st_mode | stat.S_IEXEC)

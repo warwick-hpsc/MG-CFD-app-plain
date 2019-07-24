@@ -47,7 +47,7 @@ else ifeq ($(COMPILER),intel)
 	CFLAGS += -qopenmp
 	CFLAGS += -fmax-errors=1
 
-	INTEL_OPT_REPORT_OPTIONS := 
+	INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=all -qopt-report=5
 	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -xHost

@@ -6,6 +6,32 @@ if [ -f job-in-queue.txt ]; then
     rm job-in-queue.txt
 fi
 
+# Decide whether to compile app, execute app, or both:
+do_execute=false
+do_compile=false
+if [ ! -z ${BATCH_EXECUTE_MODE+x} ]; then
+  if [ "$BATCH_EXECUTE_MODE" = "execute" ]; then
+    do_execute=true
+  elif [ "$BATCH_EXECUTE_MODE" = "compile" ]; then
+    do_compile=true
+  fi
+fi
+for var in "$@" ; do
+  if [ "$var" == "--execute" ]; then
+    do_execute=true
+  elif [ "$var" == "--compile" ]; then
+    do_compile=true
+  fi
+done
+if ! $do_execute ; then
+  if ! $do_compile ; then
+    # User must have executed this script without arguments. 
+    # Assume that user expects script to both compile and execute app.
+    do_compile=true
+    do_execute=true
+  fi
+fi
+
 # Compilation variables:
 isa="<ISA>"
 compiler="<COMPILER>"
@@ -44,47 +70,42 @@ else
   bin_filename=euler3d_cpu_double_"${compiler}"
 fi
 bin_filename="$bin_filename"`echo "$flags_final" | tr -d " "`.b
-# bin_filepath="${app_dirpath}/bin/`hostname`/${bin_filename}"
 bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
-# if [ ! -f "$bin_filepath" ]; then
-    ## Try compiling anyway, source files may have changed
-  if [[ `hostname` == *"login"* ]]; then
-    ## On login node, compile
-    export BUILD_FLAGS="$flags_final"
-    cd "${app_dirpath}"
-    make_cmd="COMPILER=${compiler} "
-    if [ "$cpp_wrapper" != "" ]; then
-      make_cmd+="CPP_WRAPPER=$cpp_wrapper "
-    fi
-    make_cmd+="make -j4 "
-    if $debug ; then
-      make_cmd+="debug"
-    fi
-    echo "$make_cmd"
-    eval "$make_cmd"
-    chmod a+x "$bin_filepath"
-  elif [ ! -f "$bin_filepath" ]; then
-    echo "ERROR: Cannot find binary: $bin_filepath"
-    rm "${run_outdir}"/job-is-running.txt
-    exit 1
+if $do_compile ; then
+  export BUILD_FLAGS="$flags_final"
+  cd "${app_dirpath}"
+  make_cmd="COMPILER=${compiler} "
+  if [ "$cpp_wrapper" != "" ]; then
+    make_cmd+="CPP_WRAPPER=$cpp_wrapper "
   fi
-# fi
+  make_cmd+="make -j4 "
+  if $debug ; then
+    make_cmd+="debug"
+  fi
+  echo "$make_cmd"
+  eval "$make_cmd"
+  chmod a+x "$bin_filepath"
+elif [ ! -f "$bin_filepath" ]; then
+  echo "ERROR: Cannot find binary: $bin_filepath"
+  rm "${run_outdir}"/job-is-running.txt
+  exit 1
+fi
 
 # Grab object files:
 if [ ! -d "${run_outdir}/objects" ]; then
     mkdir "${run_outdir}/objects"
 fi
-# obj_dir="${app_dirpath}/obj/`hostname`/"
 obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
 cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
 cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
 
-if [[ `hostname` == *"login"* ]]; then
-  ## Assume on a login node, do not execute the code.
-  echo "Detected presence on login node, aborting before app execution."
+
+## Exit early if app execution not requested.
+if ! $do_execute ; then
+  echo "App execution not requested, exiting before app execution"
   exit 0
 fi
 

@@ -44,6 +44,9 @@
         "job scheduler comment": "Specify job scheduler. Supported are 'slurm', 'moab', 'lsf', 'pbs'. Alternatively, set as empty string '' for local execution.", 
         "job scheduler": "", 
 
+        "batch header filepath comment": "OPTIONAL. Filepath to custom batch job script header, overriding bundled headers in run-templates/*",
+        "batch header filepath": "",
+
         "partition comment": "Specify which job queue to target",
         "partition": "",
 
