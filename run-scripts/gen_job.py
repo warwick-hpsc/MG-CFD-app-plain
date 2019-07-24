@@ -301,3 +301,12 @@ if __name__=="__main__":
     submit_all_file.close()
     st = os.stat(submit_all_filepath)
     os.chmod(submit_all_filepath, st.st_mode | stat.S_IEXEC)
+
+    ## Create a little script for listing jobs that failed during execution:
+    error_scan_filepath = os.path.join(jobs_dir, "list_errored_jobs.sh")
+    error_scan_file = open(error_scan_filepath, "w")
+    error_scan_file.write("#!/bin/bash\n")
+    error_scan_file.write("find . -name pbs.stderr | while read F ; do wc -l \"$F\" ; done | grep -v \"^0 \"\n")
+    error_scan_file.close()
+    st = os.stat(error_scan_filepath)
+    os.chmod(error_scan_filepath, st.st_mode | stat.S_IEXEC)
