@@ -248,42 +248,76 @@ def collate_csvs():
 
 def aggregate():
     for cat in ["Times", "instruction-counts", "LoopNumIters"]:
-        print("Aggregating " + cat)
         df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
         if not os.path.isfile(df_filepath):
             continue
+        print("Aggregating " + cat)
         df = clean_pd_read_csv(df_filepath)
         if "ThreadNum" in df.columns.values:
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
-        df_agg = df.groupby(get_job_id_colnames(df), as_index=False)
-        df_mean = df_agg.mean()
+        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        df_agg = df.groupby(get_job_id_colnames(df))
+
+        df_mean = df_agg.mean().reset_index()
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_mean.to_csv(out_filepath, index=False)
 
+        if cat == "Times":
+            # Calculate STDEV as % of mean:
+            df_std = df_agg.std().reset_index()
+            renames = {}
+            for x in data_colnames:
+                renames[x] = x+"_mean"
+            df_std = df_std.merge(df_mean.rename(index=str, columns=renames))
+            for c in data_colnames:
+                df_std[c] = df_std[c] / df_std[c+"_mean"]
+                df_std.loc[df_std[c+"_mean"]==0.0,c] = 0.0
+                df_std.loc[df_std[c+"_mean"]==0,c]   = 0.0
+            df_std = df_std.drop([x+"_mean" for x in data_colnames], axis=1)
+            out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
+            df_std.to_csv(out_filepath, index=False)
+
     cat = "PAPI"
-    print("Aggregating " + cat)
-    df = clean_pd_read_csv(os.path.join(prepared_output_dirpath,cat+".csv"))
-    job_id_colnames = get_job_id_colnames(df)
-    ## First, compute per-thread average across repeat runs:
-    df_agg = df.groupby(job_id_colnames, as_index=False)
-    df_mean = df_agg.mean()
-    ## Next, compute sum and max across threads within each run:
-    del job_id_colnames[job_id_colnames.index("ThreadNum")]
-    df_mean = df_mean.drop("ThreadNum", axis=1)
-    df_agg2 = df_mean.groupby(job_id_colnames, as_index=False)
-    df_sum = df_agg2.sum()
-    for pe in Set(df_sum["PAPI counter"]):
-        df_sum.loc[df_sum["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
-    df_max = df_agg2.max()
-    for pe in Set(df_max["PAPI counter"]):
-        df_max.loc[df_max["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
-    df_mean = df_agg2.mean()
-    for pe in Set(df_mean["PAPI counter"]):
-        df_mean.loc[df_mean["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
-    df_agg3 = df_sum.append(df_max, sort=True).append(df_mean, sort=True)
-    out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
-    df_agg3.to_csv(out_filepath, index=False)
+    papi_df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+    if os.path.isfile(papi_df_filepath):
+        print("Aggregating " + cat)
+        df = clean_pd_read_csv(papi_df_filepath)
+        job_id_colnames = get_job_id_colnames(df)
+        ## First, compute per-thread average across repeat runs:
+        df_agg = df.groupby(get_job_id_colnames(df))
+
+        df_mean = df_agg.mean().reset_index()
+        ## Next, compute sum and max across threads within each run:
+        del job_id_colnames[job_id_colnames.index("ThreadNum")]
+        df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        df_agg2 = df_mean2.groupby(job_id_colnames)
+        df_sum = df_agg2.sum().reset_index()
+        for pe in Set(df_sum["PAPI counter"]):
+            df_sum.loc[df_sum["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
+        df_max = df_agg2.max().reset_index()
+        for pe in Set(df_max["PAPI counter"]):
+            df_max.loc[df_max["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
+        df_mean2 = df_agg2.mean().reset_index()
+        for pe in Set(df_mean2["PAPI counter"]):
+            df_mean2.loc[df_mean2["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
+        df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
+        out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
+        df_agg3.to_csv(out_filepath, index=False)
+
+        # Calculate STDEV as % of mean:
+        df_std = df_agg.std().reset_index()
+        renames = {}
+        for x in data_colnames:
+            renames[x] = x+"_mean"
+        df_std = df_std.merge(df_mean.rename(index=str, columns=renames))
+        for c in data_colnames:
+            df_std[c] = df_std[c] / df_std[c+"_mean"]
+            df_std.loc[df_std[c+"_mean"]==0.0,c] = 0.0
+            df_std.loc[df_std[c+"_mean"]==0,c]   = 0.0
+        df_std = df_std.drop([x+"_mean" for x in data_colnames], axis=1)
+        out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
+        df_std.to_csv(out_filepath, index=False)
 
 if not assembly_analyser_dirpath is None:
     analyse_object_files()
