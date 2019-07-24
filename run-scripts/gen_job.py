@@ -141,7 +141,7 @@ if __name__=="__main__":
     submit_all_file.write("set -u\n")
     submit_all_file.write("\n")
     submit_all_file.write("# {0}:\n".format(js))
-    submit_all_file.write("submit_cmd={0}\n\n".format(js_to_submit_cmd[js]))
+    submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
     submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
 
     if js != "":
