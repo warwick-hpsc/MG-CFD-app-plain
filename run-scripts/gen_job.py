@@ -287,10 +287,8 @@ if __name__=="__main__":
                     submit_all_file.write("\n\n")
                     with open(submit_tmp_filepath, 'r') as f:
                         for line in f:
-                            # if not re.match(r''+"^[\s]*#", line):
                             submit_all_file.write(line)
-
-                    ## Now close (and delete) submit_tmp file
+                    # Now close (and delete) submit_tmp file
                     submit_tmp.close()
                     if os.path.isfile(submit_tmp_filepath):
                         os.unlink(submit_tmp_filepath)
