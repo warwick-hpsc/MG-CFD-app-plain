@@ -20,7 +20,7 @@ js_to_submit_cmd[""] = ""
 js_to_submit_cmd["slurm"] = "sbatch"
 js_to_submit_cmd["moab"] = "msub"
 js_to_submit_cmd["lsf"] = "bsub"
-js_to_submit_cmd["pbs"] = "qsub"
+js_to_submit_cmd["pbs"] = "qsub -V"
 
 defaults = {}
 # Compilation:
