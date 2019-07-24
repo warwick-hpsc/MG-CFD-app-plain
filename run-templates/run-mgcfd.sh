@@ -6,6 +6,26 @@ if [ -f job-in-queue.txt ]; then
     rm job-in-queue.txt
 fi
 
+do_execute=false
+do_compile=false
+if [ ! -z ${BATCH_EXECUTE_MODE+x} ]; then
+  echo "BATCH_EXECUTE_MODE = '${BATCH_EXECUTE_MODE}'"
+  if [ "$BATCH_EXECUTE_MODE" = "execute" ]; then
+    do_execute=true
+  elif [ "$BATCH_EXECUTE_MODE" = "compile" ]; then
+    do_compile=true
+  fi
+fi
+for var in "$@" ; do
+  if [ "$var" == "--execute" ]; then
+    do_execute=true
+  elif [ "$var" == "--compile" ]; then
+    do_compile=true
+  fi
+done
+echo "do_compile = $do_compile"
+echo "do_execute = $do_execute"
+
 # Compilation variables:
 isa="<ISA>"
 compiler="<COMPILER>"
@@ -49,7 +69,7 @@ bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
 # if [ ! -f "$bin_filepath" ]; then
     ## Try compiling anyway, source files may have changed
-  if [[ `hostname` == *"login"* ]]; then
+  if $do_compile ; then
     ## On login node, compile
     export BUILD_FLAGS="$flags_final"
     cd "${app_dirpath}"
@@ -82,9 +102,8 @@ obj_dir+=`echo "$flags_final" | tr -d " "`
 cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
 cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
 
-if [[ `hostname` == *"login"* ]]; then
-  ## Assume on a login node, do not execute the code.
-  echo "Detected presence on login node, aborting before app execution."
+if ! $do_execute ; then
+  echo "Terminating before app execution."
   exit 0
 fi
 

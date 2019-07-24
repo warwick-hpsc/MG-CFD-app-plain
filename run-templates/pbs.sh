@@ -9,5 +9,7 @@
 #PBS -A <BUDGET CODE>
 #PBS -q <PARTITION>
 
+#PBS -V
+
 export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
 cd $PBS_O_WORKDIR

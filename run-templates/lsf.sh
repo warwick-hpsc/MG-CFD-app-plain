@@ -10,4 +10,8 @@
 #BSUB -q <PARTITION>
 #BSUB -P <BUDGET CODE>
 
+## Note: LSF documentation claims that user environment variables 
+##       are exported by default. However I have not confirmed this.
+##       This feature is necessary, so fingers crossed!
+
 RUN_CMD="mpirun"

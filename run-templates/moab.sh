@@ -10,4 +10,6 @@
 #MSUB -q <PARTITION>
 #MSUB -A <BUDGET CODE>
 
+#MSUB -V
+
 RUN_CMD="srun"
