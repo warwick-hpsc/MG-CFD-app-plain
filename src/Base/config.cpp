@@ -45,6 +45,8 @@ void set_config_defaults() {
 
     conf.num_cycles = 25;
 
+    conf.renumber_mesh = false;
+
     conf.validate_result = false;
 
     #ifdef OMP
@@ -231,6 +233,8 @@ bool parse_arguments(int argc, char** argv) {
                 break;
             case 'v':
                 conf.validate_result = true;
+            case 'r':
+                conf.renumber_mesh = true;
             case '\0':
                 break;
             default:
@@ -280,6 +284,8 @@ void print_help(void)
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
     fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  -r, --renumber                   Renumber mesh nodes using RCM\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "DEBUGGING ARGUMENTS\n");
     fprintf(stderr, "  --output-variables               Write Euler equation variable values to file\n");

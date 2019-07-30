@@ -23,6 +23,10 @@
 #include "cfd_loops.h"
 #include "mg_loops.h"
 
+// Meshing:
+#include "graph.h"
+#include "reduce_bw.h"
+
 // Monitoring:
 #include "papi_funcs.h"
 #include "timer.h"
@@ -260,6 +264,82 @@ int main(int argc, char** argv)
         }
     }
 
+    int** point_peritabs = alloc<int*>(levels);
+    for (int l=0; l<levels; l++) point_peritabs[l] = NULL;
+    if (conf.renumber_mesh) {
+        // Renumber nodes using reverse Cuthill-McKee (RCM):
+        printf("Renumbering nodes using RCM:\n");
+        for (int i=0; i<levels; i++) {
+            if (levels == 1) {
+                point_peritabs[i] = reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    NULL, 
+                    0, 
+                    NULL, 
+                    0, 
+                    true);
+            }
+            else if (i==0) {
+                point_peritabs[i] = reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    mg_connectivity[i], 
+                    mg_connectivity_size[i], 
+                    NULL, 
+                    0, 
+                    true);
+            }
+            else if (i==(levels-1)) {
+                reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    NULL, 
+                    0, 
+                    mg_connectivity[i-1], 
+                    mg_connectivity_size[i-1], 
+                    true);
+            }
+            else {
+                reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    mg_connectivity[i], 
+                    mg_connectivity_size[i], 
+                    mg_connectivity[i-1], 
+                    mg_connectivity_size[i-1], 
+                    true);
+            }
+
+            // Renumbering without also reordering edges incurs 
+            // significant performance cost. Doesn't matter which 
+            // edge endpoint is used
+            qsort(edges[i], 
+                  num_internal_edges[i], sizeof(edge_neighbour), 
+                  compare_two_internal_edges_amajor);
+            qsort(edges[i]+boundary_edge_starts[i], 
+                  num_boundary_edges[i], sizeof(edge_neighbour), compare_two_noninternal_edges);
+            qsort(edges[i]+wall_edge_starts[i], 
+                  num_wall_edges[i],     sizeof(edge_neighbour), compare_two_noninternal_edges);
+        }
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     // Duplicate mesh (for safe thread decomposition):
     ///////////////////////////////////////////////////////////////////////////
@@ -281,7 +361,8 @@ int main(int argc, char** argv)
                     &edges[i],
                     nel[i+1],
                     &mg_connectivity[i], 
-                    &mg_connectivity_size[i]);
+                    &mg_connectivity_size[i], 
+                    &point_peritabs[i]);
             } else {
                 duplicate_mesh(
                     &nel[i],
@@ -296,7 +377,8 @@ int main(int argc, char** argv)
                     &edges[i],
                     0,
                     NULL, 
-                    NULL);
+                    NULL, 
+                    &point_peritabs[i]);
             }
 
             dealloc<double>(variables[i]);
@@ -769,7 +851,11 @@ int main(int argc, char** argv)
                 break;
             } else {
                 printf("  scanning variables[] on level %d for errors\n", level);
-                identify_differences(variables[level], variables_solution, nel[level]);
+                identify_differences(
+                    variables[level], 
+                    variables_solution, 
+                    nel[level], 
+                    point_peritabs[level]);
             }
             dealloc<double>(variables_solution);
         }

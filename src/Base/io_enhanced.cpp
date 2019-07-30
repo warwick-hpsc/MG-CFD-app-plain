@@ -99,7 +99,8 @@ void duplicate_mesh(
     edge_neighbour** edges,
     int nel_above,
     int** mg_mapping,
-    int* mgc)
+    int* mgc,
+    int** peritab)
 {
     log("Entering duplicate_mesh()");
 
@@ -179,6 +180,17 @@ void duplicate_mesh(
         dealloc<int>(*mg_mapping);
         *mg_mapping = mg_mapping_duplicated;
         *mgc = mgc_duplicated;
+    }
+
+    if ((*peritab) != NULL) {
+        int* peritab_duplicated = alloc<int>(m*(*nel));
+        for (int i=0; i<m; i++) {
+            for (int n=0; n<(*nel); n++) {
+                peritab_duplicated[i*(*nel) + n] = (*peritab)[n] + ((*nel)*i);
+            }
+        }
+        dealloc<int>(*peritab);
+        *peritab = peritab_duplicated;
     }
 
     *nel *= m;
@@ -947,6 +959,13 @@ void prepare_csv_identification(
     #else
         data_line << "N," ;
     #endif
+
+    if (write_header) header << "Renumber," ;
+    if (conf.renumber_mesh)
+        data_line << "Y," ;
+    else
+        data_line << "N," ;
+
 
     if (write_header) header << "CPU," ;
     data_line << get_cpu_model_name() << "," ;

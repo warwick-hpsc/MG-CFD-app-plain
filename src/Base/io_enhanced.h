@@ -26,7 +26,8 @@ void duplicate_mesh(
     edge_neighbour** edges,
     int nel_above,
     int** mg_mapping,
-    int* mgc);
+    int* mgc,
+    int** peritab);
 
 bool read_grid_from_bin(
     const char* data_file_name, 

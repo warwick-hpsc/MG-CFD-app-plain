@@ -36,6 +36,8 @@ typedef struct {
 	int num_cycles;
 	int omp_num_threads;
 
+	bool renumber_mesh;
+
 	bool validate_result;
 
 	bool output_variables;
@@ -58,12 +60,13 @@ static struct option long_opts[] = {
     { "mesh-duplicate-count", required_argument, NULL, 'm' },
     { "num-cycles",           required_argument, NULL, 'g' },
     { "validate-result",      no_argument,       NULL, 'v' },
+    { "renumber",             no_argument,       NULL, 'r' },
     { "output-variables",     no_argument,       (int*)&conf.output_variables,    1 },
     { "output-fluxes",        no_argument,       (int*)&conf.output_fluxes,       1 },
     { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
     {NULL, 0, NULL, 0} 
 };
-#define GETOPTS "hc:i:d:p:o:m:g:v"
+#define GETOPTS "hc:i:d:p:o:m:g:vr"
 
 void set_config_defaults();
 

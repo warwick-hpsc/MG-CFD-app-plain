@@ -141,7 +141,8 @@ void check_for_invalid_variables(
 void identify_differences(
     const double* test_values,
     const double* master_values, 
-    int n)
+    int n, 
+    const int* peritab)
 {
     // If floating-point operations have been reordered, then a difference
     // is expected due to rounding-errors, but the difference should
@@ -160,6 +161,10 @@ void identify_differences(
     const double acceptable_relative_difference = 10.0e-9;
 
     double absolute_threshold = 3.0e-19;
+    if (peritab != NULL) {
+        // Relax threshold for renumbered mesh
+        absolute_threshold = 4.0e-18;
+    }
     if (mesh_variant == MESH_FVCORR) {
         // Relax threshold for this mesh, as original code performs 
         // arithmetic in a hugely different order.
@@ -180,7 +185,15 @@ void identify_differences(
                 acceptable_difference = absolute_threshold;
             }
 
-            double diff = test_values[idx] - master_values[idx];
+            double test_value = test_values[idx];
+            double master_value;
+            if (peritab != NULL) {
+                master_value = master_values[peritab[i]*NVAR+v];
+            } else {
+                master_value = master_values[idx];
+            }
+            double diff = test_value - master_value;
+
             if (diff < 0.0) {
                 diff *= -1.0;
             }
@@ -190,8 +203,8 @@ void identify_differences(
                 // printf("       - incorrect value = %.17f\n", test_values[idx]);
                 // printf("       - correct value =   %.17f\n", master_values[idx]);
                 // printf("       - diff          =   %.17f\n", diff);
-                printf("       - incorrect value = %.23f\n", test_values[idx]);
-                printf("       - correct value =   %.23f\n", master_values[idx]);
+                printf("       - incorrect value = %.23f\n", test_value);
+                printf("       - correct value =   %.23f\n", master_value);
                 printf("       - diff          =   %.23f\n", diff);
                 exit(EXIT_FAILURE);
             }
