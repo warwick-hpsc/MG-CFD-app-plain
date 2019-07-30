@@ -39,6 +39,9 @@ void compute_flux_edge(
         edge *restrict edge_variables
     #else
         double *restrict fluxes
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+        , int serial_section_start
+        #endif
     #endif
     );
 

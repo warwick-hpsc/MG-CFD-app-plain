@@ -92,6 +92,9 @@ void compute_flux_edge(
         edge *restrict edge_variables
     #else
         double *restrict fluxes
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+        , int serial_section_start
+        #endif
     #endif
     )
 {
@@ -100,6 +103,9 @@ void compute_flux_edge(
 
     int loop_start = first_edge;
     int loop_end = loop_start + nedges;
+    #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE
+        loop_end = serial_section_start;
+    #endif
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -131,6 +137,8 @@ void compute_flux_edge(
                 // TODO: Insert the following pragma into flux_kernel.elemfunc.c to 
                 //       enable safe AVX-512-CD SIMD:
                 // #pragma omp ordered simd overlap(...)
+            #elif defined COLOURED_CONFLICT_AVOIDANCE
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
             #endif
         #endif
     #endif
@@ -163,6 +171,46 @@ void compute_flux_edge(
         stop_papi();
         #endif
         record_iters(loop_start, loop_end);
+    #endif
+
+    #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE
+        // Compute fluxes of 'remainder' edges without SIMD:
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+            loop_start = serial_section_start;
+            loop_end = first_edge + nedges;
+            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
+                // All remainder edges are separate from the SIMD-able edges, so 
+                // a workload distribution is required.
+                openmp_distribute_loop_iterations(&loop_start, &loop_end);
+            #endif
+        #endif
+
+        #pragma omp simd safelen(1)
+        for (int i=loop_start; i<loop_end; i++)
+        {
+            compute_flux_edge_kernel(
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    edge_weights[i],
+                #endif
+                edges[i].x, 
+                edges[i].y, 
+                edges[i].z,
+                &variables[edges[i].a*NVAR],
+                &variables[edges[i].b*NVAR],
+                #ifdef FLUX_FISSION
+                    &edge_variables[i]
+                #else
+                    #ifdef MANUAL_CONFLICT_AVOIDANCE
+                        i-loop_start,
+                        fluxes_a, 
+                        fluxes_b
+                    #else
+                        &fluxes[edges[i].a*NVAR],
+                        &fluxes[edges[i].b*NVAR]
+                    #endif
+                #endif
+                );
+        }
     #endif
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
