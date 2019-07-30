@@ -50,7 +50,7 @@ _t=<NUM_THREADS>
 _m=<MESH_MULTI>
 mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
-
+renumber=<RENUMBER>
 
 ## Exit early if output csv files already exist.
 if [ -f "${run_outdir}/Times.csv" ]; then
@@ -118,6 +118,9 @@ fi
 exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o ${run_outdir}/ -g $mg_cycles"
 if $validate_result ; then
   exec_command+=" -v"
+fi
+if $renumber ; then
+  exec_command+=" -r"
 fi
 echo "EXECUTING $bin_filepath"
 export OMP_NUM_THREADS=$_t

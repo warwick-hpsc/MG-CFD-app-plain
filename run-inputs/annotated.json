@@ -37,6 +37,11 @@
         "validate result": true
     },
 
+    "optimisation": {
+        "renumber comment": "OPTIONAL: whether to renumber mesh nodes",
+        "renumber": [false, true]
+    },
+
     "setup": {
         "jobs dir comment": "Directory path to folder containing created jobs.",
         "jobs dir": "./dirpath/to/generated/jobs",
