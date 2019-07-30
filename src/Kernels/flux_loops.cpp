@@ -1,6 +1,11 @@
 #include "flux_loops.h"
 #include "cfd_loops.h"
 
+#include "flux_kernel.h"
+#ifdef FLUX_CRIPPLE
+    #include "flux_kernel_crippled.h"
+#endif
+
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"
@@ -131,7 +136,22 @@ void compute_flux_edge(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux_kernel.elemfunc.c"
+        compute_flux_edge_kernel(
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights[i],
+            #endif
+            edges[i].x, 
+            edges[i].y, 
+            edges[i].z,
+            &variables[edges[i].a*NVAR],
+            &variables[edges[i].b*NVAR],
+            #ifdef FLUX_FISSION
+                &edge_variables[i]
+            #else
+                &fluxes[edges[i].a*NVAR],
+                &fluxes[edges[i].b*NVAR]
+            #endif
+            );
     }
     #ifdef FLUX_CRIPPLE
         iters_monitoring_state = 1;
@@ -152,6 +172,7 @@ void compute_flux_edge(
     log("Internal flux compute complete");
 }
 
+#ifdef FLUX_CRIPPLE
 void compute_flux_edge_crippled(
     int first_edge,
     int nedges,
@@ -204,7 +225,23 @@ void compute_flux_edge_crippled(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "flux_kernel_crippled.elemfunc.c"
+        compute_flux_edge_kernel_crippled(
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights[i],
+            #else
+                edges[i].x, 
+                edges[i].y, 
+                edges[i].z,
+            #endif
+            &variables[edges[i].a*NVAR],
+            &variables[edges[i].b*NVAR],
+            #ifdef FLUX_FISSION
+                &edge_variables[i]
+            #else
+                &fluxes[edges[i].a*NVAR],
+                &fluxes[edges[i].b*NVAR]
+            #endif
+            );
     }
     #ifdef TIME
     stop_timer();
@@ -218,3 +255,4 @@ void compute_flux_edge_crippled(
         }
     #endif
 }
+#endif

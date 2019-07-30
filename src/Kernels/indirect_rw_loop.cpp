@@ -1,4 +1,5 @@
 #include "indirect_rw_loop.h"
+#include "indirect_rw_kernel.h"
 #include "cfd_loops.h"
 
 #include "papi_funcs.h"
@@ -60,7 +61,22 @@ void indirect_rw(
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        #include "indirect_rw_kernel.elemfunc.c"
+        indirect_rw_kernel(
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights[i],
+            #endif
+            edges[i].x, 
+            edges[i].y, 
+            edges[i].z,
+            &variables[edges[i].a*NVAR],
+            &variables[edges[i].b*NVAR],
+            #ifdef FLUX_FISSION
+                &edge_variables[i]
+            #else
+                &fluxes[edges[i].a*NVAR],
+                &fluxes[edges[i].b*NVAR]
+            #endif
+            );
     }
     #ifdef TIME
     stop_timer();
