@@ -530,6 +530,9 @@ int main(int argc, char** argv)
                     variables[level], 
                     #ifndef FLUX_FISSION
                         fluxes[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
                     #else
                         edge_variables[level]
                     #endif
@@ -628,6 +631,9 @@ int main(int argc, char** argv)
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                    , internal_serial_section_starts[level]
+                    #endif
                 #else
                     edge_variables[level]
                 #endif
