@@ -173,6 +173,11 @@ if __name__=="__main__":
                 if simd_ca_scheme == "colour":
                     build_flags += " -DCOLOURED_CONFLICT_AVOIDANCE"
                     build_flags += " -DBIN_COLOURED_VECTORS"
+                    build_flags += " -DSIMD -DDBLS_PER_SIMD=2"
+                elif simd_ca_scheme == "manual":
+                    build_flags += " -DMANUAL_CONFLICT_AVOIDANCE"
+                    build_flags += " -DSIMD -DDBLS_PER_SIMD=2"
+
                 for isa in isas:
                     bin_filename = "euler3d_cpu_double_" + compiler
                     bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"
