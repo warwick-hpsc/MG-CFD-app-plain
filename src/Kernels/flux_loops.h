@@ -42,6 +42,7 @@ void compute_flux_edge(
     #endif
     );
 
+#ifdef FLUX_CRIPPLE
 void compute_flux_edge_crippled(
     int first_edge,
     int nedges,
@@ -56,5 +57,6 @@ void compute_flux_edge_crippled(
         double *restrict fluxes
     #endif
     );
+#endif
 
 #endif
