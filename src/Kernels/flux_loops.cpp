@@ -134,11 +134,28 @@ void compute_flux_edge(
             // Conflict avoidance is required for safe SIMD
             #if defined __AVX512CD__ && defined __ICC
                 #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into flux_kernel.elemfunc.c to 
+                // TODO: Insert the following pragma into compute_flux_edge_kernel() to 
                 //       enable safe AVX-512-CD SIMD:
                 // #pragma omp ordered simd overlap(...)
             #elif defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #elif defined MANUAL_CONFLICT_AVOIDANCE
+                const int loop_start_orig = loop_start;
+                const int loop_end_orig = loop_end;
+                int v_start = loop_start;
+                int v_end = loop_start + ((loop_end-loop_start+1)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                double fluxes_a[NVAR][DBLS_PER_SIMD];
+                double fluxes_b[NVAR][DBLS_PER_SIMD];
+                for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
+                    for (int x=0; x<NVAR; x++) {
+                        for (int n=0; n<DBLS_PER_SIMD; n++) {
+                            fluxes_a[x][n] = 0.0;
+                            fluxes_b[x][n] = 0.0;
+                        }
+                    }
+                    loop_start = v;
+                    loop_end = v+DBLS_PER_SIMD;
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
             #endif
         #endif
     #endif
@@ -156,11 +173,30 @@ void compute_flux_edge(
             #ifdef FLUX_FISSION
                 &edge_variables[i]
             #else
-                &fluxes[edges[i].a*NVAR],
-                &fluxes[edges[i].b*NVAR]
+                #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+                    i-loop_start,
+                    fluxes_a, 
+                    fluxes_b
+                #else
+                    &fluxes[edges[i].a*NVAR],
+                    &fluxes[edges[i].b*NVAR]
+                #endif
             #endif
             );
     }
+
+    #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE
+        // Write out fluxes:
+            for (int n=0; n<DBLS_PER_SIMD; n++) {
+                int a = edges[v+n].a; int b = edges[v+n].b;
+                for (int x=0; x<NVAR; x++) {
+                    fluxes[a*NVAR+x] += fluxes_a[x][n];
+                    fluxes[b*NVAR+x] += fluxes_b[x][n];
+                }
+            }
+        } // Close outer loop over SIMD blocks
+    #endif
+
     #ifdef FLUX_CRIPPLE
         iters_monitoring_state = 1;
     #else
@@ -173,7 +209,7 @@ void compute_flux_edge(
         record_iters(loop_start, loop_end);
     #endif
 
-    #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE
+    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE)
         // Compute fluxes of 'remainder' edges without SIMD:
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             loop_start = serial_section_start;
@@ -182,6 +218,19 @@ void compute_flux_edge(
                 // All remainder edges are separate from the SIMD-able edges, so 
                 // a workload distribution is required.
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
+            #endif
+        #elif defined MANUAL_CONFLICT_AVOIDANCE
+            for (int i=0; i<DBLS_PER_SIMD; i++) {
+                for (int x=0; x<NVAR; x++) {
+                    fluxes_a[x][i] = 0.0;
+                    fluxes_b[x][i] = 0.0;
+                }
+            }
+            loop_start = v_end;
+            loop_end = loop_end_orig;
+            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
+                // Each thread already has its own remainders to process, no need to 
+                // distribute workload
             #endif
         #endif
 
@@ -211,6 +260,15 @@ void compute_flux_edge(
                 #endif
                 );
         }
+        #ifdef MANUAL_CONFLICT_AVOIDANCE
+            // Write out fluxes:
+            for (int i=loop_start; i<loop_end; i++) {
+                for (int v=0; v<NVAR; v++) {
+                    fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-loop_start];
+                    fluxes[edges[i].b*NVAR+v] += fluxes_b[v][i-loop_start];
+                }
+            }
+        #endif
     #endif
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
@@ -276,6 +334,23 @@ void compute_flux_edge_crippled(
                 // #pragma omp ordered simd overlap(...)
             #elif defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #elif defined MANUAL_CONFLICT_AVOIDANCE
+                const int loop_start_orig = loop_start;
+                const int loop_end_orig = loop_end;
+                int v_start = loop_start;
+                int v_end = loop_start + ((loop_end-loop_start+1)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                double fluxes_a[NVAR][DBLS_PER_SIMD];
+                double fluxes_b[NVAR][DBLS_PER_SIMD];
+                for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
+                    for (int x=0; x<NVAR; x++) {
+                        for (int n=0; n<DBLS_PER_SIMD; n++) {
+                            fluxes_a[x][n] = 0.0;
+                            fluxes_b[x][n] = 0.0;
+                        }
+                    }
+                    loop_start = v;
+                    loop_end = v+DBLS_PER_SIMD;
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
             #endif
         #endif
     #endif
@@ -294,13 +369,31 @@ void compute_flux_edge_crippled(
             #ifdef FLUX_FISSION
                 &edge_variables[i]
             #else
-                &fluxes[edges[i].a*NVAR],
-                &fluxes[edges[i].b*NVAR]
+                #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+                    i-loop_start,
+                    fluxes_a, 
+                    fluxes_b
+                #else
+                    &fluxes[edges[i].a*NVAR],
+                    &fluxes[edges[i].b*NVAR]
+                #endif
             #endif
             );
     }
 
-    #if defined SIMD && COLOURED_CONFLICT_AVOIDANCE
+    #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE
+        // Write out fluxes:
+            for (int n=0; n<DBLS_PER_SIMD; n++) {
+                int a = edges[v+n].a; int b = edges[v+n].b;
+                for (int x=0; x<NVAR; x++) {
+                    fluxes[a*NVAR+x] += fluxes_a[x][n];
+                    fluxes[b*NVAR+x] += fluxes_b[x][n];
+                }
+            }
+        } // Close outer loop over SIMD blocks
+    #endif
+
+    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE)
         // Compute fluxes of 'remainder' edges without SIMD:
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             loop_start = serial_section_start;
@@ -309,6 +402,19 @@ void compute_flux_edge_crippled(
                 // All remainder edges are separate from the SIMD-able edges, so 
                 // a workload distribution is required.
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
+            #endif
+        #elif defined MANUAL_CONFLICT_AVOIDANCE
+            for (int i=0; i<DBLS_PER_SIMD; i++) {
+                for (int x=0; x<NVAR; x++) {
+                    fluxes_a[x][i] = 0.0;
+                    fluxes_b[x][i] = 0.0;
+                }
+            }
+            loop_start = v_end;
+            loop_end = loop_end_orig;
+            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
+                // Each thread already has its own remainders to process, no need to 
+                // distribute workload
             #endif
         #endif
         
@@ -339,6 +445,15 @@ void compute_flux_edge_crippled(
                 #endif
                 );
         }
+        #ifdef MANUAL_CONFLICT_AVOIDANCE
+            // Write out fluxes:
+            for (int i=loop_start; i<loop_end; i++) {
+                for (int v=0; v<NVAR; v++) {
+                    fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-loop_start];
+                    fluxes[edges[i].b*NVAR+v] += fluxes_b[v][i-loop_start];
+                }
+            }
+        #endif
     #endif
 
     #ifdef TIME
