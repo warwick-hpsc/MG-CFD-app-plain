@@ -96,6 +96,11 @@ void duplicate_mesh(
     int* num_wall_edges, 
     int* boundary_edges_start, 
     int* wall_edges_start,
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        int* internal_serial_section_start,
+        int* boundary_serial_section_start, 
+        int* wall_serial_section_start,
+    #endif
     edge_neighbour** edges,
     int nel_above,
     int** mg_mapping,
@@ -129,40 +134,107 @@ void duplicate_mesh(
     int boundary_edges_start_duplicated = (*boundary_edges_start)*m;
     int wall_edges_start_duplicated     = (*wall_edges_start)*m;
 
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        int internal_serial_section_start_duplicated = m*(*internal_serial_section_start);
+
+        int boundary_serial_section_start_duplicated = boundary_edges_start_duplicated + 
+                m*((*boundary_serial_section_start)-(*boundary_edges_start));
+
+        int wall_serial_section_start_duplicated = wall_edges_start_duplicated + 
+                m*((*wall_serial_section_start)-(*wall_edges_start));
+    #endif
+
     edge_neighbour* edges_duplicated = alloc<edge_neighbour>(number_of_edges_duplicated);
     int j=0;
-    for (int i=0; i<m; i++) {
-        const int n = *num_internal_edges;
-        copy_and_shift_edges(*edges,
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const int n = *internal_serial_section_start;
+            copy_and_shift_edges(*edges,
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const int n = (*num_internal_edges)-(*internal_serial_section_start);
+            copy_and_shift_edges(*edges+(*internal_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const int n = *num_internal_edges;
+            copy_and_shift_edges(*edges,
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<boundary_edges_start_duplicated; j++) {
         edges_duplicated[j].a = -5; 
         edges_duplicated[j].b = -5;
     }
-    for (int i=0; i<m; i++) {
-        const int n = *num_boundary_edges;
-        copy_and_shift_edges(*edges+(*boundary_edges_start), 
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const int n = *boundary_serial_section_start-(*boundary_edges_start);
+            copy_and_shift_edges(*edges+(*boundary_edges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const int n = (*boundary_edges_start) + (*num_boundary_edges) - (*boundary_serial_section_start);
+            copy_and_shift_edges(*edges+(*boundary_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const int n = *num_boundary_edges;
+            copy_and_shift_edges(*edges+(*boundary_edges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<wall_edges_start_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
     }
-    for (int i=0; i<m; i++) {
-        const int n = *num_wall_edges;
-        copy_and_shift_edges(*edges+(*wall_edges_start), 
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const int n = *wall_serial_section_start-(*wall_edges_start);
+            copy_and_shift_edges(*edges+(*wall_edges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const int n = (*wall_edges_start) + (*num_wall_edges) - (*wall_serial_section_start);
+            copy_and_shift_edges(*edges+(*wall_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const int n = *num_wall_edges;
+            copy_and_shift_edges(*edges+(*wall_edges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<number_of_edges_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
@@ -197,6 +269,12 @@ void duplicate_mesh(
 
     dealloc<edge_neighbour>(*edges);
     *edges = edges_duplicated;
+
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        *internal_serial_section_start = internal_serial_section_start_duplicated;
+        *boundary_serial_section_start = boundary_serial_section_start_duplicated;
+        *wall_serial_section_start     = wall_serial_section_start_duplicated;
+    #endif
 
     log("Exiting inflate_mesh()");
 }
@@ -910,6 +988,15 @@ void prepare_csv_identification(
         data_line << "Y,";
     #else
         data_line << "N,";
+    #endif
+
+    if (write_header) header << "SIMD conflict avoidance strategy," ;
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+        data_line << "ColourEdges,";
+    #elif defined MANUAL_CONFLICT_AVOIDANCE
+        data_line << "Manual,";
+    #else
+        data_line << "None,";
     #endif
 
     if (write_header) header << "SIMD len," ;

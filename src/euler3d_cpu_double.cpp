@@ -23,6 +23,10 @@
 #include "cfd_loops.h"
 #include "mg_loops.h"
 
+// Meshing:
+#include "colour.h"
+#include "reorder.h"
+
 // Monitoring:
 #include "papi_funcs.h"
 #include "timer.h"
@@ -260,6 +264,102 @@ int main(int argc, char** argv)
         }
     }
 
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+        int* edge_colours[levels];
+        int number_of_colours[levels];
+        printf("Colouring mesh edges:\n");
+        for (int i=0; i<levels; i++) {
+            edge_colours[i] = NULL;
+            number_of_colours[i] = 0;
+
+            colour_mesh_strict(
+                edges[i], 
+                number_of_edges[i], 
+                nel[i], 
+                boundary_edge_starts[i], 
+                wall_edge_starts[i], 
+                num_internal_edges[i], 
+                num_boundary_edges[i], 
+                num_wall_edges[i], 
+                &edge_colours[i], 
+                &number_of_colours[i]);
+        }
+    #endif
+
+    #ifdef BIN_COLOURED_VECTORS
+        int internal_serial_section_starts[levels];
+        int boundary_serial_section_starts[levels];
+        int wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoColouredVectorUnits(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #elif defined BIN_COLOURED_CONTIGUOUS
+        int internal_serial_section_starts[levels];
+        int boundary_serial_section_starts[levels];
+        int wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoContiguousColouredBlocks(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                number_of_edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                nel[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #endif
+
     ///////////////////////////////////////////////////////////////////////////
     // Duplicate mesh (for safe thread decomposition):
     ///////////////////////////////////////////////////////////////////////////
@@ -278,6 +378,11 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     nel[i+1],
                     &mg_connectivity[i], 
@@ -293,6 +398,11 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     0,
                     NULL, 

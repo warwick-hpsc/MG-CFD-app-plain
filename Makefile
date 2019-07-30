@@ -173,12 +173,16 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Kernels/validation.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \
-		  src/Monitoring/loop_stats.cpp
+		  src/Monitoring/loop_stats.cpp \
+		  src/Meshing/reorder.cpp \
+		  src/Meshing/graph.cpp \
+		  src/Meshing/colour.cpp \
+		  src/Meshing/progress.cpp
 
 OBJECTS     := $(patsubst src/%.cpp, $(OBJ_DIR)/%.o,     $(SOURCES))
 OBJECTS_DBG := $(patsubst src/%.cpp, $(OBJ_DIR_DBG)/%.o, $(SOURCES))
 
-INCLUDES := -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring
+INCLUDES := -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring -Isrc/Meshing
 
 #############
 ## TARGETS ##
