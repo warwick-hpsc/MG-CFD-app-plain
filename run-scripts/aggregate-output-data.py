@@ -99,12 +99,23 @@ def calc_ins_per_iter(output_dirpath, kernel):
     loop_num_iters_filepath = os.path.join(output_dirpath, "LoopNumIters.csv")
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
-        papi = pd.read_csv(papi_filepath)
+        papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
             papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
-            flux0_ins = papi.loc[0,timer]
-            iters = pd.read_csv(loop_num_iters_filepath)
-            flux0_iters = iters.loc[0,timer]
+            papi = papi.drop("PAPI counter", axis=1)
+            iters = clean_pd_read_csv(loop_num_iters_filepath)
+            job_id_colnames = get_job_id_colnames(papi)
+            data_colnames = list(Set(papi.columns.values).difference(job_id_colnames))
+
+            renames = {}
+            for x in data_colnames:
+                renames[x] = x+"_iters"
+            iters = iters.rename(index=str, columns=renames)
+            papi_and_iters = papi.merge(iters)
+            if papi_and_iters.shape[0] != papi.shape[0]:
+                raise Exception("merge of papi and iters failed")
+            flux0_ins = papi_and_iters.loc[0, timer]
+            flux0_iters = papi_and_iters.loc[0, timer+"_iters"]
             ins_per_iter = float(flux0_ins) / float(flux0_iters)
 
     return ins_per_iter
