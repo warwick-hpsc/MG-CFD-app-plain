@@ -1,18 +1,14 @@
 {
     "compile": {
         "compiler": "intel",
-        "base flags": "-DTIME -DPAPI",
-        "permutable flags": [ ["", "-DFLUX_CRIPPLE"],
-                              ["", "-DFLUX_PRECOMPUTE_EDGE_WEIGHTS"],
-                              ["", "-DFLUX_REUSE_DIV"],
-                              ["", "-DFLUX_REUSE_FACTOR"],
-                              ["", "-DFLUX_REUSE_FLUX"] ],
-        "insn sets": [ "SSE42", "AVX2" ]
+        "base flags": "TIME PAPI",
+        "flux flags": [ "", "FLUX_CRIPPLE", "FLUX_PRECOMPUTE_EDGE_WEIGHTS", "FLUX_REUSE_DIV", "FLUX_REUSE_FACTOR", "FLUX_REUSE_FLUX"],
+        "insn set": [ "SSE42", "AVX2" ]
     },
 
     "run": {
         "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
-        "num threads": [1], 
+        "num threads": 1, 
         "num repeats": 3,
         "mg cycles": 5,
         "unit walltime": 1.0,
@@ -21,8 +17,8 @@
 
     "setup": {
         "jobs dir": "./run-jobs.assess-compute",
-        "job scheduler": "?", 
-        "partition": "?",
+        "job scheduler": "", 
+        "partition": "",
         "budget code": ""
     }
 }
