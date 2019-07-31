@@ -55,7 +55,9 @@ validate_result=<VALIDATE_RESULT>
 ## Exit early if output csv files already exist.
 if [ -f "${run_outdir}/Times.csv" ]; then
     echo "Times.csv already exists, meaning this job has already run."
-    rm "${run_outdir}"/job-is-running.txt
+    if [ -f "${run_outdir}"/job-is-running.txt ]; then
+        rm "${run_outdir}"/job-is-running.txt
+    fi
     exit 0
 fi
 
