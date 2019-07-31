@@ -320,7 +320,10 @@ def aggregate():
         df_mean2 = df_agg2.mean().reset_index()
         for pe in Set(df_mean2["PAPI counter"]):
             df_mean2.loc[df_mean2["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
-        df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
+        if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
+            df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
+        else:
+            df_agg3 = df_sum.append(df_max).append(df_mean2)
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_agg3.to_csv(out_filepath, index=False)
 
