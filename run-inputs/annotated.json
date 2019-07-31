@@ -37,11 +37,6 @@
         "validate result": true
     },
 
-    "optimisation": {
-        "simd CA scheme comment": "Specify conflict-avoidance scheme to enable safe SIMD. Options are: colour, manual",
-        "simd CA scheme": ["manual", "colour"]
-    },
-
     "setup": {
         "jobs dir comment": "Directory path to folder containing created jobs.",
         "jobs dir": "./dirpath/to/generated/jobs",
