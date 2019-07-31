@@ -20,6 +20,11 @@
         "flux flags": [ "", "FLAG_1"]
     },
 
+    "optimisation": {
+        "renumber comment": "OPTIONAL: whether to renumber mesh nodes. Single value or list.",
+        "renumber": [false, true]
+    },
+
     "run": {
         "data dirpath comment": "Directory path to folder containing desired input files and input.dat",
         "data dirpath": "./dirpath/to/input/deck",
@@ -38,11 +43,6 @@
 
         "validate result comment": "Toggle whether to compare final grid state against a precomputed solution. If check fails, MG-CFD will exit with error.",
         "validate result": true
-    },
-
-    "optimisation": {
-        "renumber comment": "OPTIONAL: whether to renumber mesh nodes",
-        "renumber": [false, true]
     },
 
     "setup": {
