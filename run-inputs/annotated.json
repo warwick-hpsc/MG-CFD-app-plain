@@ -1,20 +1,23 @@
 {
     "compile": {
-        "compiler comment": "Which compiler to use. Supported are 'intel', 'gnu', 'clang', 'cray'",
+        "compiler comment": "Which compiler(s) to use. Supported are 'intel', 'gnu', 'clang', 'cray'. Single value or list.",
         "compiler": "intel",
 
         "cpp wrapper comment": "If target system requires use of a wrapper around compiler (eg Archer), state that here",
         "cpp wrapper": "",
 
-        "base flags comment": "Compile-time options to enable for each run",
-        "base flags": "-DOMP -DFLUX_FISSION -DSIMD -DDBLS_PER_SIMD=4",
+        "insn set comment": "OPTIONAL. Instruction set(s) to target. Refer to Makefile for supported ISAs. Defaults to 'Host'. Single value or list.",
+        "insn set": "Host",
+
+        "base flags comment": "OPTIONAL. Compile-time options to enable for each run",
+        "base flags": "OMP FLUX_FISSION SIMD DBLS_PER_SIMD=4",
 
         "permutable flags comment": "OPTIONAL. List of lists of compile-time options. gen_job.py iterates over the cartesian product of inner lists.",
-        "permutable flags": [ ["", "-DFLAG_1"],
-                              ["", "-DFLAG_2"] ],
+        "permutable flags": [ ["", "FLAG_1"],
+                              ["", "FLAG_2"] ],
 
-        "insn sets comment": "OPTIONAL. Iterable: instruction sets to target. If not specified, then target is host.",
-        "insn sets": [ "SSE42", "AVX" ]
+        "permutable flags comment": "OPTIONAL. List of compile-time options. gen_job.py iterates over their powerset.",
+        "flux flags": [ "", "FLAG_1"]
     },
 
     "run": {
@@ -24,7 +27,7 @@
         "unit walltime comment": "Runtime of a single multigrid cycle of this dataset on a single core. Used to estimate job scheduling walltime.",
         "unit walltime": 1.0,
 
-        "num threads comment": "Iterable: Number of OpenMP threads",
+        "num threads comment": "Number of OpenMP threads. Single value or list.",
         "num threads": [4, 8], 
 
         "num repeats comment": "Number of runs at each distinct job configuration",
