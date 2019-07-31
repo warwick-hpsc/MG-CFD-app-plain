@@ -1,8 +1,8 @@
 {
     "compile": {
         "compiler": "intel",
-        "insn sets": [ "SSE42", "AVX2" ], 
-        "base flags": "-DTIME -DPAPI -DOMP -DOMP_SCATTERS"
+        "insn set": [ "SSE42", "AVX2" ], 
+        "base flags": "TIME PAPI OMP OMP_SCATTERS"
     },
 
     "run": {
@@ -16,7 +16,7 @@
 
     "setup": {
         "jobs dir": "./run-jobs.assess-memory",
-        "job scheduler": "?", 
-        "partition": "?"
+        "job scheduler": "", 
+        "partition": ""
     }
 }
