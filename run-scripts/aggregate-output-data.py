@@ -25,7 +25,6 @@ if not assembly_analyser_dirpath is None:
     from assembly_analysis import *
 
 compile_info = {}
-compile_info["SIMD len"] = 1
 
 kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
 
@@ -128,6 +127,14 @@ def infer_compiler(output_dirpath):
         times = pd.read_csv(times_filepath)
         return times.loc[0, "CC"]
 
+def infer_simd_len(output_dirpath):
+    times_filepath = os.path.join(output_dirpath, "Times.csv")
+    if not os.path.isfile(times_filepath):
+        return 1
+    else:
+        times = pd.read_csv(times_filepath)
+        return times.loc[0, "SIMD len"]
+
 def analyse_object_files():
     print("Analysing object files")
 
@@ -164,6 +171,7 @@ def analyse_object_files():
             kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
             compile_info["compiler"] = infer_compiler(output_dirpath)
+            compile_info["SIMD len"] = infer_simd_len(output_dirpath)
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
