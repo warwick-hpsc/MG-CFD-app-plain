@@ -16,7 +16,7 @@
         "permutable flags": [ ["", "FLAG_1"],
                               ["", "FLAG_2"] ],
 
-        "permutable flags comment": "OPTIONAL. List of compile-time options. gen_job.py iterates over their powerset.",
+        "flux flags comment": "OPTIONAL. List of compile-time options. gen_job.py iterates over their powerset.",
         "flux flags": [ "", "FLAG_1"]
     },
 
