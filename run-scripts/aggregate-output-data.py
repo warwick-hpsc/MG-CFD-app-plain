@@ -330,13 +330,17 @@ def aggregate():
         print("Aggregating " + cat)
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
+        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
         ## First, compute per-thread average across repeat runs:
         df_agg = df.groupby(get_job_id_colnames(df))
 
         df_mean = df_agg.mean().reset_index()
         ## Next, compute sum and max across threads within each run:
-        del job_id_colnames[job_id_colnames.index("ThreadNum")]
-        df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        if "ThreadNum" in df.columns.values:
+            del job_id_colnames[job_id_colnames.index("ThreadNum")]
+            df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        else:
+            df_mean2 = df_mean
         df_agg2 = df_mean2.groupby(job_id_colnames)
         df_sum = df_agg2.sum().reset_index()
         for pe in Set(df_sum["PAPI counter"]):
