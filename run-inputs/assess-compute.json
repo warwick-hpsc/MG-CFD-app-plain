@@ -6,6 +6,12 @@
         "insn set": [ "SSE42", "AVX2" ]
     },
 
+    "optimisation": {
+        "simd mode": [true, false],
+        "simd CA scheme": "colour",
+        "simd len": 4
+    },
+
     "run": {
         "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
         "num threads": 1, 
