@@ -25,7 +25,6 @@ if not assembly_analyser_dirpath is None:
     from assembly_analysis import *
 
 compile_info = {}
-compile_info["SIMD len"] = 1
 
 kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
 
@@ -99,12 +98,23 @@ def calc_ins_per_iter(output_dirpath, kernel):
     loop_num_iters_filepath = os.path.join(output_dirpath, "LoopNumIters.csv")
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
-        papi = pd.read_csv(papi_filepath)
+        papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
             papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
-            flux0_ins = papi.loc[0,timer]
-            iters = pd.read_csv(loop_num_iters_filepath)
-            flux0_iters = iters.loc[0,timer]
+            papi = papi.drop("PAPI counter", axis=1)
+            iters = clean_pd_read_csv(loop_num_iters_filepath)
+            job_id_colnames = get_job_id_colnames(papi)
+            data_colnames = list(Set(papi.columns.values).difference(job_id_colnames))
+
+            renames = {}
+            for x in data_colnames:
+                renames[x] = x+"_iters"
+            iters = iters.rename(index=str, columns=renames)
+            papi_and_iters = papi.merge(iters)
+            if papi_and_iters.shape[0] != papi.shape[0]:
+                raise Exception("merge of papi and iters failed")
+            flux0_ins = papi_and_iters.loc[0, timer]
+            flux0_iters = papi_and_iters.loc[0, timer+"_iters"]
             ins_per_iter = float(flux0_ins) / float(flux0_iters)
 
     return ins_per_iter
@@ -116,6 +126,14 @@ def infer_compiler(output_dirpath):
     else:
         times = pd.read_csv(times_filepath)
         return times.loc[0, "CC"]
+
+def infer_simd_len(output_dirpath):
+    times_filepath = os.path.join(output_dirpath, "Times.csv")
+    if not os.path.isfile(times_filepath):
+        return 1
+    else:
+        times = pd.read_csv(times_filepath)
+        return times.loc[0, "SIMD len"]
 
 def analyse_object_files():
     print("Analysing object files")
@@ -153,6 +171,7 @@ def analyse_object_files():
             kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
             compile_info["compiler"] = infer_compiler(output_dirpath)
+            compile_info["SIMD len"] = infer_simd_len(output_dirpath)
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
@@ -301,7 +320,10 @@ def aggregate():
         df_mean2 = df_agg2.mean().reset_index()
         for pe in Set(df_mean2["PAPI counter"]):
             df_mean2.loc[df_mean2["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
-        df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
+        if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
+            df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
+        else:
+            df_agg3 = df_sum.append(df_max).append(df_mean2)
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_agg3.to_csv(out_filepath, index=False)
 

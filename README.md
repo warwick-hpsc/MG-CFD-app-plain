@@ -67,7 +67,7 @@ Authorship
 
 Andrew Owenson: a.m.b.owenson@warwick.ac.uk
 
-For more information on the design of MG-CFD and performance model, please refer to our publication: http://wrap.warwick.ac.uk/119788
+For more information on the design of MG-CFD and performance model, please refer to our publication: https://onlinelibrary.wiley.com/doi/10.1002/cpe.5443
 
 If you wish to cite this work then please use the following:
 
