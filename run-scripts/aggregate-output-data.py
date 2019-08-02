@@ -173,17 +173,15 @@ def analyse_object_files():
 
             kernel_to_object = {}
 
-            log_filename = ""
-            log_filename_candidates = [x+".stdout" for x in ["sbatch", "moab", "lsf", "pbs"]]
-            log_filename_candidates.append("submit.log")
-            for lfc in log_filename_candidates:
-                if os.path.isfile(os.path.join(output_dirpath, lfc)):
-                    log_filename = lfc
+            run_filename_candidates = [x+".batch" for x in ["slurm", "pbs", "moab", "lsf"]]
+            run_filename_candidates.append("run.sh")
+            for rhc in run_filename_candidates:
+                if os.path.isfile(os.path.join(output_dirpath, rhc)):
+                    run_filename = rhc
                     break
-            if log_filename == "":
-                raise IOError("Cannot find a log file for run: " + output_dirpath)
-
-            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, log_filename)):
+            if run_filename == "":
+                raise IOError("Cannot find a run script for run: " + output_dirpath)
+            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
                 kernel_to_object["compute_flux_edge_crippled"] = "flux_loops.o"
             else:
                 kernel_to_object["compute_flux_edge"] = "flux_loops.o"
