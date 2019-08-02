@@ -195,8 +195,11 @@ def analyse_object_files():
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
                 obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
-                loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
-                loop_tally = count_loop_instructions(asm_loop_filepath, loop)
+                try:
+                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
+                except:
+                    continue
+                loop_tally = count_loop_instructions(asm_loop_filepath)
                 for i in loop_tally.keys():
                     loop_tally["insn."+i] = loop_tally[i]
                     del loop_tally[i]
@@ -224,9 +227,10 @@ def analyse_object_files():
                     else:
                         loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict))
 
-            job_id_df = get_output_run_config(output_dirpath)
-            df = job_id_df.join(loops_tally_df)
-            df.to_csv(ic_filepath, index=False)
+            if not loops_tally_df is None:
+                job_id_df = get_output_run_config(output_dirpath)
+                df = job_id_df.join(loops_tally_df)
+                df.to_csv(ic_filepath, index=False)
 
 def collate_csvs():
     cats = ["Times", "PAPI", "instruction-counts", "LoopNumIters"]
