@@ -109,6 +109,13 @@ for loop in flux_loops indirect_rw_loop ; do
     fi
   done
   cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
+  # Update: run 'objdump' on the system to get assembly:
+  objdump_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
+  objdump_command+=' | sed "s/^Disassembly of section/ fnc: Disassembly/g"'
+  objdump_command+=' | sed "s/:$//g" | grep "^ " | grep ":" | sed "s/^[ \t]*//g"'
+  objdump_command+=" > ${run_outdir}/objects/${loop}.o.asm"
+  echo "$objdump_command"
+  eval "$objdump_command"
 done
 
 ## Exit early if app execution not requested.

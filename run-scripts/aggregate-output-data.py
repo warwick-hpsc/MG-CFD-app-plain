@@ -98,11 +98,22 @@ def calc_ins_per_iter(output_dirpath, kernel):
     loop_num_iters_filepath = os.path.join(output_dirpath, "LoopNumIters.csv")
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
+        iters = clean_pd_read_csv(loop_num_iters_filepath)
+        simd_possible = False
+        if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
+            simd_possible = True
+        elif iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
+            simd_possible = True
+        if simd_possible:
+            simd_len = iters.loc[0,"SIMD len"]
+        else:
+            simd_len = 1
+
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
             papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
             papi = papi.drop("PAPI counter", axis=1)
-            iters = clean_pd_read_csv(loop_num_iters_filepath)
+
             job_id_colnames = get_job_id_colnames(papi)
             data_colnames = list(Set(papi.columns.values).difference(job_id_colnames))
 
@@ -113,9 +124,17 @@ def calc_ins_per_iter(output_dirpath, kernel):
             papi_and_iters = papi.merge(iters)
             if papi_and_iters.shape[0] != papi.shape[0]:
                 raise Exception("merge of papi and iters failed")
-            flux0_ins = papi_and_iters.loc[0, timer]
-            flux0_iters = papi_and_iters.loc[0, timer+"_iters"]
-            ins_per_iter = float(flux0_ins) / float(flux0_iters)
+            num_insn = papi_and_iters.loc[0, timer]
+
+            num_iters = papi_and_iters.loc[0, timer+"_iters"]
+            # 'num_iters' is counting non-vectorised iterations. If code 
+            # was vectorised then fewer loop iterations will have been 
+            # performed. Make that adjustment:
+            num_iters /= simd_len
+
+            # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
+
+            ins_per_iter = float(num_insn) / float(num_iters)
 
     return ins_per_iter
 
@@ -154,17 +173,15 @@ def analyse_object_files():
 
             kernel_to_object = {}
 
-            log_filename = ""
-            log_filename_candidates = [x+".stdout" for x in ["sbatch", "moab", "lsf", "pbs"]]
-            log_filename_candidates.append("submit.log")
-            for lfc in log_filename_candidates:
-                if os.path.isfile(os.path.join(output_dirpath, lfc)):
-                    log_filename = lfc
+            run_filename_candidates = [x+".batch" for x in ["slurm", "pbs", "moab", "lsf"]]
+            run_filename_candidates.append("run.sh")
+            for rhc in run_filename_candidates:
+                if os.path.isfile(os.path.join(output_dirpath, rhc)):
+                    run_filename = rhc
                     break
-            if log_filename == "":
-                raise IOError("Cannot find a log file for run: " + output_dirpath)
-
-            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, log_filename)):
+            if run_filename == "":
+                raise IOError("Cannot find a run script for run: " + output_dirpath)
+            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
                 kernel_to_object["compute_flux_edge_crippled"] = "flux_loops.o"
             else:
                 kernel_to_object["compute_flux_edge"] = "flux_loops.o"
@@ -178,8 +195,11 @@ def analyse_object_files():
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
                 obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
-                loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
-                loop_tally = count_loop_instructions(asm_loop_filepath, loop)
+                try:
+                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
+                except:
+                    continue
+                loop_tally = count_loop_instructions(asm_loop_filepath)
                 for i in loop_tally.keys():
                     loop_tally["insn."+i] = loop_tally[i]
                     del loop_tally[i]
@@ -207,9 +227,10 @@ def analyse_object_files():
                     else:
                         loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict))
 
-            job_id_df = get_output_run_config(output_dirpath)
-            df = job_id_df.join(loops_tally_df)
-            df.to_csv(ic_filepath, index=False)
+            if not loops_tally_df is None:
+                job_id_df = get_output_run_config(output_dirpath)
+                df = job_id_df.join(loops_tally_df)
+                df.to_csv(ic_filepath, index=False)
 
 def collate_csvs():
     cats = ["Times", "PAPI", "instruction-counts", "LoopNumIters"]
@@ -260,6 +281,12 @@ def collate_csvs():
             df_agg = df_agg.drop("Size", axis=1)
             df_agg = df_agg.drop("Size_scale_factor", axis=1)
 
+        # Drop columns with just one value (unless this removes all columns):
+        nuniq = df_agg.apply(pd.Series.nunique)
+        df_agg_clean = df_agg.drop(nuniq[nuniq==1].index, axis=1)
+        if df_agg_clean.shape[1] > 0:
+            df_agg = df_agg_clean
+
         agg_fp = os.path.join(prepared_output_dirpath,cat+".csv")
         if not os.path.isdir(prepared_output_dirpath):
             os.mkdir(prepared_output_dirpath)
@@ -303,13 +330,17 @@ def aggregate():
         print("Aggregating " + cat)
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
+        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
         ## First, compute per-thread average across repeat runs:
         df_agg = df.groupby(get_job_id_colnames(df))
 
         df_mean = df_agg.mean().reset_index()
         ## Next, compute sum and max across threads within each run:
-        del job_id_colnames[job_id_colnames.index("ThreadNum")]
-        df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        if "ThreadNum" in df.columns.values:
+            del job_id_colnames[job_id_colnames.index("ThreadNum")]
+            df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        else:
+            df_mean2 = df_mean
         df_agg2 = df_mean2.groupby(job_id_colnames)
         df_sum = df_agg2.sum().reset_index()
         for pe in Set(df_sum["PAPI counter"]):

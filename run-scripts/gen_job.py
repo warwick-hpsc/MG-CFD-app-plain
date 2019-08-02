@@ -56,15 +56,22 @@ def get_key_value(profile, cat, key, ensure_list=False):
 
     return v
 
-def py_sed(filepath, from_rgx, to_rgx):
+def py_sed(filepath, from_rgx, to_rgx, delete_if_null=False):
     with open(filepath, "r") as f:
         lines = f.readlines()
     with open(filepath, "w") as f:
         for line in lines:
-            if isinstance(to_rgx, str):
-                f.write(re.sub(from_rgx,     to_rgx,  line))
+            if re.search(from_rgx, line):
+                if to_rgx is None or to_rgx == "" and delete_if_null:
+                    ## Discard this line
+                    pass
+                else:
+                    if isinstance(to_rgx, str):
+                        f.write(re.sub(from_rgx,     to_rgx,  line))
+                    else:
+                        f.write(re.sub(from_rgx, str(to_rgx), line))
             else:
-                f.write(re.sub(from_rgx, str(to_rgx), line))
+                f.write(line)
 
 def delete_folder_contents(dirpath):
     print("Deleting contents of folder: " + dirpath)
@@ -313,7 +320,7 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<RUN ID>", job_id)
             py_sed(batch_filepath, "<PARTITION>", job_queue)
             py_sed(batch_filepath, "<RUN_DIR>", job_dir)
-            py_sed(batch_filepath, "<BUDGET CODE>", budget_code)
+            py_sed(batch_filepath, "<BUDGET CODE>", budget_code, True)
 
             ## - Parallelism:
             py_sed(batch_filepath, "<NUM_THREADS>", nt)
