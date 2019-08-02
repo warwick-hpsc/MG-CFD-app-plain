@@ -154,6 +154,15 @@ endif
 
 LIBS :=
 ifneq (,$(findstring PAPI,$(BUILD_FLAGS)))
+	ifeq ($(COMPILER),gnu)
+        ifdef PAPI_INCLUDE_PATH
+    		INCLUDES += -I$(PAPI_INCLUDE_PATH)
+        endif
+	else ifeq ($(COMPILER),cray)
+        ifdef PAPI_LIB_PATH
+    		LIBS += -L$(PAPI_LIB_PATH)
+        endif
+	endif
 	LIBS += -lpapi -lpfm
 endif
 
@@ -192,7 +201,7 @@ SOURCES = src/euler3d_cpu_double.cpp \
 OBJECTS     := $(patsubst src/%.cpp, $(OBJ_DIR)/%.o,     $(SOURCES))
 OBJECTS_DBG := $(patsubst src/%.cpp, $(OBJ_DIR_DBG)/%.o, $(SOURCES))
 
-INCLUDES := -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring -Isrc/Meshing
+INCLUDES += -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring -Isrc/Meshing
 
 #############
 ## TARGETS ##
