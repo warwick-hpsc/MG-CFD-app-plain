@@ -101,9 +101,15 @@ fi
 obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
-cp "${obj_dir}"/Kernels/flux_loops.o "${run_outdir}/objects/"
-cp "${obj_dir}"/Kernels/indirect_rw_loop.o "${run_outdir}/objects/"
-
+for loop in flux_loops indirect_rw_loop ; do
+  # Grab any optimisation reports:
+  for ext in lst optrpt ; do
+    if [ -f "${obj_dir}/Kernels/${loop}.${ext}" ]; then
+      cp "${obj_dir}/Kernels/${loop}.${ext}" "${run_outdir}"/objects/
+    fi
+  done
+  cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
+done
 
 ## Exit early if app execution not requested.
 if ! $do_execute ; then
