@@ -31,6 +31,9 @@ ifeq ($(COMPILER),gnu)
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
 
+	## Ensure GNU vectorizer is enabled
+	OPTIMISATION += -ftree-vectorize
+
 	GCC_OPT_REPORT_OPTIONS := 
 	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
@@ -63,7 +66,7 @@ else ifeq ($(COMPILER),clang)
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
 
-	OPT_REPORT_OPTIONS := 
+	OPT_REPORT_OPTIONS := -Rpass-missed=loop-vec -Rpass-analysis=loop-vec
 	CFLAGS += $(OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -march=native
@@ -78,6 +81,9 @@ else ifeq ($(COMPILER),cray)
 	CPP := CC
 
 	WARNINGS := 
+
+	OPT_REPORT_OPTIONS := -hlist=a
+	CFLAGS += $(OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = 
 	# Cray does not support Intel architectures older than Sandy Bridge, so cannot 
@@ -105,13 +111,16 @@ else
 endif
 
 ## Disable aggressive floating-point optimization, to improve ability 
-## of MG-CFD to assess floating-point performance
+## of MG-CFD to assess floating-point performance. This is also necessary 
+## to validate result against pre-computed solution.
 ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -fno-fast-math
 else ifeq ($(COMPILER),intel)
 	OPTIMISATION += -fp-model precise
 else ifeq ($(COMPILER),clang)
 	OPTIMISATION += -fno-fast-math
+else ifeq ($(COMPILER),cray)
+	OPTIMISATION += -h fp2=noapprox
 endif
 
 ifdef INSN_SET
