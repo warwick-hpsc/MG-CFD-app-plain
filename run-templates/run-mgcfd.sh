@@ -102,6 +102,12 @@ obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
 for loop in flux_loops indirect_rw_loop ; do
+  # Grab any optimisation reports:
+  for ext in lst optrpt ; do
+    if [ -f "${obj_dir}/Kernels/${loop}.${ext}" ]; then
+      cp "${obj_dir}/Kernels/${loop}.${ext}" "${run_outdir}"/objects/
+    fi
+  done
   cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
   # Update: run 'objdump' on the system to get assembly:
   objdump_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
