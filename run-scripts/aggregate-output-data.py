@@ -98,11 +98,22 @@ def calc_ins_per_iter(output_dirpath, kernel):
     loop_num_iters_filepath = os.path.join(output_dirpath, "LoopNumIters.csv")
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
+        iters = clean_pd_read_csv(loop_num_iters_filepath)
+        simd_possible = False
+        if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
+            simd_possible = True
+        elif iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
+            simd_possible = True
+        if simd_possible:
+            simd_len = iters.loc[0,"SIMD len"]
+        else:
+            simd_len = 1
+
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
             papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
             papi = papi.drop("PAPI counter", axis=1)
-            iters = clean_pd_read_csv(loop_num_iters_filepath)
+
             job_id_colnames = get_job_id_colnames(papi)
             data_colnames = list(Set(papi.columns.values).difference(job_id_colnames))
 
@@ -113,9 +124,17 @@ def calc_ins_per_iter(output_dirpath, kernel):
             papi_and_iters = papi.merge(iters)
             if papi_and_iters.shape[0] != papi.shape[0]:
                 raise Exception("merge of papi and iters failed")
-            flux0_ins = papi_and_iters.loc[0, timer]
-            flux0_iters = papi_and_iters.loc[0, timer+"_iters"]
-            ins_per_iter = float(flux0_ins) / float(flux0_iters)
+            num_insn = papi_and_iters.loc[0, timer]
+
+            num_iters = papi_and_iters.loc[0, timer+"_iters"]
+            # 'num_iters' is counting non-vectorised iterations. If code 
+            # was vectorised then fewer loop iterations will have been 
+            # performed. Make that adjustment:
+            num_iters /= simd_len
+
+            # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
+
+            ins_per_iter = float(num_insn) / float(num_iters)
 
     return ins_per_iter
 
