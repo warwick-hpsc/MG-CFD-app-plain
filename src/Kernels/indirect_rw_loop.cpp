@@ -32,7 +32,7 @@ void indirect_rw(
 
     int loop_start = first_edge;
     int loop_end = loop_start + nedges;
-    #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE
+    #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         loop_end = serial_section_start;
     #endif
 
@@ -96,7 +96,7 @@ void indirect_rw(
             &variables[edges[i].a*NVAR],
             &variables[edges[i].b*NVAR],
             #ifdef FLUX_FISSION
-                &edge_variables[i]
+                &edge_variables[i*NVAR]
             #else
                 #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
                     i-loop_start,
@@ -110,7 +110,7 @@ void indirect_rw(
             );
     }
 
-    #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE
+    #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
             for (int n=0; n<DBLS_PER_SIMD; n++) {
                 int a = edges[v+n].a; int b = edges[v+n].b;
@@ -122,7 +122,7 @@ void indirect_rw(
         } // Close outer loop over SIMD blocks
     #endif
 
-    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE)
+    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE) && (!defined FLUX_FISSION)
         // Compute fluxes of 'remainder' edges without SIMD:
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             loop_start = serial_section_start;
@@ -160,7 +160,7 @@ void indirect_rw(
                 &variables[edges[i].a*NVAR],
                 &variables[edges[i].b*NVAR],
                 #ifdef FLUX_FISSION
-                    &edge_variables[i]
+                    &edge_variables[i*NVAR]
                 #else
                     #ifdef MANUAL_CONFLICT_AVOIDANCE
                         i-loop_start,
