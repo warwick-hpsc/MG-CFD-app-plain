@@ -281,6 +281,12 @@ def collate_csvs():
             df_agg = df_agg.drop("Size", axis=1)
             df_agg = df_agg.drop("Size_scale_factor", axis=1)
 
+        # Drop columns with just one value (unless this removes all columns):
+        nuniq = df_agg.apply(pd.Series.nunique)
+        df_agg_clean = df_agg.drop(nuniq[nuniq==1].index, axis=1)
+        if df_agg_clean.shape[1] > 0:
+            df_agg = df_agg_clean
+
         agg_fp = os.path.join(prepared_output_dirpath,cat+".csv")
         if not os.path.isdir(prepared_output_dirpath):
             os.mkdir(prepared_output_dirpath)
