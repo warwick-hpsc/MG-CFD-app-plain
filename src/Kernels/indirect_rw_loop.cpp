@@ -41,6 +41,7 @@ void indirect_rw(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     #ifndef SIMD
         #pragma omp simd safelen(1)
@@ -68,7 +69,6 @@ void indirect_rw(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         }
