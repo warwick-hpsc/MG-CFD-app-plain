@@ -122,6 +122,7 @@ void compute_flux_edge(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
     #endif
 
     #ifndef SIMD
@@ -206,7 +207,6 @@ void compute_flux_edge(
         #ifdef PAPI
         stop_papi();
         #endif
-        record_iters(loop_start, loop_end);
     #endif
 
     #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE) && (!defined FLUX_FISSION)
@@ -318,6 +318,7 @@ void compute_flux_edge_crippled(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     #ifndef SIMD
         #pragma omp simd safelen(1)
@@ -462,7 +463,6 @@ void compute_flux_edge_crippled(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         }
