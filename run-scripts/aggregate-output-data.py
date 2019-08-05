@@ -281,9 +281,13 @@ def collate_csvs():
             df_agg = df_agg.drop("Size", axis=1)
             df_agg = df_agg.drop("Size_scale_factor", axis=1)
 
-        # Drop columns with just one value (unless this removes all columns):
-        nuniq = df_agg.apply(pd.Series.nunique)
-        df_agg_clean = df_agg.drop(nuniq[nuniq==1].index, axis=1)
+        # Drop job ID columns with just one value:
+        n_uniq = df_agg.apply(pd.Series.nunique)
+        uniq_colnames = n_uniq[n_uniq==1].index
+        job_id_columns = get_job_id_colnames(df_agg)
+        uniq_colnames = list(Set(uniq_colnames).intersection(job_id_columns))
+        uniq_colnames = list(Set(uniq_colnames).difference(essential_colnames))
+        df_agg_clean = df_agg.drop(uniq_colnames, axis=1)
         if df_agg_clean.shape[1] > 0:
             df_agg = df_agg_clean
 
