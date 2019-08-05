@@ -102,7 +102,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
         simd_possible = False
         if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
             simd_possible = True
-        elif iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
+        elif "SIMD conflict avoidance strategy" in iters.columns.values and iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
             simd_possible = True
         if simd_possible:
             simd_len = iters.loc[0,"SIMD len"]
