@@ -28,6 +28,8 @@ compile_info = {}
 
 kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
 
+essential_colnames = ["CPU", "PAPI counter"]
+
 def grep(text, filepath):
     found = False
     f = open(filepath, "r")
