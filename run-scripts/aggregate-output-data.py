@@ -417,9 +417,138 @@ def aggregate():
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
         df_std.to_csv(out_filepath, index=False)
 
+def count_flops():
+    insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")
+    if not os.path.isfile(insn_df_filepath):
+        return 0
+
+    intel_fp_insns = [
+        "[v]?add[sp][sd]", "[v]?[u]?comisd", "[v]?maxsd", 
+        "[v]?min[sp]d", "[v]?sub[sp][sd]", "[v]?div[sp][sd]", 
+        "[v]?sqrt[sp][sd]", "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
+        "[v]?mul[sp][sd]", 
+        "vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]", 
+        "[v]?dpp[sd]", "[v]?movhp[sd]", "[v]?unpck[hl]p[sd]",
+        "[v]?xorp[sd]", "vandpd", "vbroadcasts[sd]",
+        "vextractf128", "vinsertf128", "vmovddup", "vpermilpd"]
+    insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
+    insn_df = insn_df[insn_df["kernel"]=="compute_flux_edge"]
+    if "Num threads" in insn_df.columns.values:
+        insn_df = insn_df[insn_df["Num threads"] == insn_df["Num threads"].min()]
+    insn_df["FLOPs"] = 0
+    for colname in insn_df.columns.values:
+        if colname.startswith("insn."):
+            insn = colname.replace("insn.", "")
+            for f in intel_fp_insns:
+                z = re.match(f, insn)
+                if z:
+                    insn_df["FLOPs"] += insn_df[colname]
+                    break
+            insn_df = insn_df.drop(colname, axis=1)
+
+    return insn_df.loc[0, "FLOPs"]
+
+def combine_all():
+    data_all = None
+
+    times_df_filepath = os.path.join(prepared_output_dirpath, "Times.mean.csv")
+    if os.path.isfile(times_df_filepath):
+        times_df = clean_pd_read_csv(times_df_filepath)
+        times_df["counter"] = "runtime"
+        data_all = times_df
+
+    papi_df_filepath = os.path.join(prepared_output_dirpath, "PAPI.mean.csv")
+    if os.path.isfile(papi_df_filepath):
+        papi_df = clean_pd_read_csv(papi_df_filepath)
+        papi_df = papi_df[papi_df["PAPI counter"].str.contains("_SUM")]
+        papi_df = papi_df.rename(index=str, columns={"PAPI counter":"counter"})
+
+        if data_all is None:
+            data_all = papi_df
+        else:
+            data_all = data_all.append(papi_df, sort=True)
+
+    iters_df_filepath = os.path.join(prepared_output_dirpath, "LoopNumIters.csv")
+    if os.path.isfile(iters_df_filepath):
+        iters_df = clean_pd_read_csv(iters_df_filepath)
+        iters_df = iters_df[iters_df["counter"].str.contains("_SUM")]
+
+        flops_per_iter = count_flops()
+        flops_total = iters_df[iters_df["counter"]=="#iterations_SUM"].copy()
+        flops_total["counter"] = "GFLOPs"
+        data_colnames = get_data_colnames(iters_df)
+        flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
+        flops_total[flux_data_colnames] = (flops_total[flux_data_colnames] / 1e9) * flops_per_iter
+        other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
+        flops_total[other_data_colnames] = 0.0
+        if data_all is None:
+            data_all = flops_total
+        else:
+            data_all = data_all.append(flops_total, sort=True)
+
+    counters = list(Set(data_all["counter"]))
+    if "runtime" in counters and "GB_SUM" in counters:
+        runtime_data = data_all[data_all["counter"]=="runtime"]
+        gb_data = data_all[data_all["counter"]=="GB_SUM"]
+        data_colnames = get_data_colnames(runtime_data)
+        renames = {}
+        for x in data_colnames:
+            renames[x] = x+"_runtime"
+        runtime_data = runtime_data.rename(index=str, columns=renames)
+        runtime_data = runtime_data.drop("counter", axis=1)
+        gb_data = gb_data.drop("counter", axis=1)
+        gb_data = gb_data.merge(runtime_data, validate="one_to_one")
+        for cn in data_colnames:
+            f = gb_data[cn+"_runtime"] != 0.0
+            gb_data.loc[f,cn] /= gb_data.loc[f,cn+"_runtime"]
+            gb_data = gb_data.drop(cn+"_runtime", axis=1)
+        gb_data["counter"] = "GB_SUM/sec"
+        data_all = data_all.append(gb_data, sort=True)
+    if "runtime" in counters and "GFLOPs" in counters:
+        runtime_data = data_all[data_all["counter"]=="runtime"]
+        gflops_data = data_all[data_all["counter"]=="GFLOPs"]
+        data_colnames = get_data_colnames(runtime_data)
+        renames = {}
+        for x in data_colnames:
+            renames[x] = x+"_runtime"
+        runtime_data = runtime_data.rename(index=str, columns=renames)
+        runtime_data = runtime_data.drop("counter", axis=1)
+        gflops_data = gflops_data.drop("counter", axis=1)
+        gflops_data = gflops_data.merge(runtime_data, validate="one_to_one")
+        for cn in data_colnames:
+            f = gflops_data[cn+"_runtime"] != 0.0
+            gflops_data.loc[f,cn] /= gflops_data.loc[f,cn+"_runtime"]
+            gflops_data = gflops_data.drop(cn+"_runtime", axis=1)
+        gflops_data["counter"] = "GFLOPs/sec"
+        data_all = data_all.append(gflops_data, sort=True)
+    if "GFLOPs" in counters and "GB_SUM" in counters:
+        gflops_data = data_all[data_all["counter"]=="GFLOPs"]
+        gb_data = data_all[data_all["counter"]=="GB_SUM"]
+        data_colnames = get_data_colnames(gflops_data)
+        renames = {}
+        for x in data_colnames:
+            renames[x] = x+"_gb"
+        gb_data = gb_data.rename(index=str, columns=renames)
+        gb_data = gb_data.drop("counter", axis=1)
+        gflops_data = gflops_data.drop("counter", axis=1)
+        gflops_data = gflops_data.merge(gb_data, validate="one_to_one")
+        for cn in data_colnames:
+            f = gflops_data[cn+"_gb"] != 0.0
+            gflops_data.loc[f,cn] /= gflops_data.loc[f,cn+"_gb"]
+            f = gflops_data[cn+"_gb"] == 0.0
+            gflops_data.loc[f,cn] = 0.0
+            gflops_data = gflops_data.drop(cn+"_gb", axis=1)
+        gflops_data["counter"] = "Flops/Byte"
+        data_all = data_all.append(gflops_data, sort=True)
+
+    if not data_all is None:
+        data_all.to_csv(os.path.join(prepared_output_dirpath, "all-data-combined.csv"), index=False)
+
 if not assembly_analyser_dirpath is None:
     analyse_object_files()
 collate_csvs()
 aggregate()
+
+combine_all()
 
 print("Aggregated data written to folder: " + prepared_output_dirpath)
