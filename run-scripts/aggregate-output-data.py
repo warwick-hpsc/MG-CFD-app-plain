@@ -4,7 +4,6 @@ import numpy as np
 from sets import Set
 import fnmatch
 import argparse
-import inspect
 
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
@@ -224,10 +223,7 @@ def analyse_object_files():
                     tmp_dict = {}
                     for k,v in loop_tally.iteritems():
                         tmp_dict[k] = [v]
-                    if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
-                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
-                    else:
-                        loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict))
+                    loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
 
             if not loops_tally_df is None:
                 job_id_df = get_output_run_config(output_dirpath)
@@ -265,10 +261,7 @@ def collate_csvs():
                                 if d in df_agg_data_col_names:
                                     df_agg[d] = 0
 
-                        if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
-                            df_agg = df_agg.append(df, sort=True)
-                        else:
-                            df_agg = df_agg.append(df)
+                        df_agg = df_agg.append(df, sort=True)
 
         if df_agg is None:
             print("WARNING: Failed to find any '{0}' output files to collates".format(cat))
@@ -398,10 +391,7 @@ def aggregate():
         df_mean2 = df_agg2.mean().reset_index()
         for pe in Set(df_mean2["PAPI counter"]):
             df_mean2.loc[df_mean2["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
-        if "sort" in inspect.getargspec(pd.DataFrame.append)[0]:
-            df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
-        else:
-            df_agg3 = df_sum.append(df_max).append(df_mean2)
+        df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_agg3.to_csv(out_filepath, index=False)
 
