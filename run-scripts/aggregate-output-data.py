@@ -297,7 +297,7 @@ def collate_csvs():
         df_agg.to_csv(agg_fp, index=False)
 
 def aggregate():
-    for cat in ["Times", "instruction-counts", "LoopNumIters"]:
+    for cat in ["Times"]:
         df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
         if not os.path.isfile(df_filepath):
             continue
@@ -327,6 +327,47 @@ def aggregate():
             df_std = df_std.drop([x+"_mean" for x in data_colnames], axis=1)
             out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
             df_std.to_csv(out_filepath, index=False)
+
+    cat = "instruction-counts"
+    df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+    if os.path.isfile(df_filepath):
+        print("Aggregating " + cat)
+        df = clean_pd_read_csv(df_filepath)
+        if "ThreadNum" in df.columns.values:
+            df = df.drop("ThreadNum", axis=1)
+        job_id_colnames = get_job_id_colnames(df)
+        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        df_agg = df.groupby(get_job_id_colnames(df))
+
+        df_mean = df_agg.mean().reset_index()
+        out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
+        df_mean.to_csv(out_filepath, index=False)
+
+    cat = "LoopNumIters"
+    df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+    if os.path.isfile(df_filepath):
+        print("Aggregating " + cat)
+        df = clean_pd_read_csv(df_filepath)
+        df["counter"] = "#iterations"
+        job_id_colnames = get_job_id_colnames(df)
+        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        df_agg = df.groupby(get_job_id_colnames(df))
+
+        df_mean = df_agg.mean().reset_index()
+        ## Next, compute sum and max across threads within each run:
+        if "ThreadNum" in df.columns.values:
+            del job_id_colnames[job_id_colnames.index("ThreadNum")]
+            df_mean2 = df_mean.drop("ThreadNum", axis=1)
+        else:
+            df_mean2 = df_mean
+        df_agg2 = df_mean2.groupby(job_id_colnames)
+        df_sum = df_agg2.sum().reset_index()
+        df_sum["counter"] = "#iterations_SUM"
+        df_max = df_agg2.max().reset_index()
+        df_max["counter"] = "#iterations_MAX"
+        df_agg3 = df_sum.append(df_max)
+        out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
+        df_agg3.to_csv(out_filepath, index=False)
 
     cat = "PAPI"
     papi_df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
