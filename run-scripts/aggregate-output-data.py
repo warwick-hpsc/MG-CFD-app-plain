@@ -433,10 +433,10 @@ def count_flops():
         "[v]?min[sp]d", "[v]?sub[sp][sd]", "[v]?div[sp][sd]", 
         "[v]?sqrt[sp][sd]", "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
         "[v]?mul[sp][sd]", 
-        "vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]", 
         "[v]?dpp[sd]", "[v]?movhp[sd]", "[v]?unpck[hl]p[sd]",
         "[v]?xorp[sd]", "vandpd", "vbroadcasts[sd]",
         "vextractf128", "vinsertf128", "vmovddup", "vpermilpd"]
+    intel_fp_fma_insns = ["vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]"]
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
     insn_df = insn_df[insn_df["kernel"]=="compute_flux_edge"]
     if "Num threads" in insn_df.columns.values:
@@ -445,11 +445,19 @@ def count_flops():
     for colname in insn_df.columns.values:
         if colname.startswith("insn."):
             insn = colname.replace("insn.", "")
+            fp_detected = False
             for f in intel_fp_insns:
-                z = re.match(f, insn)
-                if z:
+                if re.match(f, insn):
                     insn_df["FLOPs"] += insn_df[colname]
+                    fp_detected = True
                     break
+            if not fp_detected:
+                for f in intel_fp_fma_insns:
+                    if re.match(f, insn):
+                        insn_df["FLOPs"] += 2*insn_df[colname]
+                        fp_detected = True
+                        break
+
             insn_df = insn_df.drop(colname, axis=1)
 
     return insn_df.loc[0, "FLOPs"]
