@@ -547,6 +547,8 @@ def combine_all():
         gflops_data["counter"] = "Flops/Byte"
         data_all = data_all.append(gflops_data, sort=True)
 
+    data_all = data_all[get_job_id_colnames(data_all)+get_data_colnames(data_all)]
+
     if not data_all is None:
         data_all.to_csv(os.path.join(prepared_output_dirpath, "all-data-combined.csv"), index=False)
 
