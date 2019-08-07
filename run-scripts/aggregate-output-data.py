@@ -276,6 +276,12 @@ def collate_csvs():
             df_agg = df_agg.drop("Size", axis=1)
             df_agg = df_agg.drop("Size_scale_factor", axis=1)
 
+        if cat == "PAPI":
+            f = df_agg["PAPI counter"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
+            data_colnames = get_data_colnames(df_agg)
+            df_agg.loc[f,"PAPI counter"] = "GB"
+            df_agg.loc[f,data_colnames] = df_agg.loc[f,data_colnames] * 64 / 1e9
+
         # Drop job ID columns with just one value:
         n_uniq = df_agg.apply(pd.Series.nunique)
         uniq_colnames = n_uniq[n_uniq==1].index
