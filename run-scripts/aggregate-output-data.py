@@ -226,6 +226,14 @@ def analyse_object_files():
                     loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
 
             if not loops_tally_df is None:
+                if "insn.LOAD_SPILLS" in loops_tally_df.columns.values:
+                    ## The 'indirect rw' loop does not actually have any register spilling, so 
+                    ## any that were identified by 'assembly-loop-extractor' are false positives. 
+                    ## Assume that the same number of false positives are identified in the 'flux' kernel, 
+                    ## so remove those:
+                    claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
+                    loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
+
                 job_id_df = get_output_run_config(output_dirpath)
                 df = job_id_df.join(loops_tally_df)
                 df.to_csv(ic_filepath, index=False)
