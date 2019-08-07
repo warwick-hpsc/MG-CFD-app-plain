@@ -233,8 +233,14 @@ if __name__=="__main__":
         src_js_filepath = None
 
     with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
-        f.write("PAPI_TOT_INS\n")
-        f.write("PAPI_TOT_CYC\n")
+        if "papi events" in profile["run"].keys():
+            for e in profile["run"]["papi events"]:
+                f.write("{0}\n".format(e))
+        else:
+            # Default events:
+            f.write("PAPI_TOT_INS\n")
+            f.write("PAPI_TOT_CYC\n")
+    # TODO: Use 'papi_event_chooser' to check for incompatibility between events
 
     n = 0
     for repeat in range(num_repeats):
