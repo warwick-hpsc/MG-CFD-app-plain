@@ -16,6 +16,3 @@
 ##       This feature is necessary, so fingers crossed!
 
 RUN_CMD="mpirun -n 1"
-
-export OMP_NUM_THREADS=<NUM_THREADS>
-export OMP_PROC_BIND=true
