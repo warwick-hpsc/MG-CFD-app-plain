@@ -15,6 +15,3 @@
 #SBATCH --export=ALL
 
 RUN_CMD="srun --cpu_bind=cores"
-
-export OMP_NUM_THREADS=<NUM_THREADS>
-export OMP_PROC_BIND=true
