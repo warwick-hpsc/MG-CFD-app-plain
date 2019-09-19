@@ -144,7 +144,7 @@ void compute_flux_edge(
                 const int loop_start_orig = loop_start;
                 const int loop_end_orig = loop_end;
                 int v_start = loop_start;
-                int v_end = loop_start + ((loop_end-loop_start+1)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                int v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
                 for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
@@ -339,7 +339,7 @@ void compute_flux_edge_crippled(
                 const int loop_start_orig = loop_start;
                 const int loop_end_orig = loop_end;
                 int v_start = loop_start;
-                int v_end = loop_start + ((loop_end-loop_start+1)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                int v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
                 for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
