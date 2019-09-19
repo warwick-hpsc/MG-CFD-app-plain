@@ -134,7 +134,7 @@ void compute_flux_edge(
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
-                #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #pragma omp simd safelen(DBLS_PER_SIMD) simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
                 const int loop_start_orig = loop_start;
                 const int loop_end_orig = loop_end;
