@@ -188,9 +188,10 @@ void compute_flux_edge(
 
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
-            for (int n=0; n<DBLS_PER_SIMD; n++) {
-                int a = edges[v+n].a; int b = edges[v+n].b;
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int n=0; n<DBLS_PER_SIMD; n++) {
+                    int a = edges[v+n].a;
+                    int b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }
@@ -220,8 +221,8 @@ void compute_flux_edge(
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
             #endif
         #elif defined MANUAL_CONFLICT_AVOIDANCE
-            for (int i=0; i<DBLS_PER_SIMD; i++) {
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int i=0; i<DBLS_PER_SIMD; i++) {
                     fluxes_a[x][i] = 0.0;
                     fluxes_b[x][i] = 0.0;
                 }
@@ -263,9 +264,11 @@ void compute_flux_edge(
         #ifdef MANUAL_CONFLICT_AVOIDANCE
             // Write out fluxes:
             for (int i=loop_start; i<loop_end; i++) {
-                for (int v=0; v<NVAR; v++) {
-                    fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-loop_start];
-                    fluxes[edges[i].b*NVAR+v] += fluxes_b[v][i-loop_start];
+                int a = edges[i].a;
+                int b = edges[i].b;
+                for (int x=0; x<NVAR; x++) {
+                    fluxes[a*NVAR+x] += fluxes_a[x][i-loop_start];
+                    fluxes[b*NVAR+x] += fluxes_b[x][i-loop_start];
                 }
             }
         #endif
@@ -384,9 +387,10 @@ void compute_flux_edge_crippled(
 
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
-            for (int n=0; n<DBLS_PER_SIMD; n++) {
-                int a = edges[v+n].a; int b = edges[v+n].b;
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int n=0; n<DBLS_PER_SIMD; n++) {
+                    int a = edges[v+n].a;
+                    int b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }

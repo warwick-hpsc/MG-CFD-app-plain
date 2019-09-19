@@ -113,9 +113,10 @@ void indirect_rw(
 
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
-            for (int n=0; n<DBLS_PER_SIMD; n++) {
-                int a = edges[v+n].a; int b = edges[v+n].b;
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int n=0; n<DBLS_PER_SIMD; n++) {
+                    int a = edges[v+n].a;
+                    int b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }
@@ -134,8 +135,8 @@ void indirect_rw(
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
             #endif
         #elif defined MANUAL_CONFLICT_AVOIDANCE
-            for (int i=0; i<DBLS_PER_SIMD; i++) {
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int i=0; i<DBLS_PER_SIMD; i++) {
                     fluxes_a[x][i] = 0.0;
                     fluxes_b[x][i] = 0.0;
                 }
