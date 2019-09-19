@@ -58,12 +58,7 @@ void indirect_rw(
             #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
-            #if defined __AVX512CD__ && defined __ICC
-                #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into indirect_rw_kernel.elemfunc.c to 
-                //       enable safe AVX-512-CD SIMD:
-                // #pragma omp ordered simd overlap(...)
-            #elif defined COLOURED_CONFLICT_AVOIDANCE
+            #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
                 const int loop_start_orig = loop_start;
@@ -82,6 +77,11 @@ void indirect_rw(
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
                     #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #elif defined __AVX512CD__ && defined __ICC
+                #pragma omp simd safelen(1)
+                // TODO: Insert the following pragma into indirect_rw_kernel.elemfunc.c to 
+                //       enable safe AVX-512-CD SIMD:
+                // #pragma omp ordered simd overlap(...)
             #endif
         #endif
     #endif

@@ -133,12 +133,7 @@ void compute_flux_edge(
             #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
-            #if defined __AVX512CD__ && defined __ICC
-                #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into compute_flux_edge_kernel() to 
-                //       enable safe AVX-512-CD SIMD:
-                // #pragma omp ordered simd overlap(...)
-            #elif defined COLOURED_CONFLICT_AVOIDANCE
+            #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
                 const int loop_start_orig = loop_start;
@@ -157,6 +152,11 @@ void compute_flux_edge(
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
                     #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #elif defined __AVX512CD__ && defined __ICC
+                #pragma omp simd safelen(1)
+                // TODO: Insert the following pragma into compute_flux_edge_kernel() to 
+                //       enable safe AVX-512-CD SIMD:
+                // #pragma omp ordered simd overlap(...)
             #endif
         #endif
     #endif
@@ -328,12 +328,7 @@ void compute_flux_edge_crippled(
             #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
-            #if defined __AVX512CD__ && defined __ICC
-                #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into flux.elemfunc.c to 
-                //       enable safe AVX-512-CD SIMD:
-                // #pragma omp ordered simd overlap(...)
-            #elif defined COLOURED_CONFLICT_AVOIDANCE
+            #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
                 const int loop_start_orig = loop_start;
@@ -352,6 +347,11 @@ void compute_flux_edge_crippled(
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
                     #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #elif defined __AVX512CD__ && defined __ICC
+                #pragma omp simd safelen(1)
+                // TODO: Insert the following pragma into flux.elemfunc.c to 
+                //       enable safe AVX-512-CD SIMD:
+                // #pragma omp ordered simd overlap(...)
             #endif
         #endif
     #endif
