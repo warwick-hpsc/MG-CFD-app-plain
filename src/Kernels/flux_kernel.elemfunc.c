@@ -1,28 +1,28 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
-inline void compute_flux_edge_kernel(
-    int a, int b, 
-    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        double ewt,
-    #endif
-    double ex, double ey, double ez,
-    const double *restrict variables_a, 
-    const double *restrict variables_b, 
-    #ifdef FLUX_FISSION
-        edge *restrict edge_variables
-    #else
-        #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
-            int simd_idx,
-            double fluxes_a[][DBLS_PER_SIMD],
-            double fluxes_b[][DBLS_PER_SIMD]
-        #else
-            double *restrict fluxes_a, 
-            double *restrict fluxes_b
-        #endif
-    #endif
-    )
-{
+// inline void compute_flux_edge_kernel(
+//     int a, int b, 
+//     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+//         double ewt,
+//     #endif
+//     double ex, double ey, double ez,
+//     const double *restrict variables_a, 
+//     const double *restrict variables_b, 
+//     #ifdef FLUX_FISSION
+//         edge *restrict edge_variables
+//     #else
+//         #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+//             int simd_idx,
+//             double fluxes_a[][DBLS_PER_SIMD],
+//             double fluxes_b[][DBLS_PER_SIMD]
+//         #else
+//             double *restrict fluxes_a, 
+//             double *restrict fluxes_b
+//         #endif
+//     #endif
+//     )
+// {
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
     #else
         double ewt = sqrt(ex*ex + ey*ey + ez*ez);
@@ -191,43 +191,59 @@ inline void compute_flux_edge_kernel(
     #endif
 
     // Write out fluxes:
-    #ifdef FLUX_FISSION
-        edge_variables[VAR_DENSITY       ].a =  p_a_val;
-        edge_variables[VAR_MOMENTUMX     ].a = mx_a_val;
-        edge_variables[VAR_MOMENTUMY     ].a = my_a_val;
-        edge_variables[VAR_MOMENTUMZ     ].a = mz_a_val;
-        edge_variables[VAR_DENSITY_ENERGY].a = pe_a_val;
+        #if defined USE_AVX512CD && defined OMP
+            #pragma omp ordered simd overlap(a*NVAR+VAR_DENSITY)
+            {
+                fluxes[a*NVAR+VAR_DENSITY] +=  p_a_val;
+            }
+            #pragma omp ordered simd overlap(a*NVAR+VAR_MOMENTUMX)
+            {
+                fluxes[a*NVAR+VAR_MOMENTUMX] += mx_a_val;
+            }
+            #pragma omp ordered simd overlap(a*NVAR+VAR_MOMENTUMY)
+            {
+                fluxes[a*NVAR+VAR_MOMENTUMY] += my_a_val;
+            }
+            #pragma omp ordered simd overlap(a*NVAR+VAR_MOMENTUMZ)
+            {
+                fluxes[a*NVAR+VAR_MOMENTUMZ] += mz_a_val;
+            }
+            #pragma omp ordered simd overlap(a*NVAR+VAR_DENSITY_ENERGY)
+            {
+                fluxes[a*NVAR+VAR_DENSITY_ENERGY] += pe_a_val;
+            }
 
-        edge_variables[VAR_DENSITY       ].b =  p_b_val;
-        edge_variables[VAR_MOMENTUMX     ].b = mx_b_val;
-        edge_variables[VAR_MOMENTUMY     ].b = my_b_val;
-        edge_variables[VAR_MOMENTUMZ     ].b = mz_b_val;
-        edge_variables[VAR_DENSITY_ENERGY].b = pe_b_val;
-    #else
-        #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
-            fluxes_a[VAR_DENSITY][simd_idx]   += p_a_val;
-            fluxes_a[VAR_MOMENTUMX][simd_idx] += mx_a_val;
-            fluxes_a[VAR_MOMENTUMY][simd_idx] += my_a_val;
-            fluxes_a[VAR_MOMENTUMZ][simd_idx] += mz_a_val;
-            fluxes_a[VAR_DENSITY_ENERGY][simd_idx] += pe_a_val;
-
-            fluxes_b[VAR_DENSITY][simd_idx]   += p_b_val;
-            fluxes_b[VAR_MOMENTUMX][simd_idx] += mx_b_val;
-            fluxes_b[VAR_MOMENTUMY][simd_idx] += my_b_val;
-            fluxes_b[VAR_MOMENTUMZ][simd_idx] += mz_b_val;
-            fluxes_b[VAR_DENSITY_ENERGY][simd_idx] += pe_b_val;
+            #pragma omp ordered simd overlap(b*NVAR+VAR_DENSITY)
+            {
+                fluxes[b*NVAR+VAR_DENSITY]  +=  p_b_val;
+            }
+            #pragma omp ordered simd overlap(b*NVAR+VAR_MOMENTUMX)
+            {
+                fluxes[b*NVAR+VAR_MOMENTUMX] += mx_b_val;
+            }
+            #pragma omp ordered simd overlap(b*NVAR+VAR_MOMENTUMY)
+            {
+                fluxes[b*NVAR+VAR_MOMENTUMY] += my_b_val;
+            }
+            #pragma omp ordered simd overlap(b*NVAR+VAR_MOMENTUMZ)
+            {
+                fluxes[b*NVAR+VAR_MOMENTUMZ] += mz_b_val;
+            }
+            #pragma omp ordered simd overlap(b*NVAR+VAR_DENSITY_ENERGY)
+            {
+                fluxes[b*NVAR+VAR_DENSITY_ENERGY] += pe_b_val;
+            }
         #else
-            fluxes_a[VAR_DENSITY]  +=  p_a_val;
-            fluxes_a[VAR_MOMENTUMX] += mx_a_val;
-            fluxes_a[VAR_MOMENTUMY] += my_a_val;
-            fluxes_a[VAR_MOMENTUMZ] += mz_a_val;
-            fluxes_a[VAR_DENSITY_ENERGY] += pe_a_val;
+            fluxes[a*NVAR+VAR_DENSITY]  +=  p_a_val;
+            fluxes[a*NVAR+VAR_MOMENTUMX] += mx_a_val;
+            fluxes[a*NVAR+VAR_MOMENTUMY] += my_a_val;
+            fluxes[a*NVAR+VAR_MOMENTUMZ] += mz_a_val;
+            fluxes[a*NVAR+VAR_DENSITY_ENERGY] += pe_a_val;
 
-            fluxes_b[VAR_DENSITY]  +=  p_b_val;
-            fluxes_b[VAR_MOMENTUMX] += mx_b_val;
-            fluxes_b[VAR_MOMENTUMY] += my_b_val;
-            fluxes_b[VAR_MOMENTUMZ] += mz_b_val;
-            fluxes_b[VAR_DENSITY_ENERGY] += pe_b_val;
+            fluxes[b*NVAR+VAR_DENSITY]  +=  p_b_val;
+            fluxes[b*NVAR+VAR_MOMENTUMX] += mx_b_val;
+            fluxes[b*NVAR+VAR_MOMENTUMY] += my_b_val;
+            fluxes[b*NVAR+VAR_MOMENTUMZ] += mz_b_val;
+            fluxes[b*NVAR+VAR_DENSITY_ENERGY] += pe_b_val;
         #endif
-    #endif
-}
+// }

@@ -58,18 +58,13 @@ void indirect_rw(
             #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
-            #if defined __AVX512CD__ && defined __ICC
-                #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into indirect_rw_kernel.elemfunc.c to 
-                //       enable safe AVX-512-CD SIMD:
-                // #pragma omp ordered simd overlap(...)
-            #elif defined COLOURED_CONFLICT_AVOIDANCE
+            #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
                 const int loop_start_orig = loop_start;
                 const int loop_end_orig = loop_end;
                 int v_start = loop_start;
-                int v_end = loop_start + ((loop_end-loop_start+1)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                int v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
                 for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
@@ -82,40 +77,63 @@ void indirect_rw(
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
                     #pragma omp simd simdlen(DBLS_PER_SIMD)
+
+            #elif defined USE_AVX512CD
+                // Always prefer using OMP pragma to vectorise, gives better performance 
+                // than default auto-vectoriser triggered by absent pragma
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
             #endif
         #endif
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
-        indirect_rw_kernel(
+        #if defined USE_AVX512CD
+            // For Intel AVX-512-CD auto-vectorizer to act, I need to 
+            // directly include the kernel source here rather than 
+            // call an inlined kernel function.
+            int a = edges[i].a;
+            int b = edges[i].b;
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                edge_weights[i],
+                double ewt = edge_weights[i];
             #endif
-            edges[i].x, 
-            edges[i].y, 
-            edges[i].z,
-            &variables[edges[i].a*NVAR],
-            &variables[edges[i].b*NVAR],
-            #ifdef FLUX_FISSION
-                &edge_variables[i*NVAR]
-            #else
-                #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
-                    i-loop_start,
-                    fluxes_a, 
-                    fluxes_b
-                #else
-                    &fluxes[edges[i].a*NVAR],
-                    &fluxes[edges[i].b*NVAR]
+            double ex = edges[i].x;
+            double ey = edges[i].y;
+            double ez = edges[i].z;
+            const double* variables_a = &variables[edges[i].a*NVAR];
+            const double* variables_b = &variables[edges[i].b*NVAR];
+            #include "indirect_rw_kernel.elemfunc.c"
+        #else
+            indirect_rw_kernel(
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    edge_weights[i],
                 #endif
-            #endif
-            );
+                edges[i].x, 
+                edges[i].y, 
+                edges[i].z,
+                &variables[edges[i].a*NVAR],
+                &variables[edges[i].b*NVAR],
+                #ifdef FLUX_FISSION
+                    &edge_variables[i*NVAR]
+                #else
+                    #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+                        i-loop_start,
+                        fluxes_a, 
+                        fluxes_b
+                    #else
+                        &fluxes[edges[i].a*NVAR],
+                        &fluxes[edges[i].b*NVAR]
+                    #endif
+                #endif
+                );
+        #endif
     }
 
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
-            for (int n=0; n<DBLS_PER_SIMD; n++) {
-                int a = edges[v+n].a; int b = edges[v+n].b;
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int n=0; n<DBLS_PER_SIMD; n++) {
+                    int a = edges[v+n].a;
+                    int b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }
@@ -134,8 +152,8 @@ void indirect_rw(
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
             #endif
         #elif defined MANUAL_CONFLICT_AVOIDANCE
-            for (int i=0; i<DBLS_PER_SIMD; i++) {
-                for (int x=0; x<NVAR; x++) {
+            for (int x=0; x<NVAR; x++) {
+                for (int i=0; i<DBLS_PER_SIMD; i++) {
                     fluxes_a[x][i] = 0.0;
                     fluxes_b[x][i] = 0.0;
                 }

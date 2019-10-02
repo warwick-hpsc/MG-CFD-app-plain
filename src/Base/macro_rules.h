@@ -14,4 +14,12 @@
   #undef COLOURED_CONFLICT_AVOIDANCE
 #endif
 
+#if defined SIMD && !(defined FLUX_FISSION)
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+    #elif defined MANUAL_CONFLICT_AVOIDANCE
+    #elif defined __AVX512CD__ && defined __ICC
+        #define USE_AVX512CD 1
+    #endif
+#endif
+
 #endif

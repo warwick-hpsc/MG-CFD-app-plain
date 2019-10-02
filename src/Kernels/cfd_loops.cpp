@@ -35,6 +35,10 @@ void compute_step_factor_legacy(
     #ifdef TIME
     start_timer();
     #endif
+
+    #ifndef SIMD
+        #pragma omp simd safelen(1)
+    #endif
     for (int i=loop_start; i<loop_end; i++)
     {
         int p_idx  = NVAR*i + VAR_DENSITY;
@@ -96,6 +100,10 @@ void compute_step_factor(
     #ifdef TIME
     start_timer();
     #endif
+
+    #ifndef SIMD
+        #pragma omp simd safelen(1)
+    #endif
     for (int i=loop_start; i<loop_end; i++)
     {
         int p_idx  = NVAR*i + VAR_DENSITY;
@@ -137,20 +145,48 @@ void compute_step_factor(
 
     // Sync dt:
     double min_dt = step_factors[0];
-    #pragma omp parallel for reduction(min:min_dt)
+    #ifdef OMP
+        #pragma omp parallel for reduction(min:min_dt)
+    #else
+        #ifndef SIMD
+            #pragma omp simd safelen(1)
+        #endif
+    #endif
     for (int i=0; i<nel; i++)
     {
         if (step_factors[i] < min_dt) {
             min_dt = step_factors[i];
         }
     }
-    #pragma omp parallel for
+
+    #ifdef OMP
+        #ifndef SIMD
+            #pragma omp parallel for simd safelen(1)
+        #else
+            #pragma omp parallel for
+        #endif
+    #else
+        #ifndef SIMD
+            #pragma omp simd safelen(1)
+        #endif
+    #endif
     for (int i=0; i<nel; i++)
     {
         step_factors[i] = min_dt;
     }
+
     // Bring forward a division-by-volume performed by time_step():
-    #pragma omp parallel for
+    #ifdef OMP
+        #ifndef SIMD
+            #pragma omp parallel for simd safelen(1)
+        #else
+            #pragma omp parallel for
+        #endif
+    #else
+        #ifndef SIMD
+            #pragma omp simd safelen(1)
+        #endif
+    #endif
     for (int i=0; i<nel; i++)
     {
         step_factors[i] /= volumes[i];
@@ -182,6 +218,10 @@ void update_edges(
     #endif
     #ifdef TIME
     start_timer();
+    #endif
+
+    #ifndef SIMD
+        #pragma omp simd safelen(1)
     #endif
     for (int i=loop_start; i<loop_end; i++)
     {
@@ -241,6 +281,10 @@ void time_step(
     #ifdef TIME
     start_timer();
     #endif
+
+    #ifndef SIMD
+        #pragma omp simd safelen(1)
+    #endif
     for(int i=loop_start; i<loop_end; i++)
     {
         double factor = (step_factors[i]/double(RK+1-j));
@@ -289,7 +333,15 @@ void zero_fluxes(
     log("zero_fluxes()");
 
     #ifdef OMP
-        #pragma omp parallel for
+        #ifndef SIMD
+            #pragma omp parallel for simd safelen(1)
+        #else
+            #pragma omp parallel for
+        #endif
+    #else
+        #ifndef SIMD
+            #pragma omp simd safelen(1)
+        #endif
     #endif
     for(int i=0; i<nel; i++)
     {
