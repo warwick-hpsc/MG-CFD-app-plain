@@ -13,8 +13,8 @@ inline void indirect_rw_kernel(
     #else
         #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
             int simd_idx,
-            double fluxes_a[][DBLS_PER_SIMD],
-            double fluxes_b[][DBLS_PER_SIMD]
+            double fluxes_a[*][DBLS_PER_SIMD],
+            double fluxes_b[*][DBLS_PER_SIMD]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b
