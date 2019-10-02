@@ -49,6 +49,7 @@ else ifeq ($(COMPILER),intel)
 	CPP := icpc
 	CFLAGS += -qopenmp
 	CFLAGS += -fmax-errors=1
+	CFLAGS += -vec-threshold0
 
 	INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=all -qopt-report=5
 	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
