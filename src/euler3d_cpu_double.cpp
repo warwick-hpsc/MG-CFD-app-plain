@@ -122,12 +122,6 @@ int main(int argc, char** argv)
     }
     cycles = conf.num_cycles;
 
-    #if defined OMP
-        if (conf.omp_num_threads != -1) {
-            omp_set_num_threads(conf.omp_num_threads);
-        }
-    #endif
-
     double total_compute_time = 0.0;
     #ifdef TIME
     init_timers();
