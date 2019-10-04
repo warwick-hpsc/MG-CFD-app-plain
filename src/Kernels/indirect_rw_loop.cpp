@@ -131,6 +131,7 @@ void indirect_rw(
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
             for (int x=0; x<NVAR; x++) {
+                #pragma omp simd safelen(1)
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
                     int a = edges[v+n].a;
                     int b = edges[v+n].b;
