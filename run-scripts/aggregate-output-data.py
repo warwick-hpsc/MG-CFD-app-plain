@@ -99,15 +99,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
-        simd_possible = False
-        if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
-            simd_possible = True
-        elif iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
-            simd_possible = True
-        if simd_possible:
-            simd_len = iters.loc[0,"SIMD len"]
-        else:
-            simd_len = 1
+        simd_len = iters.loc[0,"SIMD len"]
 
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
