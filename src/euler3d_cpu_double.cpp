@@ -268,6 +268,7 @@ int main(int argc, char** argv)
         int* edge_colours[levels];
         int number_of_colours[levels];
         printf("Colouring mesh edges:\n");
+        double colour_start_time = omp_get_wtime();
         for (int i=0; i<levels; i++) {
             edge_colours[i] = NULL;
             number_of_colours[i] = 0;
@@ -284,6 +285,7 @@ int main(int argc, char** argv)
                 &edge_colours[i], 
                 &number_of_colours[i]);
         }
+        printf("Colouring time = %.2f\n", omp_get_wtime()-colour_start_time);
     #endif
 
     #ifdef BIN_COLOURED_VECTORS
