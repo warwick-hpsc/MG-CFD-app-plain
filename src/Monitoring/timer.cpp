@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 
+#include <omp.h>
+
 #include "common.h"
 #include "io_enhanced.h"
 #include "timer.h"
@@ -63,13 +65,7 @@ void start_timer()
         const int tid = 0;
     #endif
 
-    #if defined OMP
-        start_times[tid] = omp_get_wtime();
-    #else
-        struct timeval t;
-        gettimeofday(&t, NULL);
-        start_times[tid] = (double)t.tv_sec + ((double)t.tv_usec)/1000000.0;
-    #endif
+    start_times[tid] = omp_get_wtime();
 }
 
 void stop_timer()
@@ -82,13 +78,7 @@ void stop_timer()
         const int tid = 0;
     #endif
     
-    #if defined OMP
-        double duration = omp_get_wtime() - start_times[tid];
-    #else
-        struct timeval t;
-        gettimeofday(&t, NULL);
-        double duration = (double)t.tv_sec + ((double)t.tv_usec)/1000000.0 - start_times[tid];
-    #endif
+    double duration = omp_get_wtime() - start_times[tid];
 
     if (current_kernel == COMPUTE_STEP) {
         compute_step_kernel_times[tid][level] += duration;
