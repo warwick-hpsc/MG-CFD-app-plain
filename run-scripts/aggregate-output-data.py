@@ -22,6 +22,8 @@ if not assembly_analyser_dirpath is None:
     import imp
     imp.load_source('assembly_analysis', os.path.join(assembly_analyser_dirpath, "assembly_analysis.py"))
     from assembly_analysis import *
+    imp.load_source('utils', os.path.join(assembly_analyser_dirpath, "utils.py"))
+    from utils import *
 
 compile_info = {}
 
@@ -53,7 +55,7 @@ def clean_pd_read_csv(filepath):
 def get_data_colnames(df):
     data_colnames = []
     for v in df.columns.values:
-        if v.startswith("insn."):
+        if v.startswith("insn.") or v.startswith("eu."):
             data_colnames.append(v)
         else:
             is_kernel_col = False
@@ -169,6 +171,7 @@ def analyse_object_files():
             ic_filepath = os.path.join(output_dirpath, "instruction-counts.csv")
             if os.path.isfile(ic_filepath):
                 continue
+            ic_cat_filepath = os.path.join(output_dirpath, "instruction-counts-categorised.csv")
 
             # print("Processing: " + output_dirpath)
 
@@ -238,8 +241,11 @@ def analyse_object_files():
                 df = job_id_df.join(loops_tally_df)
                 df.to_csv(ic_filepath, index=False)
 
+                f = categorise_aggregated_instructions_tally(ic_filepath)
+                f.to_csv(ic_cat_filepath, index=False)
+
 def collate_csvs():
-    cats = ["Times", "PAPI", "instruction-counts", "LoopNumIters"]
+    cats = ["Times", "PAPI", "instruction-counts", "instruction-counts-categorised", "LoopNumIters"]
 
     dirpaths = mg_cfd_output_dirpaths
 
@@ -257,16 +263,16 @@ def collate_csvs():
                     else:
                         df_missing_cols = Set(df_agg.columns.values).difference(Set(df.columns.values))
                         if len(df_missing_cols) > 0:
-                            df_data_col_names = get_data_colnames(df_agg)
+                            df_agg_data_col_names = get_data_colnames(df_agg)
                             for d in df_missing_cols:
-                                if d in df_data_col_names:
+                                if d in df_agg_data_col_names:
                                     df[d] = 0
 
                         df_agg_missing_cols = Set(df.columns.values).difference(Set(df_agg.columns.values))
                         if len(df_agg_missing_cols) > 0:
-                            df_agg_data_col_names = get_data_colnames(df)
+                            df_data_col_names = get_data_colnames(df)
                             for d in df_agg_missing_cols:
-                                if d in df_agg_data_col_names:
+                                if d in df_data_col_names:
                                     df_agg[d] = 0
 
                         df_agg = df_agg.append(df, sort=True)
@@ -275,7 +281,7 @@ def collate_csvs():
             print("WARNING: Failed to find any '{0}' output files to collates".format(cat))
             continue
 
-        if cat == "instruction-counts":
+        if cat in ["instruction-counts", "instruction-counts-categorised"]:
             df_agg = df_agg.drop("Size", axis=1)
         else:
             df_agg["Size_scale_factor"] = max(df_agg["Size"]) / df_agg["Size"]
@@ -337,20 +343,21 @@ def aggregate():
             out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
             df_std.to_csv(out_filepath, index=False)
 
-    cat = "instruction-counts"
-    df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
-    if os.path.isfile(df_filepath):
-        print("Aggregating " + cat)
-        df = clean_pd_read_csv(df_filepath)
-        if "ThreadNum" in df.columns.values:
-            df = df.drop("ThreadNum", axis=1)
-        job_id_colnames = get_job_id_colnames(df)
-        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
-        df_agg = df.groupby(get_job_id_colnames(df))
+    cats = ["instruction-counts", "instruction-counts-categorised"]
+    for cat in cats:
+        df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+        if os.path.isfile(df_filepath):
+            print("Aggregating " + cat)
+            df = clean_pd_read_csv(df_filepath)
+            if "ThreadNum" in df.columns.values:
+                df = df.drop("ThreadNum", axis=1)
+            job_id_colnames = get_job_id_colnames(df)
+            data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+            df_agg = df.groupby(get_job_id_colnames(df))
 
-        df_mean = df_agg.mean().reset_index()
-        out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
-        df_mean.to_csv(out_filepath, index=False)
+            df_mean = df_agg.mean().reset_index()
+            out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
+            df_mean.to_csv(out_filepath, index=False)
 
     cat = "LoopNumIters"
     df_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
