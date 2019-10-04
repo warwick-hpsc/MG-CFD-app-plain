@@ -4,6 +4,8 @@ import numpy as np
 from sets import Set
 import fnmatch
 import argparse
+import re
+from math import floor, log10
 
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
@@ -29,7 +31,7 @@ compile_info = {}
 
 kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
 
-essential_colnames = ["CPU", "PAPI counter"]
+essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
 
 def grep(text, filepath):
     found = False
@@ -51,6 +53,63 @@ def clean_pd_read_csv(filepath):
         elif v in ["Total", "CpuId"]:
             df = df.drop(v, axis=1)
     return df
+
+def safe_pd_append(top, bottom):
+    top_names = top.columns.values
+    bot_names = bottom.columns.values
+    if Set(top_names) != Set(bot_names):
+        missing_from_top = Set(bot_names).difference(top_names)
+        if len(missing_from_top) > 0:
+            raise Exception("Top DF missing these columns: " + missing_from_top.__str__())
+        missing_from_bot = Set(top_names).difference(bot_names)
+        if len(missing_from_bot) > 0:
+            raise Exception("Bottom DF missing these columns: " + missing_from_bot.__str__())
+    return top.append(bottom, sort=True)
+
+def safe_pd_filter(df, field, value):
+    if not field in df.columns.values:
+        print("WARNING: field '{0}' not in df".format(field))
+        return df
+    df = df[df[field]==value]
+    df = df.drop(field, axis=1)
+    nrows = df.shape[0]
+    if nrows == 0:
+        raise Exception("No rows left after filter: '{0}' == '{1}'".format(field, value))
+    return df
+
+def safe_pd_merge(lhs, rhs, v=None):
+    if v is None:
+        d = lhs.merge(rhs)
+        if d.shape[0] == 0 and (lhs.shape[0] > 0 and rhs.shape[0]):
+            raise Exception("Merge produced empty DataFrame")
+    else:
+        shape_before = lhs.shape
+        d = lhs.merge(rhs, validate=v)
+        if v == "many_to_one":
+            if d.shape[0] < shape_before[0]:
+                raise Exception("Rows lost from LHS during merge: {0} before, {1} after".format(shape_before[0], d.shape[0]))
+            elif d.shape[0] > shape_before[0]:
+                raise Exception("Rows added to LHS during merge: {0} before, {1} after".format(shape_before[0], d.shape[0]))
+        else:
+            if d.shape[0] == 0 and (lhs.shape[0] > 0 and rhs.shape[0]):
+                raise Exception("Merge produced empty DataFrame")
+
+    return d
+
+def safe_frame_divide(top, bottom):
+    data_colnames = get_data_colnames(bottom)
+    renames = {}
+    for x in data_colnames:
+        renames[x] = x+"_div"
+    b = bottom.rename(index=str, columns=renames)
+    d = top.merge(b, validate="one_to_one")
+    for cn in data_colnames:
+        f = d[cn+"_div"] != 0.0
+        d.loc[f,cn] /= d.loc[f,cn+"_div"]
+        f = d[cn+"_div"] == 0.0
+        d.loc[f,cn] = 0.0
+        d = d.drop(cn+"_div", axis=1)
+    return d
 
 def get_data_colnames(df):
     data_colnames = []
@@ -275,7 +334,7 @@ def collate_csvs():
                                 if d in df_data_col_names:
                                     df_agg[d] = 0
 
-                        df_agg = df_agg.append(df, sort=True)
+                        df_agg = safe_pd_append(df_agg, df)
 
         if df_agg is None:
             print("WARNING: Failed to find any '{0}' output files to collates".format(cat))
@@ -430,44 +489,48 @@ def aggregate():
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
         df_std.to_csv(out_filepath, index=False)
 
-def count_flops():
+def count_fp_ins():
     insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")
     if not os.path.isfile(insn_df_filepath):
-        return 0
+        return None
 
     intel_fp_insns = [
-        "[v]?add[sp][sd]", "[v]?[u]?comisd", "[v]?maxsd", 
-        "[v]?min[sp]d", "[v]?sub[sp][sd]", "[v]?div[sp][sd]", 
-        "[v]?sqrt[sp][sd]", "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
-        "[v]?mul[sp][sd]", 
-        "[v]?dpp[sd]", "[v]?movhp[sd]", "[v]?unpck[hl]p[sd]",
-        "[v]?xorp[sd]", "vandpd", "vbroadcasts[sd]",
-        "vextractf128", "vinsertf128", "vmovddup", "vpermilpd"]
+        "[v]?[u]?comisd", "[v]?add[sp][sd]", "[v]?maxsd", 
+        "[v]?min[sp]d", "[v]?sub[sp][sd]", "vcmpltsd", 
+        "[v]?div[sp][sd]", "[v]?sqrt[sp][sd]", 
+        "vrcp14[sp]d", "vrcp28[sp]d", 
+        "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
+        "[v]?mul[sp][sd]"
+    ]
     intel_fp_fma_insns = ["vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]"]
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
-    insn_df = insn_df[insn_df["kernel"]=="compute_flux_edge"]
-    if "Num threads" in insn_df.columns.values:
-        insn_df = insn_df[insn_df["Num threads"] == insn_df["Num threads"].min()]
-    insn_df["FLOPs"] = 0
+    insn_df = safe_pd_filter(insn_df, "kernel", "compute_flux_edge")
+    insn_df["FLOPs/iter"] = 0
+    insn_df["FP ins/iter"] = 0
     for colname in insn_df.columns.values:
         if colname.startswith("insn."):
             insn = colname.replace("insn.", "")
             fp_detected = False
             for f in intel_fp_insns:
                 if re.match(f, insn):
-                    insn_df["FLOPs"] += insn_df[colname]
+                    insn_df["FLOPs/iter"]  += insn_df[colname]
+                    insn_df["FP ins/iter"] += insn_df[colname]
                     fp_detected = True
                     break
             if not fp_detected:
                 for f in intel_fp_fma_insns:
                     if re.match(f, insn):
-                        insn_df["FLOPs"] += 2*insn_df[colname]
+                        insn_df["FLOPs/iter"]  += 2*insn_df[colname]
+                        insn_df["FP ins/iter"] +=   insn_df[colname]
                         fp_detected = True
                         break
 
             insn_df = insn_df.drop(colname, axis=1)
 
-    return insn_df.loc[0, "FLOPs"]
+    if "SIMD len" in insn_df.columns.values:
+        insn_df["FLOPs/iter"] *= insn_df["SIMD len"]
+
+    return insn_df
 
 def combine_all():
     data_all = None
@@ -476,12 +539,12 @@ def combine_all():
     if os.path.isfile(times_df_filepath):
         times_df = clean_pd_read_csv(times_df_filepath)
         times_df["counter"] = "runtime"
+        data_colnames = get_data_colnames(times_df)
         data_all = times_df
 
     papi_df_filepath = os.path.join(prepared_output_dirpath, "PAPI.mean.csv")
     if os.path.isfile(papi_df_filepath):
         papi_df = clean_pd_read_csv(papi_df_filepath)
-        papi_df = papi_df[papi_df["PAPI counter"].str.contains("_SUM")]
         papi_df = papi_df.rename(index=str, columns={"PAPI counter":"counter"})
 
         if data_all is None:
@@ -489,26 +552,67 @@ def combine_all():
         else:
             data_all = data_all.append(papi_df, sort=True)
 
+    counters = list(Set(data_all["counter"]))
+    data_colnames = get_data_colnames(data_all)
+    flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
+    other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
+
     iters_df_filepath = os.path.join(prepared_output_dirpath, "LoopNumIters.csv")
     if os.path.isfile(iters_df_filepath):
         iters_df = clean_pd_read_csv(iters_df_filepath)
-        iters_df = iters_df[iters_df["counter"].str.contains("_SUM")]
+        iters_df = safe_pd_filter(iters_df, "counter", "#iterations_SUM")
+        if "SIMD len" in iters_df.columns.values:
+            ## Need the number of SIMD iterations. Currently 'iterations_SUM'
+            ## counts the number of serial iterations.
+            for dc in data_colnames:
+                iters_df[dc] /= iters_df["SIMD len"]
 
-        flops_per_iter = count_flops()
-        flops_total = iters_df[iters_df["counter"]=="#iterations_SUM"].copy()
-        flops_total["counter"] = "GFLOPs"
-        data_colnames = get_data_colnames(iters_df)
-        flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
-        flops_total[flux_data_colnames] = (flops_total[flux_data_colnames] / 1e9) * flops_per_iter
-        other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
-        flops_total[other_data_colnames] = 0.0
-        if data_all is None:
-            data_all = flops_total
-        else:
-            data_all = data_all.append(flops_total, sort=True)
+        fp_counts = count_fp_ins()
+        if not fp_counts is None:
+            ## Calculate GFLOPs
+            flops_total = safe_pd_merge(fp_counts.drop("FP ins/iter", axis=1), iters_df, "many_to_one")
+            flops_total["counter"] = "GFLOPs"
+            for f in flux_data_colnames:
+                flops_total[f] = (flops_total[f] / 1e9) * flops_total["FLOPs/iter"]
+            flops_total.drop("FLOPs/iter", axis=1, inplace=True)
+            flops_total[other_data_colnames] = 0.0
+            flops_total[data_colnames] = flops_total[data_colnames]
+            if data_all is None:
+                data_all = flops_total
+            else:
+                data_all = data_all.append(flops_total, sort=True)
+            counters.append("GFLOPs")
 
-    counters = list(Set(data_all["counter"]))
+            if "PAPI_TOT_CYC_MAX" in counters:
+                ## Calculate IPC of FP instructions:
+                fp_total = safe_pd_merge(fp_counts.drop("FLOPs/iter", axis=1), iters_df, "many_to_one")
+                fp_total["counter"] = "FP total"
+                flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
+                for f in flux_data_colnames:
+                    fp_total[f] = fp_total[f] * fp_total["FP ins/iter"]
+                fp_total.drop("FP ins/iter", axis=1, inplace=True)
+                fp_total[other_data_colnames] = 0.0
+                fp_total[data_colnames] = fp_total[data_colnames]
+
+                cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_SUM"]
+                fp_ipc = safe_frame_divide(fp_total, cyc_data.drop("counter", axis=1))
+                fp_ipc[data_colnames] = fp_ipc[data_colnames]
+                fp_ipc["counter"] = "FP IPC"
+                data_all = data_all.append(fp_ipc, sort=True)
+                counters.append("FP IPC")
+
+            ## Append FP ins/iter:
+            fp_counts.drop("FLOPs/iter", axis=1, inplace=True)
+            fp_counts["counter"] = "FP ins/iter"
+            for dc in other_data_colnames:
+                fp_counts[dc] = 0
+            for dc in flux_data_colnames:
+                fp_counts[dc] = fp_counts["FP ins/iter"].copy()
+            fp_counts.drop("FP ins/iter", axis=1, inplace=True)
+            data_all = safe_pd_append(data_all, fp_counts)
+
     if "runtime" in counters and "GB_SUM" in counters:
+        ## Calculate GB_SUM/sec
         runtime_data = data_all[data_all["counter"]=="runtime"]
         gb_data = data_all[data_all["counter"]=="GB_SUM"]
         data_colnames = get_data_colnames(runtime_data)
@@ -523,26 +627,20 @@ def combine_all():
             f = gb_data[cn+"_runtime"] != 0.0
             gb_data.loc[f,cn] /= gb_data.loc[f,cn+"_runtime"]
             gb_data = gb_data.drop(cn+"_runtime", axis=1)
+        ## Todo: test: the line below should produce the same result as block above
+        # gb_data = safe_frame_divide(gb_data, runtime_data.drop("counter", axis=1))
         gb_data["counter"] = "GB_SUM/sec"
         data_all = data_all.append(gb_data, sort=True)
     if "runtime" in counters and "GFLOPs" in counters:
+        ## Calculate GFLOPs/sec
         runtime_data = data_all[data_all["counter"]=="runtime"]
         gflops_data = data_all[data_all["counter"]=="GFLOPs"]
-        data_colnames = get_data_colnames(runtime_data)
-        renames = {}
-        for x in data_colnames:
-            renames[x] = x+"_runtime"
-        runtime_data = runtime_data.rename(index=str, columns=renames)
-        runtime_data = runtime_data.drop("counter", axis=1)
-        gflops_data = gflops_data.drop("counter", axis=1)
-        gflops_data = gflops_data.merge(runtime_data, validate="one_to_one")
-        for cn in data_colnames:
-            f = gflops_data[cn+"_runtime"] != 0.0
-            gflops_data.loc[f,cn] /= gflops_data.loc[f,cn+"_runtime"]
-            gflops_data = gflops_data.drop(cn+"_runtime", axis=1)
+        gflops_data = safe_frame_divide(gflops_data, runtime_data.drop("counter", axis=1))
+        gflops_data[data_colnames] = gflops_data[data_colnames]
         gflops_data["counter"] = "GFLOPs/sec"
         data_all = data_all.append(gflops_data, sort=True)
     if "GFLOPs" in counters and "GB_SUM" in counters:
+        ## Calculate Flops/Byte
         gflops_data = data_all[data_all["counter"]=="GFLOPs"]
         gb_data = data_all[data_all["counter"]=="GB_SUM"]
         data_colnames = get_data_colnames(gflops_data)
@@ -559,10 +657,58 @@ def combine_all():
             f = gflops_data[cn+"_gb"] == 0.0
             gflops_data.loc[f,cn] = 0.0
             gflops_data = gflops_data.drop(cn+"_gb", axis=1)
+        ## Todo: test: the line below should produce the same result as block above
+        # gflops_data = safe_frame_divide(gflops_data, gb_data.drop("counter", axis=1))
         gflops_data["counter"] = "Flops/Byte"
         data_all = data_all.append(gflops_data, sort=True)
+    if "runtime" in counters and "PAPI_TOT_CYC_MAX" in counters:
+        ## Calculate GHz
+        cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_MAX"]
+        runtime_data = data_all[data_all["counter"]=="runtime"].copy()
+        ghz = safe_frame_divide(cyc_data, runtime_data.drop("counter", axis=1))
+        ghz[get_data_colnames(runtime_data)] /= 1e9
+        ghz["counter"] = "GHz"
+        ghz[data_colnames] = ghz[data_colnames]
+        data_all = data_all.append(ghz, sort=True)
+    if "GFLOPs" in counters and "PAPI_TOT_CYC_MAX" in counters:
+        ## Calculate flops/cycle
+        # cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_MAX"]
+        cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_SUM"]
+        gflops_data = data_all[data_all["counter"]=="GFLOPs"].copy()
+        flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("counter", axis=1))
+        flops_per_cyc[get_data_colnames(flops_per_cyc)] *= 1e9
+        flops_per_cyc["counter"] = "Flops/Cycle"
+        flops_per_cyc[data_colnames] = flops_per_cyc[data_colnames]
+        data_all = data_all.append(flops_per_cyc, sort=True)
 
-    data_all = data_all[get_job_id_colnames(data_all)+get_data_colnames(data_all)]
+    # Drop PAPI counters:
+    f = data_all["counter"].str.contains("PAPI_")
+    data_all = data_all[np.logical_not(f)]
+
+    # Drop GFLOPs:
+    data_all = data_all[data_all["counter"]!="GFLOPs"]
+
+    # Round to N significant figures:
+    N=3
+    # N=2
+    data_colnames = get_data_colnames(data_all)
+    for dc in data_colnames:
+        f = data_all[dc]!=0.0
+        data_all.loc[f,dc] = data_all.loc[f,dc].apply(lambda x: round(x, N-1-int(floor(log10(abs(x))))))
+
+    # Reorder columns like so: <job id columns>, <flux() columns>, <all other kernel columns>
+    data_colnames = get_data_colnames(data_all)
+    flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
+    other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
+    data_all = data_all[get_job_id_colnames(data_all)+flux_data_colnames+other_data_colnames]
+
+    if "Flux options" in data_all.columns.values:
+        data_all = data_all[data_all["Flux options"]==""]
+        data_all.drop("Flux options", axis=1, inplace=True)
+
+    if "Flux variant" in data_all.columns.values:
+        data_all = data_all[data_all["Flux variant"]=="Normal"]
+        data_all.drop("Flux variant", axis=1, inplace=True)
 
     if not data_all is None:
         data_all.to_csv(os.path.join(prepared_output_dirpath, "all-data-combined.csv"), index=False)
