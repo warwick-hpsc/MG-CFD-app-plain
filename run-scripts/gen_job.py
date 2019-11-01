@@ -31,7 +31,8 @@ defaults["base flags"] = "-DTIME"
 defaults["flux flags"] = [""]
 # Job scheduling:
 defaults["unit walltime"] = 0.0
-defaults["budget code"] = "NotSpecified"
+defaults["budget code"] = ""
+defaults["partition"] = ""
 # MG-CFD execution:
 defaults["num threads"] = 1
 defaults["num repeats"] = 1
@@ -312,7 +313,7 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<RUN ID>", job_id)
             py_sed(batch_filepath, "<PARTITION>", job_queue)
             py_sed(batch_filepath, "<RUN_DIR>", job_dir)
-            py_sed(batch_filepath, "<BUDGET CODE>", budget_code)
+            py_sed(batch_filepath, "<BUDGET CODE>", budget_code, True)
 
             ## - Parallelism:
             py_sed(batch_filepath, "<NUM_THREADS>", nt)
