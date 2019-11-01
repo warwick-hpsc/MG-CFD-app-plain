@@ -142,9 +142,9 @@ else
   export OMP_PROC_PLACES=cores
   export OMP_PROC_BIND=true
 fi
-echo "EXECUTING $bin_filepath"
 export OMP_NUM_THREADS=$_t
 cd "${data_dirpath}"
+echo ""
 echo "$exec_command"
 eval "$exec_command"
 rm "${run_outdir}"/job-is-running.txt
