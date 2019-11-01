@@ -145,7 +145,7 @@ if __name__=="__main__":
     ## Read file/folder paths and prepare folders:
     jobs_dir = profile["setup"]["jobs dir"]
     if jobs_dir[0] != '/':
-        jobs_dir = os.path.join(app_dirpath, jobs_dir)
+        jobs_dir = os.path.join(os.getcwd(), jobs_dir)
     if not os.path.isdir(jobs_dir):
         os.mkdir(jobs_dir)
     else:
