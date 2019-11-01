@@ -99,15 +99,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
-        simd_possible = False
-        if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
-            simd_possible = True
-        elif iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
-            simd_possible = True
-        if simd_possible:
-            simd_len = iters.loc[0,"SIMD len"]
-        else:
-            simd_len = 1
+        simd_len = iters.loc[0,"SIMD len"]
 
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
@@ -138,21 +130,15 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     return ins_per_iter
 
-def infer_compiler(output_dirpath):
-    times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if not os.path.isfile(times_filepath):
-        return "UNKNOWN"
-    else:
-        times = pd.read_csv(times_filepath)
-        return times.loc[0, "CC"]
-
-def infer_simd_len(output_dirpath):
+def infer_field(output_dirpath, field):
     times_filepath = os.path.join(output_dirpath, "Times.csv")
     if not os.path.isfile(times_filepath):
         return 1
     else:
         times = pd.read_csv(times_filepath)
-        return times.loc[0, "SIMD len"]
+        if not field in times.columns.values:
+            raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
+        return times.loc[0, field]
 
 def analyse_object_files():
     print("Analysing object files")
@@ -187,8 +173,15 @@ def analyse_object_files():
                 kernel_to_object["compute_flux_edge"] = "flux_loops.o"
             kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
-            compile_info["compiler"] = infer_compiler(output_dirpath)
-            compile_info["SIMD len"] = infer_simd_len(output_dirpath)
+            compile_info["compiler"] = infer_field(output_dirpath, "CC")
+            compile_info["SIMD len"] = infer_field(output_dirpath, "SIMD len")
+            simd = infer_field(output_dirpath, "SIMD")
+            if simd == "N":
+                compile_info["SIMD len"] = 1
+            avx512cd_required = compile_info["compiler"] == "intel" and \
+                                simd == "Y" and \
+                                infer_field(output_dirpath, "Instruction set") == "AVX512" and \
+                                infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
@@ -196,7 +189,7 @@ def analyse_object_files():
 
                 obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
                 try:
-                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
+                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
                 except:
                     continue
                 loop_tally = count_loop_instructions(asm_loop_filepath)

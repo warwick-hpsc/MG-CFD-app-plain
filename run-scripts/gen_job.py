@@ -40,7 +40,7 @@ defaults["validate result"] = False
 defaults["min mesh multi"] = 1
 # Optimisation:
 defaults["simd mode"] = False
-defaults["simd CA scheme"] = "colour"
+defaults["simd CA scheme"] = ""
 
 def get_key_value(profile, cat, key, ensure_list=False):
     v = None

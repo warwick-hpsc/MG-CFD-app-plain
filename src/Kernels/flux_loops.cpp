@@ -211,6 +211,7 @@ void compute_flux_edge(
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
             for (int x=0; x<NVAR; x++) {
+                #pragma omp simd safelen(1)
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
                     int a = edges[v+n].a;
                     int b = edges[v+n].b;
@@ -286,6 +287,7 @@ void compute_flux_edge(
         }
         #ifdef MANUAL_CONFLICT_AVOIDANCE
             // Write out fluxes:
+            #pragma omp simd safelen(1)
             for (int i=loop_start; i<loop_end; i++) {
                 int a = edges[i].a;
                 int b = edges[i].b;
@@ -428,6 +430,7 @@ void compute_flux_edge_crippled(
     #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         // Write out fluxes:
             for (int x=0; x<NVAR; x++) {
+                #pragma omp simd safelen(1)
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
                     int a = edges[v+n].a;
                     int b = edges[v+n].b;
@@ -492,6 +495,7 @@ void compute_flux_edge_crippled(
         }
         #ifdef MANUAL_CONFLICT_AVOIDANCE
             // Write out fluxes:
+            #pragma omp simd safelen(1)
             for (int i=loop_start; i<loop_end; i++) {
                 for (int v=0; v<NVAR; v++) {
                     fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-loop_start];

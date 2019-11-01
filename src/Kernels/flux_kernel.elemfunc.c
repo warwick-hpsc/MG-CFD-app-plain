@@ -191,7 +191,7 @@
     #endif
 
     // Write out fluxes:
-        #if defined USE_AVX512CD && defined OMP
+        #if defined USE_AVX512CD
             #pragma omp ordered simd overlap(a*NVAR+VAR_DENSITY)
             {
                 fluxes[a*NVAR+VAR_DENSITY] +=  p_a_val;
