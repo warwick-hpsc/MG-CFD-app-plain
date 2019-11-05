@@ -6,7 +6,7 @@
  *
  */
 #define GAMMA 1.4
-
+#define REPEAT_RUNS 7
 #define NDIM 3
 
 #define RK 3	// 3rd order RK

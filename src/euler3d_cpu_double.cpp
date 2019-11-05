@@ -781,7 +781,8 @@ int main(int argc, char** argv)
     log("Writing out array data\n");
     // for (int l=0; l<levels; l++) {
     // Update: only interested in the finest mesh:
-    for (int l=0; l<1; l++) {
+    // Update 2: all meshes now required to pipe input back after initial run
+    for (int l=0; l<levels; l++) {
         if (conf.output_variables) {
             dump(variables[l], nel[l], l);
         }

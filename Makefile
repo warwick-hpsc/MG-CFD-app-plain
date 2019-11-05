@@ -116,7 +116,7 @@ endif
 ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -fno-fast-math
 else ifeq ($(COMPILER),intel)
-	OPTIMISATION += -fp-model precise
+	
 else ifeq ($(COMPILER),clang)
 	OPTIMISATION += -fno-fast-math
 else ifeq ($(COMPILER),cray)
