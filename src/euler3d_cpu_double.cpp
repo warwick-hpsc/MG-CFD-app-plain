@@ -331,6 +331,10 @@ int main(int argc, char** argv)
         initialize_variables(nel[i], variables[i]);
     }
 
+    std::string test_input = generate_output_filepath(std::string("variables"), 0);
+    //std::string test_input = std::string("STRING.variables.size=1x.cycles=25.level=0");
+    read_prev_values(test_input.c_str());
+
     for (int i=0; i<levels; i++) {
         zero_array(NVAR*nel[i], fluxes[i]);
         zero_array(NVAR*nel[i], residuals[i]);
@@ -781,8 +785,7 @@ int main(int argc, char** argv)
     log("Writing out array data\n");
     // for (int l=0; l<levels; l++) {
     // Update: only interested in the finest mesh:
-    // Update 2: all meshes now required to pipe input back after initial run
-    for (int l=0; l<levels; l++) {
+    for (int l=0; l<1; l++) {
         if (conf.output_variables) {
             dump(variables[l], nel[l], l);
         }

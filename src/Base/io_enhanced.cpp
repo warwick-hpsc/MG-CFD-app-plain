@@ -345,6 +345,15 @@ bool write_grid_to_bin(
     return true;
 }
 
+void read_prev_values(const char* file_name){
+    std::ifstream file(file_name);
+    if (!file.is_open()) {
+        fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
+    }else{
+        fprintf(stderr, "Input file '%s' successfully found!\n", file_name);
+    }
+}
+
 void read_input_dat(
     const char* file_name, 
     int* problem_size, 
