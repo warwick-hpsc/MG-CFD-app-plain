@@ -327,13 +327,17 @@ int main(int argc, char** argv)
         ff_flux_contribution_density_energy);
 
     int* up_scratch = alloc<int>(nel[0]);
+    std::string test_input;
+
     for (int i=0; i<levels; i++) {
         initialize_variables(nel[i], variables[i]);
+	printf("\nLevel %d, number of elements %d", i, nel[i]);
+	test_input = generate_output_filepath(std::string("variables"), i);
+	read_prev_values(test_input.c_str());
     }
 
-    std::string test_input = generate_output_filepath(std::string("variables"), 0);
+    //std::string test_input = generate_output_filepath(std::string("variables"), 0);
     //std::string test_input = std::string("STRING.variables.size=1x.cycles=25.level=0");
-    read_prev_values(test_input.c_str());
 
     for (int i=0; i<levels; i++) {
         zero_array(NVAR*nel[i], fluxes[i]);
@@ -785,7 +789,8 @@ int main(int argc, char** argv)
     log("Writing out array data\n");
     // for (int l=0; l<levels; l++) {
     // Update: only interested in the finest mesh:
-    for (int l=0; l<1; l++) {
+    // Update 2: all meshes now required to pipe input back after initial run
+    for (int l=0; l<levels; l++) {
         if (conf.output_variables) {
             dump(variables[l], nel[l], l);
         }
