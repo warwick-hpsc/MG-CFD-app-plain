@@ -120,6 +120,7 @@ int main(int argc, char** argv)
             }
         }
     }
+    fprintf(stderr, "Number of levels: %d\n", levels);
     cycles = conf.num_cycles;
 
     double total_compute_time = 0.0;

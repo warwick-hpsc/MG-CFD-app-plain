@@ -349,7 +349,11 @@ void read_prev_values(const char* file_name){
     //std::ifstream file(file_name);
     FILE* fp;
     if ((fp=fopen(file_name, "rb")) != NULL) {
+        double temp_variable_store;
         fprintf(stderr, "Input file '%s' successfully found!\n", file_name);
+        while(fscanf(fp, "%lf", &temp_variable_store) != EOF){
+	    fprintf(stderr, "Value is %.17g\n", temp_variable_store);
+        }
     }else{
         fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
     }
