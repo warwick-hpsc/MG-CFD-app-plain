@@ -346,11 +346,12 @@ bool write_grid_to_bin(
 }
 
 void read_prev_values(const char* file_name){
-    std::ifstream file(file_name);
-    if (!file.is_open()) {
-        fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
-    }else{
+    //std::ifstream file(file_name);
+    FILE* fp;
+    if ((fp=fopen(file_name, "rb")) != NULL) {
         fprintf(stderr, "Input file '%s' successfully found!\n", file_name);
+    }else{
+        fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
     }
 }
 
