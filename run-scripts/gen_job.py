@@ -29,9 +29,11 @@ defaults["debug"] = False
 defaults["insn set"] = "Host"
 defaults["base flags"] = "-DTIME"
 defaults["flux flags"] = [""]
+defaults["compile only"] = False
 # Job scheduling:
 defaults["unit walltime"] = 0.0
-defaults["budget code"] = "NotSpecified"
+defaults["budget code"] = ""
+defaults["partition"] = ""
 # MG-CFD execution:
 defaults["num threads"] = 1
 defaults["num repeats"] = 1
@@ -144,7 +146,7 @@ if __name__=="__main__":
     ## Read file/folder paths and prepare folders:
     jobs_dir = profile["setup"]["jobs dir"]
     if jobs_dir[0] != '/':
-        jobs_dir = os.path.join(app_dirpath, jobs_dir)
+        jobs_dir = os.path.join(os.getcwd(), jobs_dir)
     if not os.path.isdir(jobs_dir):
         os.mkdir(jobs_dir)
     else:
@@ -161,6 +163,7 @@ if __name__=="__main__":
 
     compilers = get_key_value(profile, "compile", "compiler", True)
     cpp_wrapper = get_key_value(profile, "compile", "cpp wrapper")
+    compile_only = get_key_value(profile, "compile", "compile only")
     debug = get_key_value(profile, "compile", "debug")
     if "insn sets" in profile["compile"].keys():
         ## Backwards compatibility
@@ -312,7 +315,7 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<RUN ID>", job_id)
             py_sed(batch_filepath, "<PARTITION>", job_queue)
             py_sed(batch_filepath, "<RUN_DIR>", job_dir)
-            py_sed(batch_filepath, "<BUDGET CODE>", budget_code)
+            py_sed(batch_filepath, "<BUDGET CODE>", budget_code, True)
 
             ## - Parallelism:
             py_sed(batch_filepath, "<NUM_THREADS>", nt)
@@ -371,6 +374,7 @@ if __name__=="__main__":
             py_sed(submit_tmp_filepath, "<RUN_DIRPATH>",    job_dir)
             py_sed(submit_tmp_filepath, "<BATCH_FILENAME>", batch_filename)
             py_sed(submit_tmp_filepath, "<BIN_FILEPATH>",   bin_filepath)
+            py_sed(submit_tmp_filepath, "<COMPILE_ONLY>", str(compile_only).lower())
             submit_all_file.write("\n\n")
             with open(submit_tmp_filepath, 'r') as f:
                 for line in f:

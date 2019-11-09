@@ -9,13 +9,15 @@ if [ ! -f <RUN_DIRPATH>/Times.csv ]; then
       if [ ! -f <BIN_FILEPATH> ]; then
         ./<BATCH_FILENAME> --compile
       fi
-      export BATCH_EXECUTE_MODE=execute
-      if ! eval "$submit_cmd" ./<BATCH_FILENAME> ; then
-        echo "Submission failed for: <RUN_DIRPATH>/<BATCH_FILENAME>"
-        exit 1
+      if ! <COMPILE_ONLY> ; then
+        export BATCH_EXECUTE_MODE=execute
+        if ! eval "$submit_cmd" ./<BATCH_FILENAME> ; then
+          echo "Submission failed for: <RUN_DIRPATH>/<BATCH_FILENAME>"
+          exit 1
+        fi
+        touch "job-in-queue.txt"
+        unset BATCH_EXECUTE_MODE
       fi
-      touch "job-in-queue.txt"
-      unset BATCH_EXECUTE_MODE
     fi
   fi
   cd "$basedir"
