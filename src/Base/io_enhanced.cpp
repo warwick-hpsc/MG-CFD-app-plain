@@ -345,7 +345,7 @@ bool write_grid_to_bin(
     return true;
 }
 
-void read_prev_values(const char* file_name, double* restrict variables){
+bool read_prev_values(const char* file_name, double* restrict variables){
     //std::ifstream file(file_name);
     FILE* fp;
     int count = 0;
@@ -356,8 +356,10 @@ void read_prev_values(const char* file_name, double* restrict variables){
             variables[count] = temp_variable_store;
             count++;
         }
+	return true;
     }else{
         fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
+	return false;
     }
 }
 

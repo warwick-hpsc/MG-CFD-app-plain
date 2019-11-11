@@ -331,12 +331,12 @@ int main(int argc, char** argv)
     std::string test_input;
 
     for (int i=0; i<levels; i++) {
-        initialize_variables(nel[i], variables[i]);
-	printf("\nLevel %d, number of elements %d", i, nel[i]);
-	test_input = generate_output_filepath(std::string("variables"), i);
-	read_prev_values(test_input.c_str(), variables[i]);
+        printf("\nLevel %d, number of elements %d", i, nel[i]);
+        test_input = generate_output_filepath(std::string("variables"), i);
+        if(read_prev_values(test_input.c_str(), variables[i]) == false){
+            initialize_variables(nel[i], variables[i]);
+        }
     }
-
     //std::string test_input = generate_output_filepath(std::string("variables"), 0);
     //std::string test_input = std::string("STRING.variables.size=1x.cycles=25.level=0");
 
