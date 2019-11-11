@@ -334,7 +334,7 @@ int main(int argc, char** argv)
         initialize_variables(nel[i], variables[i]);
 	printf("\nLevel %d, number of elements %d", i, nel[i]);
 	test_input = generate_output_filepath(std::string("variables"), i);
-	read_prev_values(test_input.c_str());
+	read_prev_values(test_input.c_str(), variables[i]);
     }
 
     //std::string test_input = generate_output_filepath(std::string("variables"), 0);

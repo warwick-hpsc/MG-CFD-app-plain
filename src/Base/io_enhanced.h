@@ -94,7 +94,9 @@ void dump_flux(
     const double *restrict fluxes, 
     int npoints, int level);
 
-void read_prev_values(const char* file_name);
+void read_prev_values(
+    const char* file_name,
+    double* restrict variables);
 
 void dump_volumes(
     const double *restrict volumes, 

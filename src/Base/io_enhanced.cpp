@@ -345,14 +345,16 @@ bool write_grid_to_bin(
     return true;
 }
 
-void read_prev_values(const char* file_name){
+void read_prev_values(const char* file_name, double* restrict variables){
     //std::ifstream file(file_name);
     FILE* fp;
+    int count = 0;
     if ((fp=fopen(file_name, "rb")) != NULL) {
         double temp_variable_store;
         fprintf(stderr, "Input file '%s' successfully found!\n", file_name);
         while(fscanf(fp, "%lf", &temp_variable_store) != EOF){
-	    fprintf(stderr, "Value is %.17g\n", temp_variable_store);
+            variables[count] = temp_variable_store;
+            count++;
         }
     }else{
         fprintf(stderr, "Error: Could not open input file '%s'\n", file_name);
