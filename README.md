@@ -25,7 +25,7 @@ MG-CFD has more command-line arguments to ease file/directory interaction, and c
 
 ### Generating batch submission scripts:
 
-MG-CFD comes with templates and logic for generating submission scripts to one of several job schedulers. To generate them follow these instructions:
+MG-CFD comes with templates and logic for generating submission scripts to one of several job schedulers, that can iterate over combinations of MG-CFD parameters. To generate them follow these instructions:
 
 1) Prepare a json file detailing run configuration. See `run-inputs/annotated.json` for documentation on each option. 
 
