@@ -4,7 +4,7 @@ MG-CFD: An unstructured MG FVM CFD miniapp
 A 3D unstructured multigrid, finite-volume computational fluid dynamics (CFD) mini-app for inviscid-flow. 
 It has the goal of serving as a platform for evaluating emerging architectures, programming paradigms and algorithmic optimisations for this class of code. 
 
-This application is derived from Andrew Corrigan's CFD code as presented in the AIAA-2009-4001 paper, now included in the 'Rodinia' benchmark suite (http://rodinia.cs.virginia.edu/doku.php).
+This application is derived from Andrew Corrigan's `CFD Solver` code as presented in the AIAA-2009-4001 paper, now included in the `Rodinia` benchmark suite (http://rodinia.cs.virginia.edu/doku.php).
 
 Compiling and executing
 ==========================================
@@ -25,9 +25,9 @@ MG-CFD has more command-line arguments to ease file/directory interaction, and c
 
 ### Generating batch submission scripts:
 
-MG-CFD comes with templates and logic for generating submission scripts to one of several job schedulers. To generate them follow these instructions:
+MG-CFD comes with templates and logic for generating submission scripts to one of several job schedulers, that can iterate over combinations of MG-CFD parameters. To generate them follow these instructions:
 
-1) Prepare a json file detailing run configuration. See `run-inputs/annotated.json` for documentation on each option. 
+1) Prepare a json file detailing run configuration. See [run-inputs/annotated.json](https://github.com/warwick-hpsc/MG-CFD-app-plain/blob/master/run-inputs/annotated.json) for documentation on each option. 
 
 2) Generate run batch scripts from the json file:
 
@@ -37,7 +37,15 @@ MG-CFD comes with templates and logic for generating submission scripts to one o
      
 3) The specified `jobs directory` will contain a subfolder for each run configuration, and a single `submit_all.sh` file. If a scheduler was specified in the .json file, then `submit_all.sh` will compile locally then submit each job to the scheduler for execution. If local execution was requested in the json file, then `submit_all.sh` will compile and execute locally. 
 
-4) Each run will output CSV files containing performance data, as well as the compiler-generated object files for performance-critical loops. These can be collated together using `aggregate-output-data.py`. [assembly-loop-extractor](https://github.com/warwick-hpsc/assembly-loop-extractor) is required to analyse the object files.
+4) Each run will output CSV files containing performance data, as well as the compiler-generated object files for performance-critical loops. These can be collated together using `aggregate-output-data.py`:
+
+```Shell
+     $ python ./run-scripts/aggregate-output-data.py \
+              --output-dirpath path/to/desired-folder/for/collated-csv-files \
+              --data-dirpaths path/to/job-group-1-output [path/to/job-group-2-output ...]
+```
+
+5) To also analyse the object files, [assembly-loop-extractor](https://github.com/warwick-hpsc/assembly-loop-extractor) is required:
 
 ```Shell
      $ python ./run-scripts/aggregate-output-data.py \
@@ -58,7 +66,7 @@ Once collected and aggregated, this data can be passed into the [MG-CFD performa
 Datasets
 ==========================================
 
-A release is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original `CFD` code, enabling numerical validation between that and `CFD`. 
+A [release](https://github.com/warwick-hpsc/MG-CFD-app-plain/releases) is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original `CFD Solver` code, enabling numerical validation between it and `MG-CFD`. 
 
 The second mesh is of the [Onera M6 wing](https://www.grc.nasa.gov/WWW/wind/valid/m6wing/m6wing.html). It consists of 300K nodes (930K edges), and three additional multigrid meshes with respective node counts of 165K, 111K, and 81K.
 
