@@ -4,7 +4,7 @@ MG-CFD: An unstructured MG FVM CFD miniapp
 A 3D unstructured multigrid, finite-volume computational fluid dynamics (CFD) mini-app for inviscid-flow. 
 It has the goal of serving as a platform for evaluating emerging architectures, programming paradigms and algorithmic optimisations for this class of code. 
 
-This application is derived from Andrew Corrigan's CFD code as presented in the AIAA-2009-4001 paper, now included in the 'Rodinia' benchmark suite (http://rodinia.cs.virginia.edu/doku.php).
+This application is derived from Andrew Corrigan's `CFD Solver` code as presented in the AIAA-2009-4001 paper, now included in the `Rodinia` benchmark suite (http://rodinia.cs.virginia.edu/doku.php).
 
 Compiling and executing
 ==========================================
@@ -58,7 +58,7 @@ Once collected and aggregated, this data can be passed into the [MG-CFD performa
 Datasets
 ==========================================
 
-A [release](https://github.com/warwick-hpsc/MG-CFD-app-plain/releases) is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original `CFD` code, enabling numerical validation between that and `CFD`. 
+A [release](https://github.com/warwick-hpsc/MG-CFD-app-plain/releases) is provided that includes two meshes. The first is the `fvcorr.domn.097K` originally bundled with the original `CFD Solver` code, enabling numerical validation between it and `MG-CFD`. 
 
 The second mesh is of the [Onera M6 wing](https://www.grc.nasa.gov/WWW/wind/valid/m6wing/m6wing.html). It consists of 300K nodes (930K edges), and three additional multigrid meshes with respective node counts of 165K, 111K, and 81K.
 
