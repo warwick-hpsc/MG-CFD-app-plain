@@ -37,7 +37,15 @@ MG-CFD comes with templates and logic for generating submission scripts to one o
      
 3) The specified `jobs directory` will contain a subfolder for each run configuration, and a single `submit_all.sh` file. If a scheduler was specified in the .json file, then `submit_all.sh` will compile locally then submit each job to the scheduler for execution. If local execution was requested in the json file, then `submit_all.sh` will compile and execute locally. 
 
-4) Each run will output CSV files containing performance data, as well as the compiler-generated object files for performance-critical loops. These can be collated together using `aggregate-output-data.py`. [assembly-loop-extractor](https://github.com/warwick-hpsc/assembly-loop-extractor) is required to analyse the object files.
+4) Each run will output CSV files containing performance data, as well as the compiler-generated object files for performance-critical loops. These can be collated together using `aggregate-output-data.py`:
+
+```Shell
+     $ python ./run-scripts/aggregate-output-data.py \
+              --output-dirpath path/to/desired-folder/for/collated-csv-files \
+              --data-dirpaths path/to/job-group-1-output [path/to/job-group-2-output ...]
+```
+
+5) To also analyse the object files, [assembly-loop-extractor](https://github.com/warwick-hpsc/assembly-loop-extractor) is required:
 
 ```Shell
      $ python ./run-scripts/aggregate-output-data.py \
