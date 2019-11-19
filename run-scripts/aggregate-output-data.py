@@ -552,6 +552,9 @@ def combine_all():
         else:
             data_all = data_all.append(papi_df, sort=True)
 
+    if data_all is None:
+        return
+
     counters = list(Set(data_all["counter"]))
     data_colnames = get_data_colnames(data_all)
     flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
