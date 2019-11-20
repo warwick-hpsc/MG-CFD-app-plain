@@ -134,11 +134,17 @@ exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o $
 if $validate_result ; then
   exec_command+=" -v"
 fi
-echo "EXECUTING $bin_filepath"
+
+if [ "$compiler" = "intel" ]; then
+  export KMP_AFFINITY=compact
+  export KMP_GRANULARITY=core
+else
+  export OMP_PROC_PLACES=cores
+  export OMP_PROC_BIND=true
+fi
 export OMP_NUM_THREADS=$_t
-export OMP_PROC_PLACES=cores
-export OMP_PROC_BIND=true
 cd "${data_dirpath}"
+echo ""
 echo "$exec_command"
 eval "$exec_command"
 rm "${run_outdir}"/job-is-running.txt
