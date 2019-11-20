@@ -360,6 +360,7 @@ def collate_csvs():
         uniq_colnames = n_uniq[n_uniq==1].index
         job_id_columns = get_job_id_colnames(df_agg)
         uniq_colnames = list(Set(uniq_colnames).intersection(job_id_columns))
+        uniq_colnames = list(Set(uniq_colnames).difference(essential_colnames))
         df_agg_clean = df_agg.drop(uniq_colnames, axis=1)
         if df_agg_clean.shape[1] > 0:
             df_agg = df_agg_clean
