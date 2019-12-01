@@ -110,19 +110,6 @@ else
 	OPTIMISATION := -O3
 endif
 
-## Disable aggressive floating-point optimization, to improve ability 
-## of MG-CFD to assess floating-point performance. This is also necessary 
-## to validate result against pre-computed solution.
-ifeq ($(COMPILER),gnu)
-	OPTIMISATION += -fno-fast-math
-else ifeq ($(COMPILER),intel)
-	OPTIMISATION += -fp-model precise
-else ifeq ($(COMPILER),clang)
-	OPTIMISATION += -fno-fast-math
-else ifeq ($(COMPILER),cray)
-	OPTIMISATION += -h fp2=noapprox
-endif
-
 ifdef INSN_SET
 	ifeq ($(INSN_SET),Host)
 		X_EXEC_CPU=$(HOST_EXEC_TARGET)
@@ -152,6 +139,38 @@ else
 	BUILD_FLAGS += -DINSN_SET=$(INSN_SET)
 endif
 
+## Disable aggressive floating-point optimization, to improve ability 
+## of MG-CFD to assess floating-point performance. This is also necessary 
+## to validate result against pre-computed solution.
+PRECISE_FP = yes
+ifeq ($(COMPILER),intel)
+    ## ... but not if targeting AVX-512 ISA with Intel compiler, because Intel compiler will segfault.
+	ifeq ($(INSN_SET),AVX512)
+		PRECISE_FP = no
+        $(info ##########################################################################)
+        $(info WARNING: Disabling precise FP to avoid ICC segfault when targeting AVX-512)
+        $(info ##########################################################################)
+	else ifeq ($(INSN_SET),Host)
+		cpu_flags := $(shell lscpu | grep Flags)
+		ifeq (avx512cd,$(findstring avx512cd, $(cpu_flags)))
+			PRECISE_FP = no
+            $(info ##########################################################################)
+            $(info WARNING: Disabling precise FP to avoid ICC segfault when targeting AVX-512)
+            $(info ##########################################################################)
+		endif
+	endif
+endif
+ifeq ($(PRECISE_FP),yes)
+	ifeq ($(COMPILER),gnu)
+		OPTIMISATION += -fno-fast-math
+	else ifeq ($(COMPILER),intel)
+		OPTIMISATION += -fp-model precise
+	else ifeq ($(COMPILER),clang)
+		OPTIMISATION += -fno-fast-math
+	else ifeq ($(COMPILER),cray)
+		OPTIMISATION += -h fp2=noapprox
+	endif
+endif
 LIBS :=
 ifneq (,$(findstring PAPI,$(BUILD_FLAGS)))
 	ifeq ($(COMPILER),gnu)
