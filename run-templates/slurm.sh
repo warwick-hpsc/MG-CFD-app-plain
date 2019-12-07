@@ -14,4 +14,4 @@
 
 #SBATCH --export=ALL
 
-RUN_CMD="srun --cpu_bind=cores"
+export RUN_CMD="srun --cpu_bind=cores"
