@@ -74,6 +74,15 @@ def py_sed(filepath, from_rgx, to_rgx, delete_if_null=False):
             else:
                 f.write(line)
 
+def py_grep(filepath, str):
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    for line in lines:
+        if line.find(str) != -1:
+            return True
+
+    return False
+
 def delete_folder_contents(dirpath):
     print("Deleting contents of folder: " + dirpath)
     for f in os.listdir(dirpath):
@@ -235,6 +244,9 @@ if __name__=="__main__":
 
     if js == "":
         single_batch = False
+
+    if (not src_js_filepath is None) and py_grep(src_js_filepath, "<COMPILER>") and len(compilers) > 1:
+        raise Exception("Single batch is incompatible with multiple compilers")
 
     ## Init the master job submission script:
     submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
@@ -451,6 +463,7 @@ if __name__=="__main__":
 
         py_sed(run_all_filepath, "<RUN ID>", 1)
         py_sed(run_all_filepath, "<NUM_THREADS>", nt_max)
+        py_sed(run_all_filepath, "<COMPILER>", compilers[0])
         py_sed(run_all_filepath, "<PARTITION>", job_queue)
         py_sed(run_all_filepath, "<BUDGET CODE>", budget_code, True)
 
