@@ -136,11 +136,16 @@ if $validate_result ; then
 fi
 
 if [ "$compiler" = "intel" ]; then
-  export KMP_AFFINITY=compact
-  export KMP_GRANULARITY=core
+  # if [ "$KMP_AFFINITY" != "disabled" ]; then
+  if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
+    export KMP_AFFINITY=compact
+    export KMP_GRANULARITY=core
+  fi
 else
-  export OMP_PROC_PLACES=cores
-  export OMP_PROC_BIND=true
+  if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
+    export OMP_PROC_PLACES=cores
+    export OMP_PROC_BIND=true
+  fi
 fi
 export OMP_NUM_THREADS=$_t
 cd "${data_dirpath}"
