@@ -138,12 +138,12 @@ fi
 if [ "$compiler" = "intel" ]; then
   # if [ "$KMP_AFFINITY" != "disabled" ]; then
   if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
-    export KMP_AFFINITY=compact
+    export KMP_AFFINITY=scatter
     export KMP_GRANULARITY=core
   fi
 else
   if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
-    export OMP_PROC_PLACES=cores
+    export OMP_PROC_PLACES=sockets
     export OMP_PROC_BIND=true
   fi
 fi
