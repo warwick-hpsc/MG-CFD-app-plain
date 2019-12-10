@@ -136,12 +136,24 @@ if $validate_result ; then
 fi
 
 if [ "$compiler" = "intel" ]; then
+  if [ -z ${KMP_AFFINITY+x} ]; then
+    KMP_AFFINITY=""
+  fi
+  if [ -z ${KMP_GRANULARITY+x} ]; then
+    KMP_GRANULARITY=""
+  fi
   # if [ "$KMP_AFFINITY" != "disabled" ]; then
   if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
     export KMP_AFFINITY=scatter
     export KMP_GRANULARITY=core
   fi
 else
+  if [ -z ${OMP_PROC_PLACES+x} ]; then
+    OMP_PROC_PLACES=""
+  fi
+  if [ -z ${OMP_PROC_BIND+x} ]; then
+    OMP_PROC_BIND=""
+  fi
   if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
     export OMP_PROC_PLACES=sockets
     export OMP_PROC_BIND=true
