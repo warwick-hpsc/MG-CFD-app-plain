@@ -155,8 +155,8 @@ else
     OMP_PROC_BIND=""
   fi
   if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
-    export OMP_PROC_PLACES=sockets
-    export OMP_PROC_BIND=true
+    export OMP_PLACES=sockets
+    export OMP_PROC_BIND=spread
   fi
 fi
 export OMP_NUM_THREADS=$_t
