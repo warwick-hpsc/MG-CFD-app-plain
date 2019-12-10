@@ -142,7 +142,6 @@ if [ "$compiler" = "intel" ]; then
   if [ -z ${KMP_GRANULARITY+x} ]; then
     KMP_GRANULARITY=""
   fi
-  # if [ "$KMP_AFFINITY" != "disabled" ]; then
   if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
     export KMP_AFFINITY=scatter
     export KMP_GRANULARITY=core
