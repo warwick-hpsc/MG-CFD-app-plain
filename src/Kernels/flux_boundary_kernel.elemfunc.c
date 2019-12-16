@@ -2,8 +2,8 @@
 // This code is from the AIAA-2009-4001 paper
 
 // void compute_boundary_flux_edge(
-//     int first_edge,
-//     int nedges, 
+//     long first_edge,
+//     long nedges, 
 //     const edge_neighbour *restrict edges, 
 //     const double *restrict variables, 
 //     #ifdef FLUX_FISSION
@@ -12,16 +12,16 @@
 //         double *restrict fluxes
 //     #endif)
 
-int b = edges[i].b;
+long b = edges[i].b;
 
 double p_b, pe_b, pressure_b;
 double3 velocity_b, momentum_b;
 
-const int p_b_idx  = b*NVAR + VAR_DENSITY;
-const int mx_b_idx = b*NVAR + VAR_MOMENTUMX;
-const int my_b_idx = b*NVAR + VAR_MOMENTUMY;
-const int mz_b_idx = b*NVAR + VAR_MOMENTUMZ;
-const int pe_b_idx = b*NVAR + VAR_DENSITY_ENERGY;
+const long p_b_idx  = b*NVAR + VAR_DENSITY;
+const long mx_b_idx = b*NVAR + VAR_MOMENTUMX;
+const long my_b_idx = b*NVAR + VAR_MOMENTUMY;
+const long mz_b_idx = b*NVAR + VAR_MOMENTUMZ;
+const long pe_b_idx = b*NVAR + VAR_DENSITY_ENERGY;
 
 p_b  = variables[p_b_idx];
 pe_b = variables[pe_b_idx];
@@ -51,11 +51,11 @@ double pe_b_val = 0;
     edge_variables[i*NVAR + VAR_MOMENTUMZ].b = mz_b_val;
     edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b = pe_b_val;
 #else
-    const int p_b_flx_idx  = b*NVAR + VAR_DENSITY;
-    const int mx_b_flx_idx = b*NVAR + VAR_MOMENTUMX;
-    const int my_b_flx_idx = b*NVAR + VAR_MOMENTUMY;
-    const int mz_b_flx_idx = b*NVAR + VAR_MOMENTUMZ;
-    const int pe_b_flx_idx = b*NVAR + VAR_DENSITY_ENERGY;
+    const long p_b_flx_idx  = b*NVAR + VAR_DENSITY;
+    const long mx_b_flx_idx = b*NVAR + VAR_MOMENTUMX;
+    const long my_b_flx_idx = b*NVAR + VAR_MOMENTUMY;
+    const long mz_b_flx_idx = b*NVAR + VAR_MOMENTUMZ;
+    const long pe_b_flx_idx = b*NVAR + VAR_DENSITY_ENERGY;
     
     fluxes[p_b_flx_idx]  += p_b_val;
     fluxes[mx_b_flx_idx] += mx_b_val;

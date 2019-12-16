@@ -28,7 +28,7 @@
 
 void adjust_ewt(
     const double3 *restrict coords, 
-    int num_edges, 
+    long num_edges, 
     edge_neighbour *restrict edges)
 {
     // |ewt| currently is face area. Divide through by distance 
@@ -38,9 +38,9 @@ void adjust_ewt(
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for (int i=0; i<num_edges; i++) {
-        int a = edges[i].a;
-        int b = edges[i].b;
+    for (long i=0; i<num_edges; i++) {
+        long a = edges[i].a;
+        long b = edges[i].b;
 
         if (a >= 0 && b >= 0) {
             double dist = 0.0, d;
@@ -60,7 +60,7 @@ void adjust_ewt(
 }
 
 void dampen_ewt(
-    int num_edges, 
+    long num_edges, 
     edge_neighbour *restrict edges, 
     double damping_factor)
 {
@@ -68,7 +68,7 @@ void dampen_ewt(
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for (int i=0; i<num_edges; i++) {
+    for (long i=0; i<num_edges; i++) {
         edges[i].x *= damping_factor;
         edges[i].y *= damping_factor;
         edges[i].z *= damping_factor;
@@ -76,7 +76,7 @@ void dampen_ewt(
 }
 
 void residual(
-    int nel, 
+    long nel, 
     const double *restrict old_variables, 
     const double *restrict variables, 
     double *restrict residuals)
@@ -84,20 +84,20 @@ void residual(
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for (int i=0; i<(nel*NVAR); i++) {
+    for (long i=0; i<(nel*NVAR); i++) {
         residuals[i] = variables[i] - old_variables[i];
     }
 }
 
 double calc_rms(
-    int nel, 
+    long nel, 
     const double *restrict residuals)
 {
     double rms = 0.0;
     #ifdef OMP
         #pragma omp parallel for reduction(+:rms)
     #endif
-    for (int i=0; i<(nel*NVAR); i++) {
+    for (long i=0; i<(nel*NVAR); i++) {
         rms += pow(residuals[i], 2);
     }
     rms /= double(nel);
@@ -107,11 +107,11 @@ double calc_rms(
 
 void check_for_invalid_variables(
     const double *restrict variables,
-    int n)
+    long n)
 {   
-    for (int i=0; i<n; i++) {
+    for (long i=0; i<n; i++) {
         for (int v=0; v<NVAR; v++) {
-            const int idx = i*NVAR + v;
+            const long idx = i*NVAR + v;
 
             if (isnan(variables[idx]) || isinf(variables[idx])) {
                 printf("\nERROR: NaN detected!");
@@ -141,7 +141,7 @@ void check_for_invalid_variables(
 void identify_differences(
     const double* test_values,
     const double* master_values, 
-    int n)
+    long n)
 {
     // If floating-point operations have been reordered, then a difference
     // is expected due to rounding-errors, but the difference should
@@ -166,9 +166,9 @@ void identify_differences(
         absolute_threshold = 1.0e-15;
     }
 
-    for (int i=0; i<n; i++) {
+    for (long i=0; i<n; i++) {
         for (int v=0; v<NVAR; v++) {
-            const int idx = i*NVAR + v;
+            const long idx = i*NVAR + v;
 
             double acceptable_difference = master_values[idx] * acceptable_relative_difference;
             if (acceptable_difference < 0.0) {

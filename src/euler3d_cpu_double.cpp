@@ -136,15 +136,15 @@ int main(int argc, char** argv)
     // Create data arrays:
     ///////////////////////////////////////////////////////////////////////////
     // Number of points:
-    int nel[levels];
-    int num_internal_edges[levels];
-    int num_boundary_edges[levels];
-    int num_wall_edges[levels];
-    int internal_edge_starts[levels];
-    int boundary_edge_starts[levels];
-    int wall_edge_starts[levels];
+    long nel[levels];
+    long num_internal_edges[levels];
+    long num_boundary_edges[levels];
+    long num_wall_edges[levels];
+    long internal_edge_starts[levels];
+    long boundary_edge_starts[levels];
+    long wall_edge_starts[levels];
     double* volumes[levels];
-    int number_of_edges[levels];
+    long number_of_edges[levels];
     edge_neighbour* edges[levels];
     edge* edge_variables[levels];
     double* variables[levels];
@@ -154,8 +154,8 @@ int main(int argc, char** argv)
     double* step_factors[levels];
     double3* coords[levels];
     // Multigrid connectivity stuff:
-    int* mg_connectivity[levels];
-    int mg_connectivity_size[levels];
+    long* mg_connectivity[levels];
+    long mg_connectivity_size[levels];
     for (int i=0; i<levels; i++) {
         coords[i] = NULL;
         mg_connectivity[i] = NULL;
@@ -326,7 +326,7 @@ int main(int argc, char** argv)
         ff_flux_contribution_momentum_z,
         ff_flux_contribution_density_energy);
 
-    int* up_scratch = alloc<int>(nel[0]);
+    long* up_scratch = alloc<long>(nel[0]);
     for (int i=0; i<levels; i++) {
         initialize_variables(nel[i], variables[i]);
     }
@@ -830,9 +830,9 @@ int main(int argc, char** argv)
     }
     for(int i = 0; i < levels-1; i++)
     {
-        dealloc<int>(mg_connectivity[i]);
+        dealloc<long>(mg_connectivity[i]);
     }
-    dealloc<int>(up_scratch);
+    dealloc<long>(up_scratch);
 
     delete[] (layers);
     delete[] (mg_connectivity_filename);

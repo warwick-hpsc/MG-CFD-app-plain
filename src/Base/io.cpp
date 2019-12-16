@@ -13,18 +13,18 @@
 
 void read_grid(
     const char* data_file_name, 
-    int* nel, 
+    long* nel, 
     double** volumes, 
-    int* number_of_edges, 
+    long* number_of_edges, 
     #ifdef E_SOA
-        int* edges_soa_step, 
+        long* edges_soa_step, 
     #endif
-    int* num_internal_edges, 
-    int* num_boundary_edges, 
-    int* num_wall_edges, 
-    int* internal_edges_start, 
-    int* boundary_edges_start, 
-    int* wall_edges_start, 
+    long* num_internal_edges, 
+    long* num_boundary_edges, 
+    long* num_wall_edges, 
+    long* internal_edges_start, 
+    long* boundary_edges_start, 
+    long* wall_edges_start, 
     edge_neighbour** edges, 
     double3** coords)
 {
@@ -57,22 +57,22 @@ void read_grid(
     file >> (*number_of_edges);
     edge_neighbour* edge_bin = alloc<edge_neighbour>(*number_of_edges);
 
-    int* internal_edge_indices = alloc<int>(*number_of_edges);
-    int* boundary_edge_indices = alloc<int>(*number_of_edges);
-    int* wall_edge_indices = alloc<int>(*number_of_edges);
+    long* internal_edge_indices = alloc<long>(*number_of_edges);
+    long* boundary_edge_indices = alloc<long>(*number_of_edges);
+    long* wall_edge_indices = alloc<long>(*number_of_edges);
 
     *volumes = alloc<double>(*nel);
     *coords = alloc<double3>(*nel);
-    int** point_neighbours = alloc<int*>(*nel);
+    long** point_neighbours = alloc<long*>(*nel);
 
     // read in data
-    int edge_count=0;
-    for(int i = 0; i < *nel; i++)
+    long edge_count=0;
+    for(long i = 0; i < *nel; i++)
     {
         file >> (*volumes)[i];
         int point_degree;
         file >> point_degree;
-        point_neighbours[i] = alloc<int>(point_degree);
+        point_neighbours[i] = alloc<long>(point_degree);
 
         if (levels > 1) {
             coords_file >> (*coords)[i].x;
@@ -89,7 +89,7 @@ void read_grid(
             file >> edge_weight.y;
             file >> edge_weight.z;
 
-            const int i2 = point_neighbours[i][j];
+            const long i2 = point_neighbours[i][j];
             if (i2 < i)
             {
                 if (i2  == -1)
@@ -136,11 +136,11 @@ void read_grid(
             }
         }
     }
-    for(int i = 0; i < *nel; i++)
+    for(long i = 0; i < *nel; i++)
     {
-        dealloc<int>(point_neighbours[i]);
+        dealloc<long>(point_neighbours[i]);
     }
-    dealloc<int*>(point_neighbours);
+    dealloc<long*>(point_neighbours);
 
     if (edge_count != *number_of_edges) {
         printf("WARNING: Mesh claims to have %d edges, actually has %d\n", *number_of_edges, edge_count);
@@ -151,28 +151,28 @@ void read_grid(
     *wall_edges_start     = *boundary_edges_start + *num_boundary_edges;
 
     *edges = alloc<edge_neighbour>(*number_of_edges);
-    int j=0;
-    for(int i=0; i < *num_internal_edges; i++,j++)
+    long j=0;
+    for(long i=0; i < *num_internal_edges; i++,j++)
     {
-        const int idx = internal_edge_indices[i];
+        const long idx = internal_edge_indices[i];
         (*edges)[j] = edge_bin[idx];
     }
     for (; j<*boundary_edges_start; j++) {
         (*edges)[j].a = -5;
         (*edges)[j].b = -5;
     }
-    for(int i=0; i < *num_boundary_edges; i++,j++)
+    for(long i=0; i < *num_boundary_edges; i++,j++)
     {
-        const int idx = boundary_edge_indices[i];
+        const long idx = boundary_edge_indices[i];
         (*edges)[j] = edge_bin[idx];
     }
     for (; j<*wall_edges_start; j++) {
         (*edges)[j].a = -5;
         (*edges)[j].b = -5;
     }
-    for(int i=0; i < *num_wall_edges; i++,j++)
+    for(long i=0; i < *num_wall_edges; i++,j++)
     {
-        const int idx = wall_edge_indices[i];
+        const long idx = wall_edge_indices[i];
         (*edges)[j] = edge_bin[idx];
     }   
     for (; j<*number_of_edges; j++) {
@@ -193,14 +193,14 @@ void read_grid(
     #endif
 
     dealloc<edge_neighbour>(edge_bin);
-    dealloc<int>(internal_edge_indices);
-    dealloc<int>(boundary_edge_indices);
-    dealloc<int>(wall_edge_indices);
+    dealloc<long>(internal_edge_indices);
+    dealloc<long>(boundary_edge_indices);
+    dealloc<long>(wall_edge_indices);
 }
 
 void dump(
     const double *restrict variables, 
-    int nel, 
+    long nel, 
     int level)
 {
     log("dump_variables() called");
@@ -214,12 +214,12 @@ void dump(
 
     printf("Dumping variables[] to file: %s\n", filepath.c_str());
 
-    for (int i=0; i<nel; i++) {
-        const int p_idx  = i*NVAR + VAR_DENSITY;
-        const int mx_idx = i*NVAR + VAR_MOMENTUMX;
-        const int my_idx = i*NVAR + VAR_MOMENTUMY;
-        const int mz_idx = i*NVAR + VAR_MOMENTUMZ;
-        const int pe_idx = i*NVAR + VAR_DENSITY_ENERGY;
+    for (long i=0; i<nel; i++) {
+        const long p_idx  = i*NVAR + VAR_DENSITY;
+        const long mx_idx = i*NVAR + VAR_MOMENTUMX;
+        const long my_idx = i*NVAR + VAR_MOMENTUMY;
+        const long mz_idx = i*NVAR + VAR_MOMENTUMZ;
+        const long pe_idx = i*NVAR + VAR_DENSITY_ENERGY;
 
         fprintf(file, "%.17e %.17e %.17e %.17e %.17e\n", variables[p_idx], 
                                                          variables[mx_idx], 
