@@ -11,28 +11,28 @@
 #include "common.h"
 
 void compute_step_factor(
-    int nel, 
+    long nel, 
     const double *restrict variables, 
     const double *restrict volumes, 
     double *restrict step_factors);
 
 void compute_step_factor_legacy(
-    int nel, 
+    long nel, 
     const double *restrict variables, 
     const double *restrict areas, 
     double *restrict step_factors);
 
 void update_edges(
-    int first_edge, 
-    int nedges, 
+    long first_edge, 
+    long nedges, 
     const edge_neighbour *restrict edges,
-    int nel, 
+    long nel, 
     const edge *restrict edge_variables,
     double *restrict fluxes);
 
 void time_step(
     int j, 
-    int nel, 
+    long nel, 
     const double *restrict step_factors, 
     const double *restrict volumes, 
     double *restrict fluxes, 
@@ -40,16 +40,16 @@ void time_step(
     double *restrict variables);
 
 void zero_fluxes(
-    int nel, 
+    long nel, 
     double *restrict array);
 
 inline void initialize_variables(
-    int nel, 
+    long nel, 
     double* restrict variables)
 {
     log("initialize_variables()");
 
-    for(int i=0; i<nel; i++) {
+    for(long i=0; i<nel; i++) {
         for (int v=0; v<NVAR; v++) {
             variables[i*NVAR + v] = ff_variable[v];
         }
@@ -162,8 +162,8 @@ inline double compute_speed_of_sound_reciprocal(double density_reciprocal, doubl
 }
 
 inline void update_a(
-    int i,
-    int a,
+    long i,
+    long a,
     double *restrict fluxes,
     const edge *restrict edge_variables)
 {
@@ -173,11 +173,11 @@ inline void update_a(
     const double mz_val = edge_variables[i*NVAR + VAR_MOMENTUMZ].a;
     const double pe_val = edge_variables[i*NVAR + VAR_DENSITY_ENERGY].a;
 
-    const int p_idx  = a*NVAR + VAR_DENSITY;
-    const int mx_idx = a*NVAR + VAR_MOMENTUMX;
-    const int my_idx = a*NVAR + VAR_MOMENTUMY;
-    const int mz_idx = a*NVAR + VAR_MOMENTUMZ;
-    const int pe_idx = a*NVAR + VAR_DENSITY_ENERGY;
+    const long p_idx  = a*NVAR + VAR_DENSITY;
+    const long mx_idx = a*NVAR + VAR_MOMENTUMX;
+    const long my_idx = a*NVAR + VAR_MOMENTUMY;
+    const long mz_idx = a*NVAR + VAR_MOMENTUMZ;
+    const long pe_idx = a*NVAR + VAR_DENSITY_ENERGY;
 
     fluxes[p_idx]  += p_val;
     fluxes[pe_idx] += pe_val;
@@ -187,8 +187,8 @@ inline void update_a(
 }
 
 inline void update_b(
-    int i,
-    int b,
+    long i,
+    long b,
     double *restrict fluxes,
     const edge* restrict edge_variables)
 {
@@ -198,11 +198,11 @@ inline void update_b(
     const double mz_val = edge_variables[i*NVAR + VAR_MOMENTUMZ].b;
     const double pe_val = edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b;
 
-    const int p_idx  = b*NVAR + VAR_DENSITY;
-    const int mx_idx = b*NVAR + VAR_MOMENTUMX;
-    const int my_idx = b*NVAR + VAR_MOMENTUMY;
-    const int mz_idx = b*NVAR + VAR_MOMENTUMZ;
-    const int pe_idx = b*NVAR + VAR_DENSITY_ENERGY;
+    const long p_idx  = b*NVAR + VAR_DENSITY;
+    const long mx_idx = b*NVAR + VAR_MOMENTUMX;
+    const long my_idx = b*NVAR + VAR_MOMENTUMY;
+    const long mz_idx = b*NVAR + VAR_MOMENTUMZ;
+    const long pe_idx = b*NVAR + VAR_DENSITY_ENERGY;
 
     fluxes[p_idx]  += p_val;
     fluxes[pe_idx] += pe_val;

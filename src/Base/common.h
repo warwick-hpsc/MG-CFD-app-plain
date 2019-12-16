@@ -74,7 +74,7 @@ std::string number_to_string(T number)
 }
 
 template<typename T>
-T* alloc(int N)
+T* alloc(long N)
 {
     #ifdef __ICC
         return new T[N];

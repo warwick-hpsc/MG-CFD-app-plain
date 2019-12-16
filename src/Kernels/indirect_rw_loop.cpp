@@ -9,8 +9,8 @@
 // - performs same data movement as compute_flux_edge() but with minimal arithmetic. 
 //   Measures upper bound on performance achievable by compute_flux_edge()
 void indirect_rw(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights, 
@@ -26,8 +26,8 @@ void indirect_rw(
     log("Performing indirect RW");
     current_kernel = INDIRECT_RW;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -59,7 +59,7 @@ void indirect_rw(
             #endif
         #endif
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "indirect_rw_kernel.elemfunc.c"
     }

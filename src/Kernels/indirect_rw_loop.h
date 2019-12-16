@@ -4,8 +4,8 @@
 #include "common.h"
 
 void indirect_rw(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights, 
