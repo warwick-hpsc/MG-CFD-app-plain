@@ -1,16 +1,16 @@
 #include "reorder.h"
 
 bool validate_permutation(
-	int* permtab,
-	int map_size)
+	long* permtab,
+	long map_size)
 {
 	// Test that the proposed permuation is valid:
 	bool success=true;
 	bool* post_permute_record = alloc<bool>(map_size);
-	for (int i=0; i<map_size; i++) post_permute_record[i] = false;
+	for (long i=0; i<map_size; i++) post_permute_record[i] = false;
 
-	for (int i=0; i<map_size; i++) {
-		int to_idx = permtab[i];
+	for (long i=0; i<map_size; i++) {
+		long to_idx = permtab[i];
 		if (to_idx >= map_size) {
 			fprintf(stderr, "ERROR: permtab[%d] -> to_idx=%d is >= map_size=%d\n", i, to_idx, map_size);
 			success = false;
@@ -29,7 +29,7 @@ bool validate_permutation(
 		post_permute_record[to_idx] = true;
 	}
 	if (success) {
-		for (int i=0; i<map_size; i++) {
+		for (long i=0; i<map_size; i++) {
 			if (!post_permute_record[i]) {
 				fprintf(stderr, "ERROR: No item has been mapped to %d\n", i);
 				success = false;
@@ -48,14 +48,14 @@ bool validate_permutation(
 
 #ifdef BIN_COLOURED_VECTORS
 void BinEdgesIntoColouredVectorUnits(
-	int estart, 
-	int eend,
+	long estart, 
+	long eend,
 	edge_neighbour* edges, 
-	int nedges, 
+	long nedges, 
 	int* edge_colours,
 	int ncolours, 
-	int nel,
-	int* serial_section_start)
+	long nel,
+	long* serial_section_start)
 {
 	log("BinEdgesIntoColouredVectorUnits()");
 
@@ -74,16 +74,16 @@ void BinEdgesIntoColouredVectorUnits(
 		return;
 	}
 
-	int total_range = eend-estart+1;
-	int* permtab = alloc<int>(total_range);
-	for (int i=0; i<total_range; i++) permtab[i] = -1;
-	int next_permtab_idx = 0;
+	long total_range = eend-estart+1;
+	long* permtab = alloc<long>(total_range);
+	for (long i=0; i<total_range; i++) permtab[i] = -1;
+	long next_permtab_idx = 0;
 
-	int num_processed_edges = 0;
+	long num_processed_edges = 0;
 	bool* processed_edges = alloc<bool>(total_range);
-	for (int i=0; i<total_range; i++) processed_edges[i] = false;
-	int next_edge = estart;
-	int vector_block[DBLS_PER_SIMD];
+	for (long i=0; i<total_range; i++) processed_edges[i] = false;
+	long next_edge = estart;
+	long vector_block[DBLS_PER_SIMD];
 	int vector_colour;
 	int vector_idx = 0;
 	while ((next_edge-estart) <= total_range) {
@@ -100,7 +100,7 @@ void BinEdgesIntoColouredVectorUnits(
 		vector_block[vector_idx] = next_edge;
 		vector_idx++;
 		next_edge++;
-		for (int e=next_edge; (vector_idx<DBLS_PER_SIMD) && (e<=eend); e++) {
+		for (long e=next_edge; (vector_idx<DBLS_PER_SIMD) && (e<=eend); e++) {
 			if (edge_colours[e] == vector_colour) {
 				vector_block[vector_idx] = e;
 				vector_idx++;
@@ -111,7 +111,7 @@ void BinEdgesIntoColouredVectorUnits(
 			// Construct a permutation for this vector block, so that
 			// after application the edges are contiguous:
 			for (int i=0; i<vector_idx; i++) {
-				int e = vector_block[i];
+				long e = vector_block[i];
 				permtab[e-estart] = next_permtab_idx;
 				next_permtab_idx++;
 
@@ -122,7 +122,7 @@ void BinEdgesIntoColouredVectorUnits(
 	}
 	if (num_processed_edges != total_range) {
 		*serial_section_start = estart + next_permtab_idx;
-		for (int e=estart; e<=eend; e++) {
+		for (long e=estart; e<=eend; e++) {
 			if (!processed_edges[e-estart]) {
 				permtab[e-estart] = next_permtab_idx;
 				next_permtab_idx++;
@@ -150,28 +150,28 @@ void BinEdgesIntoColouredVectorUnits(
 
 #ifdef BIN_COLOURED_CONTIGUOUS
 void BinEdgesIntoContiguousColouredBlocks(
-	int estart, 
-	int eend,
+	long estart, 
+	long eend,
 	edge_neighbour* edges, 
-	int nedges, 
+	long nedges, 
 	int* edge_colours,
 	int ncolours, 
-	int nel,
-	int* serial_section_start)
+	long nel,
+	long* serial_section_start)
 {
 	log("BinEdgesIntoContiguousColouredBlocks()");
 
-	int total_range = eend-estart+1;
-	int* permtab = alloc<int>(total_range);
-	for (int i=0; i<total_range; i++) permtab[i] = -1;
-	int next_permtab_idx = 0;
+	long total_range = eend-estart+1;
+	long* permtab = alloc<long>(total_range);
+	for (long i=0; i<total_range; i++) permtab[i] = -1;
+	long next_permtab_idx = 0;
 
-	int num_processed_edges = 0;
+	long num_processed_edges = 0;
 	bool* processed_edges = alloc<bool>(total_range);
-	for (int i=0; i<total_range; i++) processed_edges[i] = false;
+	for (long i=0; i<total_range; i++) processed_edges[i] = false;
 
-	int next_edge = estart;
-	int vector_block[DBLS_PER_SIMD];
+	long next_edge = estart;
+	long vector_block[DBLS_PER_SIMD];
 	int vector_colour;
 	int vector_idx = 0;
 	for (int c=0; c<ncolours; c++) {
@@ -188,7 +188,7 @@ void BinEdgesIntoContiguousColouredBlocks(
 		while(true) {
 			vector_block[0] = next_edge;
 			vector_idx = 1;
-			for (int e=next_edge+1; (vector_idx<DBLS_PER_SIMD) && (e<=eend); e++) {
+			for (long e=next_edge+1; (vector_idx<DBLS_PER_SIMD) && (e<=eend); e++) {
 				if (edge_colours[e] == c) {
 					vector_block[vector_idx] = e;
 					vector_idx++;
@@ -205,7 +205,7 @@ void BinEdgesIntoContiguousColouredBlocks(
 				// Construct a permutation for this vector block, so that
 				// after application the edges are contiguous:
 				for (int i=0; i<vector_idx; i++) {
-					int e = vector_block[i];
+					long e = vector_block[i];
 					// permtab[e-estart] = estart + next_permtab_idx;
 					permtab[e-estart] = next_permtab_idx;
 					next_permtab_idx++;
@@ -227,7 +227,7 @@ void BinEdgesIntoContiguousColouredBlocks(
 
 	if (num_processed_edges != total_range) {
 		*serial_section_start = estart + next_permtab_idx;
-		for (int e=estart; e<=eend; e++) {
+		for (long e=estart; e<=eend; e++) {
 			if (!processed_edges[e-estart]) {
 				permtab[e-estart] = next_permtab_idx;
 				next_permtab_idx++;

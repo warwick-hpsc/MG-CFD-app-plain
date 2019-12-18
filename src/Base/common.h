@@ -75,7 +75,7 @@ std::string number_to_string(T number)
 }
 
 template<typename T>
-T* alloc(int N)
+T* alloc(long N)
 {
     #ifdef __ICC
         return new T[N];
@@ -187,29 +187,29 @@ inline bool validate_edge_array(
 }
 
 template <typename T>
-void permute_array_range(T *restrict array, int *restrict mapping, int map_offset, int map_size)
+void permute_array_range(T *restrict array, long *restrict mapping, long map_offset, long map_size)
 {
     T* permutation = alloc<T>(map_size);
 
     bool* free_slots = alloc<bool>(map_size);
-    for (int i=0; i<map_size; i++) free_slots[i] = true;
+    for (long i=0; i<map_size; i++) free_slots[i] = true;
 
-    for (int m=0; m<map_size; m++) {
-        int from_idx = m + map_offset;
-        int to_idx = mapping[m];
+    for (long m=0; m<map_size; m++) {
+        long from_idx = m + map_offset;
+        long to_idx = mapping[m];
         permutation[to_idx] = array[from_idx];
         free_slots[to_idx] = false;
     }
 
     // // Validate mapping:
-    // for (int i=0; i<map_size; i++) {
+    // for (long i=0; i<map_size; i++) {
     //     if (free_slots[i]) {
     //         fprintf(stderr, "ERROR: No mapping made to destination %d\n", i+map_offset);
     //         DEBUGGABLE_ABORT
     //     }
     // }
 
-    for (int i=0; i<map_size; i++) {
+    for (long i=0; i<map_size; i++) {
         array[map_offset+i] = permutation[i];
     }
 
@@ -220,11 +220,11 @@ void permute_array_range(T *restrict array, int *restrict mapping, int map_offse
 bool file_exists(const char* filepath);
 
 #ifdef OMP
-inline void openmp_distribute_loop_iterations(int* start, int* end) {
-    const int end_copy = *end;
+inline void openmp_distribute_loop_iterations(long* start, long* end) {
+    const long end_copy = *end;
     const int tid = omp_get_thread_num();
     const int num_t = omp_get_num_threads();
-    const int thread_range = ((*end)-(*start)+num_t-1)/num_t;
+    const long thread_range = ((*end)-(*start)+num_t-1)/num_t;
 
     *start = (*start) + thread_range*tid;
     *end = (*start)+thread_range;

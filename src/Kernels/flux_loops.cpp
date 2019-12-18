@@ -11,8 +11,8 @@
 #include "loop_stats.h"
 
 void compute_boundary_flux_edge(
-    int first_edge,
-    int nedges, 
+    long first_edge,
+    long nedges, 
     const edge_neighbour *restrict edges, 
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -25,8 +25,8 @@ void compute_boundary_flux_edge(
     log("Computing boundary flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -36,7 +36,7 @@ void compute_boundary_flux_edge(
     #ifndef SIMD
         #pragma omp simd safelen(1)
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_boundary_kernel.elemfunc.c"
     }
@@ -48,8 +48,8 @@ void compute_boundary_flux_edge(
 }
 
 void compute_wall_flux_edge(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -62,8 +62,8 @@ void compute_wall_flux_edge(
     log("Computing wall flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -73,7 +73,7 @@ void compute_wall_flux_edge(
     #ifndef SIMD
         #pragma omp simd safelen(1)
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_wall_kernel.elemfunc.c"
     }
@@ -85,8 +85,8 @@ void compute_wall_flux_edge(
 }
 
 void compute_flux_edge(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
@@ -105,8 +105,8 @@ void compute_flux_edge(
     log("Computing internal flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
     #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         loop_end = serial_section_start;
     #endif
@@ -164,22 +164,12 @@ void compute_flux_edge(
             #endif
         #endif
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
-            int a = edges[i].a;
-            int b = edges[i].b;
-            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                double ewt = edge_weights[i];
-            #endif
-            double ex = edges[i].x;
-            double ey = edges[i].y;
-            double ez = edges[i].z;
-            const double* variables_a = &variables[edges[i].a*NVAR];
-            const double* variables_b = &variables[edges[i].b*NVAR];
             #include "flux_kernel.elemfunc.c"
         #else
             compute_flux_edge_kernel(
@@ -308,8 +298,8 @@ void compute_flux_edge(
 
 #ifdef FLUX_CRIPPLE
 void compute_flux_edge_crippled(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
@@ -328,8 +318,8 @@ void compute_flux_edge_crippled(
     log("Computing internal flux crippled");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
     #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         loop_end = serial_section_start;
     #endif
@@ -383,22 +373,12 @@ void compute_flux_edge_crippled(
             #endif
         #endif
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
-            int a = edges[i].a;
-            int b = edges[i].b;
-            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                double ewt = edge_weights[i];
-            #endif
-            double ex = edges[i].x;
-            double ey = edges[i].y;
-            double ez = edges[i].z;
-            const double* variables_a = &variables[edges[i].a*NVAR];
-            const double* variables_b = &variables[edges[i].b*NVAR];
             #include "flux_kernel_crippled.elemfunc.c"
         #else
             compute_flux_edge_kernel_crippled(

@@ -134,9 +134,33 @@ exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o $
 if $validate_result ; then
   exec_command+=" -v"
 fi
-echo "EXECUTING $bin_filepath"
+
+if [ "$compiler" = "intel" ]; then
+  if [ -z ${KMP_AFFINITY+x} ]; then
+    KMP_AFFINITY=""
+  fi
+  if [ -z ${KMP_GRANULARITY+x} ]; then
+    KMP_GRANULARITY=""
+  fi
+  if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
+    export KMP_AFFINITY=scatter
+    export KMP_GRANULARITY=core
+  fi
+else
+  if [ -z ${OMP_PROC_PLACES+x} ]; then
+    OMP_PROC_PLACES=""
+  fi
+  if [ -z ${OMP_PROC_BIND+x} ]; then
+    OMP_PROC_BIND=""
+  fi
+  if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
+    export OMP_PLACES=sockets
+    export OMP_PROC_BIND=spread
+  fi
+fi
 export OMP_NUM_THREADS=$_t
 cd "${data_dirpath}"
+echo ""
 echo "$exec_command"
 eval "$exec_command"
 rm "${run_outdir}"/job-is-running.txt

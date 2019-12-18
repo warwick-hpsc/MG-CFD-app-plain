@@ -5,6 +5,7 @@
 #BSUB -e lsf.stderr
 
 #BSUB -nnodes 1
+#BSUB -R "affinity[core(<NUM_THREADS>, same=socket)]"
 #BSUB -W <HOURS>:<MINUTES>
 #BSUB -x
 #BSUB -q <PARTITION>
@@ -14,4 +15,4 @@
 ##       are exported by default. However I have not confirmed this.
 ##       This feature is necessary, so fingers crossed!
 
-RUN_CMD="mpirun"
+RUN_CMD="mpirun -n 1"

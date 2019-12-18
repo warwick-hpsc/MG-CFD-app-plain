@@ -11,5 +11,7 @@
 
 #PBS -V
 
+RUN_CMD="aprun -n 1 -d <NUM_THREADS>"
+
 export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
 cd $PBS_O_WORKDIR

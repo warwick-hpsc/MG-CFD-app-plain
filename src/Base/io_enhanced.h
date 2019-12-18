@@ -14,56 +14,56 @@ std::string generate_solution_filepath(std::string filename, int level);
 bool file_exists(const char* filepath);
 
 void duplicate_mesh(
-    int* nel,
+    long* nel,
     double** volumes,
     double3** coords,
-    int* number_of_edges,
-    int* num_internal_edges, 
-    int* num_boundary_edges, 
-    int* num_wall_edges, 
-    int* boundary_edges_start, 
-    int* wall_edges_start,
+    long* number_of_edges,
+    long* num_internal_edges, 
+    long* num_boundary_edges, 
+    long* num_wall_edges, 
+    long* boundary_edges_start, 
+    long* wall_edges_start,
     #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
-        int* internal_serial_section_start,
-        int* boundary_serial_section_start, 
-        int* wall_serial_section_start,
+        long* internal_serial_section_start,
+        long* boundary_serial_section_start, 
+        long* wall_serial_section_start,
     #endif
     edge_neighbour** edges,
-    int nel_above,
-    int** mg_mapping,
-    int* mgc);
+    long nel_above,
+    long** mg_mapping,
+    long* mgc);
 
 bool read_grid_from_bin(
     const char* data_file_name, 
-    int* nel, 
+    long* nel, 
     double** volumes, 
-    int* number_of_edges, 
-    int* num_internal_edges, 
-    int* num_boundary_edges, 
-    int* num_wall_edges, 
-    int* internal_edges_start, 
-    int* boundary_edges_start, 
-    int* wall_edges_start, 
+    long* number_of_edges, 
+    long* num_internal_edges, 
+    long* num_boundary_edges, 
+    long* num_wall_edges, 
+    long* internal_edges_start, 
+    long* boundary_edges_start, 
+    long* wall_edges_start, 
     edge_neighbour** edges, 
     double3** coords, 
-    int** mg_connectivity, 
-    int* mg_connectivity_size);
+    long** mg_connectivity, 
+    long* mg_connectivity_size);
 
 bool write_grid_to_bin(
     const char* data_file_name, 
-    int nel, 
+    long nel, 
     const double *restrict volumes, 
-    int number_of_edges, 
-    int num_internal_edges, 
-    int num_boundary_edges, 
-    int num_wall_edges, 
-    int internal_edges_start, 
-    int boundary_edges_start, 
-    int wall_edges_start, 
+    long number_of_edges, 
+    long num_internal_edges, 
+    long num_boundary_edges, 
+    long num_wall_edges, 
+    long internal_edges_start, 
+    long boundary_edges_start, 
+    long wall_edges_start, 
     const edge_neighbour* edges, 
     const double3* coords, 
-    const int* mg_connectivity, 
-    int mg_connectivity_size);
+    const long* mg_connectivity, 
+    long mg_connectivity_size);
 
 void read_input_dat(
     const char* file_name, 
@@ -75,33 +75,33 @@ void read_input_dat(
 void read_papi_config(const char* filename, int* nevents, int** events);
 #endif
 
-void read_mg_connectivity(const char* file_name, int** mg_connectivity, int* mgc);
+void read_mg_connectivity(const char* file_name, long** mg_connectivity, long* mgc);
 
 bool read_double_array(
     double* data_array, std::string name, 
-    int ndim, int nel, int level);
+    int ndim, long nel, int level);
 
 void dump_step_factors(
     const double *restrict step_factors, 
-    int npoints, int level);
+    long npoints, int level);
 
 void dump_edge_fluxes(
     const edge* edge_variables,
-    int num_internal_edges, 
-    int num_boundary_edges, 
-    int num_wall_edges, 
-    int internal_edges_start, 
-    int boundary_edges_start, 
-    int wall_edges_start, 
+    long num_internal_edges, 
+    long num_boundary_edges, 
+    long num_wall_edges, 
+    long internal_edges_start, 
+    long boundary_edges_start, 
+    long wall_edges_start, 
     int level);
 
 void dump_flux(
     const double *restrict fluxes, 
-    int npoints, int level);
+    long npoints, int level);
 
 void dump_volumes(
     const double *restrict volumes, 
-    int npoints, int level);
+    long npoints, int level);
 
 void prepare_csv_identification(
     bool write_header,

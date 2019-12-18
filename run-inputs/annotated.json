@@ -17,7 +17,10 @@
                               ["", "FLAG_2"] ],
 
         "flux flags comment": "OPTIONAL. List of compile-time options. gen_job.py iterates over their powerset.",
-        "flux flags": [ "", "FLAG_1"]
+        "flux flags": [ "", "FLAG_1"],
+
+        "compile only comment": "OPTIONAL. Request whether to just compile on the target system", 
+        "compile only": true
     },
 
     "optimisation": {
