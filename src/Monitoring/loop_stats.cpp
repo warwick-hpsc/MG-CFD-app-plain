@@ -45,7 +45,7 @@ void init_iters()
     }
 }
 
-void record_iters(int loop_start, int loop_end)
+void record_iters(long loop_start, long loop_end)
 {
     if (!iters_monitoring_state) return;
 
@@ -55,7 +55,7 @@ void record_iters(int loop_start, int loop_end)
         const int tid = 0;
     #endif
 
-    int niters = loop_end - loop_start;
+    long niters = loop_end - loop_start;
 
     if (current_kernel == COMPUTE_STEP) {
         compute_step_kernel_niters[tid][level] += niters;

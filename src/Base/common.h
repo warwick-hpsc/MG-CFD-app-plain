@@ -40,23 +40,23 @@ inline void log(const char *format, ...)
     #endif
 }
 
-inline void zero_array(int nelr, double* array)
+inline void zero_array(long nelr, double* array)
 {
-    for(int i=0; i<nelr; i++)
+    for(long i=0; i<nelr; i++)
     {
         array[i] = 0.0;
     }
 }
 
 inline void zero_edges(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     edge* restrict edge_variables)
 {
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for(int e=first_edge; e<(first_edge+nedges); e++)
+    for(long e=first_edge; e<(first_edge+nedges); e++)
     {
         for (int v=0; v<NVAR; v++) {
             edge_variables[e*NVAR + v].a = double(0.0);
@@ -94,14 +94,14 @@ void dealloc(T *restrict array)
 }
 
 template <typename T>
-inline void copy(T *restrict dst, T *restrict src, int N)
+inline void copy(T *restrict dst, T *restrict src, long N)
 {
     log("copy()");
 
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for(int i=0; i<N; i++)
+    for(long i=0; i<N; i++)
     {
         dst[i] = src[i];
     }
@@ -158,9 +158,9 @@ inline int compare_two_edges(edge_neighbour e1, edge_neighbour e2) {
 
 inline bool validate_edge_array(
     edge* restrict edge_variables,
-    int length)
+    long length)
 {
-    for (int i=0; i<length; i++) {
+    for (long i=0; i<length; i++) {
         for (int v=0; v<NVAR; v++) {
             const double val_a = edge_variables[i*NVAR + v].a;
             const double val_b = edge_variables[i*NVAR + v].b;
@@ -186,29 +186,29 @@ inline bool validate_edge_array(
 }
 
 template <typename T>
-void permute_array_range(T *restrict array, int *restrict mapping, int map_offset, int map_size)
+void permute_array_range(T *restrict array, long *restrict mapping, long map_offset, long map_size)
 {
     T* permutation = alloc<T>(map_size);
 
     bool* free_slots = alloc<bool>(map_size);
-    for (int i=0; i<map_size; i++) free_slots[i] = true;
+    for (long i=0; i<map_size; i++) free_slots[i] = true;
 
-    for (int m=0; m<map_size; m++) {
-        int from_idx = m + map_offset;
-        int to_idx = mapping[m];
+    for (long m=0; m<map_size; m++) {
+        long from_idx = m + map_offset;
+        long to_idx = mapping[m];
         permutation[to_idx] = array[from_idx];
         free_slots[to_idx] = false;
     }
 
     // // Validate mapping:
-    // for (int i=0; i<map_size; i++) {
+    // for (long i=0; i<map_size; i++) {
     //     if (free_slots[i]) {
     //         fprintf(stderr, "ERROR: No mapping made to destination %d\n", i+map_offset);
     //         DEBUGGABLE_ABORT
     //     }
     // }
 
-    for (int i=0; i<map_size; i++) {
+    for (long i=0; i<map_size; i++) {
         array[map_offset+i] = permutation[i];
     }
 
@@ -219,11 +219,11 @@ void permute_array_range(T *restrict array, int *restrict mapping, int map_offse
 bool file_exists(const char* filepath);
 
 #ifdef OMP
-inline void openmp_distribute_loop_iterations(int* start, int* end) {
-    const int end_copy = *end;
+inline void openmp_distribute_loop_iterations(long* start, long* end) {
+    const long end_copy = *end;
     const int tid = omp_get_thread_num();
     const int num_t = omp_get_num_threads();
-    const int thread_range = ((*end)-(*start)+num_t-1)/num_t;
+    const long thread_range = ((*end)-(*start)+num_t-1)/num_t;
 
     *start = (*start) + thread_range*tid;
     *end = (*start)+thread_range;
