@@ -42,10 +42,9 @@ void down(
 
 void down_residuals(
     double *restrict residuals1, 
-    // double *restrict variables2, 
-    // double *restrict residuals2, 
-    // Depending on MG configuration, variables2 and residuals2
-    // may point to the same array.
+    // Depending on MG configuration variables2 and residuals2
+    // may point to the same array, so cannot use 'restrict' 
+    // qualifier:
     double *variables2, 
     double *residuals2, 
     long *restrict mapping, 
