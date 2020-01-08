@@ -2,7 +2,6 @@
 // This code is from the AIAA-2009-4001 paper
 
 #include <stdlib.h>
-#include <cmath>
 
 #include "cfd_loops.h"
 
