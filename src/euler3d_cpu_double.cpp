@@ -42,7 +42,7 @@ double3 ff_flux_contribution_momentum_z;
 double3 ff_flux_contribution_density_energy;
 
 void clean_level(
-    int nel, 
+    long nel, 
     double* restrict volumes, 
     double* restrict variables, 
     double* restrict old_variables, 
@@ -361,7 +361,7 @@ int main(int argc, char** argv)
         double* edge_weights[levels];
         for (int i=0; i<levels; i++) {
             edge_weights[i] = alloc<double>(number_of_edges[i]);
-            for (int e=0; e<number_of_edges[i]; e++) {
+            for (long e=0; e<number_of_edges[i]; e++) {
                 edge_weights[i][e] = sqrt(edges[i][e].x*edges[i][e].x + edges[i][e].y*edges[i][e].y + edges[i][e].z*edges[i][e].z);
             }
         }
