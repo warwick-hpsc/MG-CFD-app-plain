@@ -25,9 +25,9 @@ const double smoothing_coefficient = double(0.2f);
 
 const int point_fields[NVAR] = { VAR_DENSITY, VAR_MOMENTUMX, VAR_MOMENTUMY, VAR_MOMENTUMZ, VAR_DENSITY_ENERGY };
 
-inline void log(const char *format, ...)
-{
-    #ifdef LOG
+#ifdef LOG
+    inline void log(const char *format, ...)
+    {
         va_list argp;
         #if defined OMP
             printf("Thread %d: ", omp_get_thread_num());
@@ -37,8 +37,12 @@ inline void log(const char *format, ...)
         vprintf(format, argp);
         va_end(argp);
         printf("\n");
-    #endif
-}
+    }
+#else
+    inline void log(const char *format __attribute__((unused)), ...)
+    {
+    }
+#endif
 
 inline void zero_array(long nelr, double* array)
 {
