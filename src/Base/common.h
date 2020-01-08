@@ -25,9 +25,9 @@ const double smoothing_coefficient = double(0.2f);
 
 const int point_fields[NVAR] = { VAR_DENSITY, VAR_MOMENTUMX, VAR_MOMENTUMY, VAR_MOMENTUMZ, VAR_DENSITY_ENERGY };
 
-inline void log(const char *format, ...)
-{
-    #ifdef LOG
+#ifdef LOG
+    inline void log(const char *format, ...)
+    {
         va_list argp;
         #if defined OMP
             printf("Thread %d: ", omp_get_thread_num());
@@ -37,8 +37,12 @@ inline void log(const char *format, ...)
         vprintf(format, argp);
         va_end(argp);
         printf("\n");
-    #endif
-}
+    }
+#else
+    inline void log(const char *format __attribute__((unused)), ...)
+    {
+    }
+#endif
 
 inline void zero_array(long nelr, double* array)
 {
@@ -138,10 +142,6 @@ inline std::string get_cpu_model_name()
     return std::string("");
 }
 
-inline int compare_two_ints(const void * a, const void * b) {
-    return ( *(int*)a - *(int*)b );
-}
-
 inline int compare_two_edges(edge_neighbour e1, edge_neighbour e2) {
     if (e1.a < e2.a) return true;
     if (e1.a > e2.a) return false;
@@ -154,35 +154,6 @@ inline int compare_two_edges(edge_neighbour e1, edge_neighbour e2) {
     if (e1.z < e2.z) return true;
     if (e1.z > e2.z) return false;
     return false;
-}
-
-inline bool validate_edge_array(
-    edge* restrict edge_variables,
-    long length)
-{
-    for (long i=0; i<length; i++) {
-        for (int v=0; v<NVAR; v++) {
-            const double val_a = edge_variables[i*NVAR + v].a;
-            const double val_b = edge_variables[i*NVAR + v].b;
-            if (isnan(val_a) || isnan(-val_a)) {
-                fprintf(stderr, "NaN detected at edge_variables[i=%d][v=%d].a\n", i, v);
-                return false;
-            }
-            if (isinf(val_a)) {
-                fprintf(stderr, "Infinity detected at edge_variables[i=%d][v=%d].a\n", i, v);
-                return false;
-            }
-            if (isnan(val_b) || isnan(-val_b)) {
-                fprintf(stderr, "NaN detected at edge_variables[i=%d][v=%d].b\n", i, v);
-                return false;
-            }
-            if (isinf(val_b)) {
-                fprintf(stderr, "Infinity detected at edge_variables[i=%d][v=%d].b\n", i, v);
-                return false;
-            }
-        }
-    }
-    return true;
 }
 
 template <typename T>
@@ -199,14 +170,6 @@ void permute_array_range(T *restrict array, long *restrict mapping, long map_off
         permutation[to_idx] = array[from_idx];
         free_slots[to_idx] = false;
     }
-
-    // // Validate mapping:
-    // for (long i=0; i<map_size; i++) {
-    //     if (free_slots[i]) {
-    //         fprintf(stderr, "ERROR: No mapping made to destination %d\n", i+map_offset);
-    //         DEBUGGABLE_ABORT
-    //     }
-    // }
 
     for (long i=0; i<map_size; i++) {
         array[map_offset+i] = permutation[i];

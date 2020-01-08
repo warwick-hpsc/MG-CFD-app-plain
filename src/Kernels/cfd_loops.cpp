@@ -161,7 +161,6 @@ void update_edges(
     long first_edge, 
     long nedges, 
     const edge_neighbour *restrict edges,
-    long nel,
     const edge *restrict edge_variables,
     double *restrict fluxes)
 {
@@ -218,7 +217,6 @@ void time_step(
     int j, 
     long nel, 
     const double *restrict step_factors, 
-    const double *restrict volumes, 
     double *restrict fluxes, 
     const double *restrict old_variables, 
     double *restrict variables)

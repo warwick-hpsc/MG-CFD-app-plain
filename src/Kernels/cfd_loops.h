@@ -26,7 +26,6 @@ void update_edges(
     long first_edge, 
     long nedges, 
     const edge_neighbour *restrict edges,
-    long nel, 
     const edge *restrict edge_variables,
     double *restrict fluxes);
 
@@ -34,7 +33,6 @@ void time_step(
     int j, 
     long nel, 
     const double *restrict step_factors, 
-    const double *restrict volumes, 
     double *restrict fluxes, 
     const double *restrict old_variables, 
     double *restrict variables);
@@ -57,7 +55,6 @@ inline void initialize_variables(
 }
 
 inline void compute_flux_contribution(
-    double density, 
     double3 momentum, 
     double density_energy, 
     double pressure, 
@@ -116,7 +113,6 @@ inline void initialize_far_field_conditions(
     ff_momentum.y = ff_variable[VAR_MOMENTUMY];
     ff_momentum.z = ff_variable[VAR_MOMENTUMZ];
     compute_flux_contribution(
-        ff_variable[VAR_DENSITY], 
         ff_momentum, 
         ff_variable[VAR_DENSITY_ENERGY], 
         ff_pressure, 

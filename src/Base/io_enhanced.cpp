@@ -125,7 +125,6 @@ void duplicate_mesh(
     long num_boundary_edges_duplicated = m*(*num_boundary_edges);
     long num_wall_edges_duplicated     = m*(*num_wall_edges);
 
-    long internal_edges_start_duplicated = 0;
     long boundary_edges_start_duplicated = (*boundary_edges_start)*m;
     long wall_edges_start_duplicated     = (*wall_edges_start)*m;
 
@@ -742,7 +741,6 @@ void dump_flux(
         exit(EXIT_FAILURE);
     }
 
-    long chunk_start = 0;
     long chunk_size = nel;
     for (long i=0; i<chunk_size; i++) {
         const long p_idx = i*NVAR + VAR_DENSITY;

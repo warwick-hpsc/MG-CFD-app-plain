@@ -42,7 +42,6 @@ double3 ff_flux_contribution_momentum_z;
 double3 ff_flux_contribution_density_energy;
 
 void clean_level(
-    long nel, 
     double* restrict volumes, 
     double* restrict variables, 
     double* restrict old_variables, 
@@ -374,7 +373,6 @@ int main(int argc, char** argv)
     double loop_start_time = omp_get_wtime();
     level = 0;
     int mg_direction = MG_UP;
-    int edge_offset = 0;
     for (int i=0; i<cycles;)
     {
         log("LEVEL %d\n", level);
@@ -468,7 +466,6 @@ int main(int argc, char** argv)
                     internal_edge_starts[level],
                     num_internal_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
 
@@ -476,7 +473,6 @@ int main(int argc, char** argv)
                     boundary_edge_starts[level],
                     num_boundary_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
 
@@ -484,7 +480,6 @@ int main(int argc, char** argv)
                     wall_edge_starts[level],
                     num_wall_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
             #endif
@@ -492,7 +487,6 @@ int main(int argc, char** argv)
             time_step(
                 j, nel[level], 
                 step_factors[level], 
-                volumes[level], 
                 fluxes[level], 
                 old_variables[level], 
                 variables[level]);
@@ -572,65 +566,50 @@ int main(int argc, char** argv)
                 {
                     level--;
 
-                    // down() generates NaN's after 3 MG cycles
+                    // // down() generates NaN's after 3 MG cycles
                     // down(
                     //     variables[level+1], 
-                    //     nel[level+1], 
                     //     variables[level], 
-                    //     nel[level], 
                     //     mg_connectivity[level], 
                     //     mg_connectivity_size[level], 
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // down_interpolate() generates NaN's after 33 MG cycles
+                    // // down_interpolate() generates NaN's after 33 MG cycles
                     // down_interpolate(
                     //     variables[level+1], 
                     //     nel[level+1], 
                     //     variables[level], 
-                    //     nel[level], 
                     //     mg_connectivity[level], 
                     //     mg_connectivity_size[level], 
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // down_residuals() generates NaN's after 1 MG cycles
+                    // // down_residuals() generates NaN's after 1 MG cycles
                     // #ifdef UP_RESIDUAL
                     //     if (level == 0) {
                     //         down_residuals(
                     //             variables[level+1], 
-                    //             nel[level+1], 
                     //             variables[level], 
                     //             residuals[level], 
-                    //             nel[level], 
                     //             mg_connectivity[level], 
-                    //             mg_connectivity_size[level], 
-                    //             coords[level+1], 
-                    //             coords[level]);
+                    //             mg_connectivity_size[level]);
                     //     } 
                     //     else {
                     //         down_residuals(
                     //             variables[level+1], 
-                    //             nel[level+1], 
                     //             residuals[level], 
                     //             residuals[level], 
-                    //             nel[level], 
                     //             mg_connectivity[level], 
-                    //             mg_connectivity_size[level], 
-                    //             coords[level+1], 
-                    //             coords[level]);
+                    //             mg_connectivity_size[level]);
                     //     }
                     // #else
                     //     down_residuals(
                     //         residuals[level+1], 
-                    //         nel[level+1], 
                     //         variables[level], 
                     //         residuals[level], 
-                    //         nel[level], 
                     //         mg_connectivity[level], 
-                    //         mg_connectivity_size[level], 
-                    //         coords[level+1], 
-                    //         coords[level]);
+                    //         mg_connectivity_size[level]);
                     // #endif
 
                     // #ifdef UP_RESIDUAL
@@ -640,7 +619,6 @@ int main(int argc, char** argv)
                     //             nel[level+1], 
                     //             residuals[level], 
                     //             variables[level], 
-                    //             nel[level], 
                     //             mg_connectivity[level], 
                     //             mg_connectivity_size[level], 
                     //             coords[level+1], 
@@ -652,7 +630,6 @@ int main(int argc, char** argv)
                     //             nel[level+1], 
                     //             variables[level], 
                     //             variables[level], 
-                    //             nel[level], 
                     //             mg_connectivity[level], 
                     //             mg_connectivity_size[level], 
                     //             coords[level+1], 
@@ -664,7 +641,6 @@ int main(int argc, char** argv)
                     //         nel[level+1], 
                     //         residuals[level], 
                     //         variables[level], 
-                    //         nel[level], 
                     //         mg_connectivity[level], 
                     //         mg_connectivity_size[level], 
                     //         coords[level+1], 
@@ -681,7 +657,6 @@ int main(int argc, char** argv)
                                 variables[level], 
                                 nel[level], 
                                 mg_connectivity[level], 
-                                mg_connectivity_size[level], 
                                 coords[level+1], 
                                 coords[level]);
                         } 
@@ -694,7 +669,6 @@ int main(int argc, char** argv)
                                 variables[level], 
                                 nel[level], 
                                 mg_connectivity[level], 
-                                mg_connectivity_size[level], 
                                 coords[level+1], 
                                 coords[level]);
                         }
@@ -707,7 +681,6 @@ int main(int argc, char** argv)
                             variables[level], 
                             nel[level], 
                             mg_connectivity[level], 
-                            mg_connectivity_size[level], 
                             coords[level+1], 
                             coords[level]);
                     #endif
@@ -822,7 +795,7 @@ int main(int argc, char** argv)
     log("Cleaning memory");
     for(int i = 0; i < levels; i++)
     {
-        clean_level(nel[i], volumes[i], 
+        clean_level(volumes[i], 
             variables[i], old_variables[i],
             fluxes[i], step_factors[i], edges[i],
             edge_variables[i],

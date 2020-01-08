@@ -111,7 +111,7 @@ void load_papi_events()
         std::string line;
         std::ifstream file_if(conf.papi_config_file);
         if(!file_if.is_open()) {
-            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         while(std::getline(file_if, line))
@@ -178,7 +178,7 @@ void load_papi_events()
             }
         }
         if (file_if.bad()) {
-            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         log("Finished parsing PAPI file");
