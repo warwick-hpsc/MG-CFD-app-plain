@@ -203,6 +203,8 @@ void load_papi_events()
     #endif
     for (int tid=0; tid<num_threads; tid++) {
         int n = num_thread_events[tid];
+        if (n == 0)
+            continue;
 
         compute_step_kernel_event_counts.at(tid).resize(n*levels);
         compute_flux_edge_kernel_event_counts.at(tid).resize(n*levels);
@@ -257,6 +259,7 @@ void start_papi()
         const int tid = 0;
     #endif
 
+    if (event_sets[tid] == PAPI_NULL) return;
     if (PAPI_start(event_sets[tid]) != PAPI_OK) {
         fprintf(stderr, "ERROR: Thread %d failed to start PAPI\n", tid);
         exit(EXIT_FAILURE);
@@ -273,6 +276,7 @@ void stop_papi()
         const int tid = 0;
     #endif
 
+    if (event_sets[tid] == PAPI_NULL) return;
     if (PAPI_stop(event_sets[tid], temp_count_stores[tid]) != PAPI_OK) {
         fprintf(stderr, "ERROR: Thread %d failed to stop PAPI\n", tid);
         exit(EXIT_FAILURE);
