@@ -20,7 +20,6 @@
 //************************************************//
 
 #include <stdlib.h>
-#include <cmath>
 
 #include "mg_loops.h"
 
