@@ -20,7 +20,6 @@
 //************************************************//
 
 #include <stdlib.h>
-#include <cmath>
 
 #include "mg_loops.h"
 
@@ -193,9 +192,7 @@ void up(
 
 void down(
     double *restrict variables1, 
-    long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -269,18 +266,13 @@ void down(
 
 void down_residuals(
     double *restrict residuals1, 
-    long nel1, 
-    // double *restrict variables2, 
-    // double *restrict residuals2, 
-    // Depending on MG configuration, variables2 and residuals2
-    // may point to the same array.
+    // Depending on MG configuration variables2 and residuals2
+    // may point to the same array, so cannot use 'restrict' 
+    // qualifier:
     double *variables2, 
     double *residuals2, 
-    long nel2, 
     long *restrict mapping, 
-    long mgc, 
-    double3 *restrict coords1, 
-    double3 *restrict coords2)
+    long mgc)
 {
     log("down_residuals()");
     current_kernel = DOWN;
@@ -307,12 +299,6 @@ void down_residuals(
     {
         const long p1 = mapping[i];
         
-        //1. Calculate dx, dy, dz, dm
-        double dx = fabs(coords2[i].x - coords1[p1].x);
-        double dy = fabs(coords2[i].y - coords1[p1].y);
-        double dz = fabs(coords2[i].z - coords1[p1].z);
-        double dm = sqrt(dx*dx + dy*dy + dz*dz);
-
         const long p_idx2  = NVAR*i + VAR_DENSITY;
         const long mx_idx2 = NVAR*i + VAR_MOMENTUMX;
         const long my_idx2 = NVAR*i + VAR_MOMENTUMY;
@@ -348,7 +334,6 @@ void down_interpolate(
     double *restrict variables1, 
     long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -412,7 +397,7 @@ void down_interpolate(
         double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
         double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
 
-        double dm_sum = dm + dm_a + dm_b;
+        // double dm_sum = dm + dm_a + dm_b;
 
         double p2_factor, p2a_factor, p2b_factor, w_sum;
         if (dm == 0.0) {
@@ -501,7 +486,6 @@ void down_residuals_interpolate_crude(
     long nel1, 
     double *restrict residuals2,
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -566,7 +550,7 @@ void down_residuals_interpolate_crude(
         double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
         double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
 
-        double dm_sum = dm + dm_a + dm_b;
+        // double dm_sum = dm + dm_a + dm_b;
 
         double p2_factor, p2a_factor, p2b_factor, w_sum;
         if (dm == 0.0) {
@@ -692,7 +676,6 @@ void down_residuals_interpolate_proper(
     double *restrict variables2, 
     long nel2,
     long *restrict mapping, 
-    long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {

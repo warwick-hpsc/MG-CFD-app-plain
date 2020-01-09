@@ -69,7 +69,7 @@ double pressure_b = compute_pressure(p_b, pe_b, speed_sqd_b);
 #else
     double speed_of_sound_b = compute_speed_of_sound(p_b, pressure_b);
 #endif
-compute_flux_contribution(p_b, momentum_b, pe_b,
+compute_flux_contribution(momentum_b, pe_b,
                           pressure_b, velocity_b, 
                           flux_contribution_i_momentum_x_b,
                           flux_contribution_i_momentum_y_b,
@@ -120,7 +120,7 @@ double pressure_a = compute_pressure(p_a, pe_a, speed_sqd_a);
     double speed_of_sound_a = compute_speed_of_sound(p_a, pressure_a);
 #endif
 
-compute_flux_contribution(p_a, momentum_a, pe_a,
+compute_flux_contribution(momentum_a, pe_a,
                         pressure_a, velocity_a, 
                         flux_contribution_i_momentum_x_a,
                         flux_contribution_i_momentum_y_a,

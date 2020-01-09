@@ -54,6 +54,14 @@ else ifeq ($(COMPILER),intel)
 	INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=all -qopt-report=5
 	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
 
+	# ## Enable all warnings, and treat as errors, to help cleanup code:
+	# WARNINGS := -Wall -Wunused-function -Wunused-parameter -Werror
+	# ## ... except for when I explicitly disable SIMD:
+	# 	# Diagnostic code 15552 is: error #15552: loop was not vectorized with "simd"
+	# 	# This warning can be ignored, as it only appears when simd is explicitly blocked 
+	# 	# with a pragma: #pragma omp simd safelen(1)
+	# WARNINGS += -diag-disable=15552
+
 	HOST_EXEC_TARGET = -xHost
 	CPU_SSE41_EXEC_TARGET = -xSSE4.1
 	CPU_SSE42_EXEC_TARGET = -xSSE4.2

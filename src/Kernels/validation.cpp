@@ -19,7 +19,6 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //************************************************//
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -147,24 +146,24 @@ void check_for_invalid_variables(
 
             if (isnan(variables[idx]) || isinf(variables[idx])) {
                 printf("\nERROR: NaN detected!");
-                printf("\nCell %d: d  = %.4e", i, variables[i*NVAR + 0]);
-                printf("\nCell %d: mx = %.4e", i, variables[i*NVAR + 1]);
-                printf("\nCell %d: my = %.4e", i, variables[i*NVAR + 2]);
-                printf("\nCell %d: mz = %.4e", i, variables[i*NVAR + 3]);
-                printf("\nCell %d: de = %.4e", i, variables[i*NVAR + 4]);
+                printf("\nCell %ld: d  = %.4e", i, variables[i*NVAR + 0]);
+                printf("\nCell %ld: mx = %.4e", i, variables[i*NVAR + 1]);
+                printf("\nCell %ld: my = %.4e", i, variables[i*NVAR + 2]);
+                printf("\nCell %ld: mz = %.4e", i, variables[i*NVAR + 3]);
+                printf("\nCell %ld: de = %.4e", i, variables[i*NVAR + 4]);
                 exit(EXIT_FAILURE);
             }
         }
 
         if (variables[i*NVAR + VAR_DENSITY] < 0.0) {
             printf("\nERROR: Negative density detected!");
-            printf("\nCell %d: d  = %.4e", i, variables[i*NVAR + VAR_DENSITY]);
+            printf("\nCell %ld: d  = %.4e", i, variables[i*NVAR + VAR_DENSITY]);
             exit(EXIT_FAILURE);
         }
 
         if (variables[i*NVAR + VAR_DENSITY_ENERGY] < 0.0) {
             printf("\nERROR: Negative density.energy detected!");
-            printf("\nCell %d: de  = %.4e", i, variables[i*NVAR + VAR_DENSITY_ENERGY]);
+            printf("\nCell %ld: de  = %.4e", i, variables[i*NVAR + VAR_DENSITY_ENERGY]);
             exit(EXIT_FAILURE);
         }
     }
@@ -222,7 +221,7 @@ void identify_differences(
             }
 
             if (diff > acceptable_difference) {
-                printf("ERROR: Unacceptable error detected at (i=%d, v=%d)\n", i, v);
+                printf("ERROR: Unacceptable error detected at (i=%ld, v=%d)\n", i, v);
                 // printf("       - incorrect value = %.17f\n", test_values[idx]);
                 // printf("       - correct value =   %.17f\n", master_values[idx]);
                 // printf("       - diff          =   %.17f\n", diff);

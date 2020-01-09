@@ -111,7 +111,7 @@ void load_papi_events()
         std::string line;
         std::ifstream file_if(conf.papi_config_file);
         if(!file_if.is_open()) {
-            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         while(std::getline(file_if, line))
@@ -178,7 +178,7 @@ void load_papi_events()
             }
         }
         if (file_if.bad()) {
-            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         log("Finished parsing PAPI file");
@@ -363,7 +363,6 @@ void dump_papi_counters_to_file(int size)
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -374,7 +373,7 @@ void dump_papi_counters_to_file(int size)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     int num_events = num_thread_events[tid];

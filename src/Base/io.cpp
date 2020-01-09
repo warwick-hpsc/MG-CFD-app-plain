@@ -143,7 +143,7 @@ void read_grid(
     dealloc<long*>(point_neighbours);
 
     if (edge_count != *number_of_edges) {
-        printf("WARNING: Mesh claims to have %d edges, actually has %d\n", *number_of_edges, edge_count);
+        printf("WARNING: Mesh claims to have %ld edges, actually has %ld\n", *number_of_edges, edge_count);
     }
 
     *internal_edges_start = 0;

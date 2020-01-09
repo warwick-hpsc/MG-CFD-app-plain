@@ -149,7 +149,6 @@ void dump_timers_to_file(int size, double total_time)
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -160,7 +159,7 @@ void dump_timers_to_file(int size, double total_time)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     std::ostringstream data_line;

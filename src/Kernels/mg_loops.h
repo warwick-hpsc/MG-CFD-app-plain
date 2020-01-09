@@ -34,9 +34,7 @@ void up(
 
 void down(
     double *restrict variables1, 
-    long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -44,24 +42,18 @@ void down(
 
 void down_residuals(
     double *restrict residuals1, 
-    long nel1, 
-    // double *restrict variables2, 
-    // double *restrict residuals2, 
-    // Depending on MG configuration, variables2 and residuals2
-    // may point to the same array.
+    // Depending on MG configuration variables2 and residuals2
+    // may point to the same array, so cannot use 'restrict' 
+    // qualifier:
     double *variables2, 
     double *residuals2, 
-    long nel2, 
     long *restrict mapping, 
-    long mgc, 
-    double3 *restrict coords1, 
-    double3 *restrict coords2);
+    long mgc);
 
 void down_interpolate(
     double *restrict variables1, 
     long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -72,7 +64,6 @@ void down_residuals_interpolate_crude(
     long nel1, 
     double *restrict residuals2,
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
@@ -86,7 +77,6 @@ void down_residuals_interpolate_proper(
     double *restrict variables2, 
     long nel2,
     long *restrict mapping, 
-    long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 
