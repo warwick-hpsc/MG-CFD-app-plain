@@ -82,12 +82,7 @@ inline void compute_flux_contribution(
     fc_density_energy.z = velocity.z*de_p;
 }
 
-inline void initialize_far_field_conditions(
-    double* ff_variable, 
-    double3& ff_flux_contribution_momentum_x, 
-    double3& ff_flux_contribution_momentum_y, 
-    double3& ff_flux_contribution_momentum_z, 
-    double3& ff_flux_contribution_density_energy)
+inline void initialize_far_field_conditions()
 {
     const double angle_of_attack = double(3.1415926535897931 / 180.0) * double(deg_angle_of_attack);
 

@@ -318,12 +318,7 @@ int main(int argc, char** argv)
     ///////////////////////////////////////////////////////////////////////////
     // Initialise:
     ///////////////////////////////////////////////////////////////////////////
-    initialize_far_field_conditions(
-        ff_variable, 
-        ff_flux_contribution_momentum_x,
-        ff_flux_contribution_momentum_y,
-        ff_flux_contribution_momentum_z,
-        ff_flux_contribution_density_energy);
+    initialize_far_field_conditions();
 
     long* up_scratch = alloc<long>(nel[0]);
     for (int i=0; i<levels; i++) {
