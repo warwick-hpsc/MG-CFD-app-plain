@@ -363,7 +363,6 @@ void dump_papi_counters_to_file(int size)
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -374,7 +373,7 @@ void dump_papi_counters_to_file(int size)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     int num_events = num_thread_events[tid];
