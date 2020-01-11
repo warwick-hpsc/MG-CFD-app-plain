@@ -16,7 +16,7 @@ void indirect_rw(
     #else
         double *restrict fluxes
         #ifdef COLOURED_CONFLICT_AVOIDANCE
-        , int serial_section_start
+        , long serial_section_start
         #endif
     #endif
     );

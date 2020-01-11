@@ -97,7 +97,7 @@ void compute_flux_edge(
     #else
         double *restrict fluxes
         #ifdef COLOURED_CONFLICT_AVOIDANCE
-        , int serial_section_start
+        , long serial_section_start
         #endif
     #endif
     )
@@ -140,13 +140,12 @@ void compute_flux_edge(
             #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
-                const int loop_start_orig = loop_start;
-                const int loop_end_orig = loop_end;
-                int v_start = loop_start;
-                int v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                const long loop_end_orig = loop_end;
+                long v_start = loop_start;
+                long v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
-                for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
+                for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     for (int x=0; x<NVAR; x++) {
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             fluxes_a[x][n] = 0.0;
@@ -173,7 +172,6 @@ void compute_flux_edge(
             #include "flux_kernel.elemfunc.c"
         #else
             compute_flux_edge_kernel(
-                edges[i].a, edges[i].b, 
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[i],
                 #endif
@@ -203,8 +201,8 @@ void compute_flux_edge(
             for (int x=0; x<NVAR; x++) {
                 #pragma omp simd safelen(1)
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
-                    int a = edges[v+n].a;
-                    int b = edges[v+n].b;
+                    long a = edges[v+n].a;
+                    long b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }
@@ -249,10 +247,9 @@ void compute_flux_edge(
         #endif
 
         #pragma omp simd safelen(1)
-        for (int i=loop_start; i<loop_end; i++)
+        for (long i=loop_start; i<loop_end; i++)
         {
             compute_flux_edge_kernel(
-                edges[i].a, edges[i].b,
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[i],
                 #endif
@@ -278,9 +275,9 @@ void compute_flux_edge(
         #ifdef MANUAL_CONFLICT_AVOIDANCE
             // Write out fluxes:
             #pragma omp simd safelen(1)
-            for (int i=loop_start; i<loop_end; i++) {
-                int a = edges[i].a;
-                int b = edges[i].b;
+            for (long i=loop_start; i<loop_end; i++) {
+                long a = edges[i].a;
+                long b = edges[i].b;
                 for (int x=0; x<NVAR; x++) {
                     fluxes[a*NVAR+x] += fluxes_a[x][i-loop_start];
                     fluxes[b*NVAR+x] += fluxes_b[x][i-loop_start];
@@ -310,7 +307,7 @@ void compute_flux_edge_crippled(
     #else
         double *restrict fluxes
         #ifdef COLOURED_CONFLICT_AVOIDANCE
-        , int serial_section_start
+        , long serial_section_start
         #endif
     #endif
     )
@@ -349,13 +346,13 @@ void compute_flux_edge_crippled(
             #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #elif defined MANUAL_CONFLICT_AVOIDANCE
-                const int loop_start_orig = loop_start;
-                const int loop_end_orig = loop_end;
-                int v_start = loop_start;
-                int v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+                const long loop_start_orig = loop_start;
+                const long loop_end_orig = loop_end;
+                long v_start = loop_start;
+                long v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
-                for (int v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
+                for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     for (int x=0; x<NVAR; x++) {
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             fluxes_a[x][n] = 0.0;
@@ -412,8 +409,8 @@ void compute_flux_edge_crippled(
             for (int x=0; x<NVAR; x++) {
                 #pragma omp simd safelen(1)
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
-                    int a = edges[v+n].a;
-                    int b = edges[v+n].b;
+                    long a = edges[v+n].a;
+                    long b = edges[v+n].b;
                     fluxes[a*NVAR+x] += fluxes_a[x][n];
                     fluxes[b*NVAR+x] += fluxes_b[x][n];
                 }
@@ -447,7 +444,7 @@ void compute_flux_edge_crippled(
         #endif
         
         #pragma omp simd safelen(1)
-        for (int i=loop_start; i<loop_end; i++)
+        for (long i=loop_start; i<loop_end; i++)
         {
             compute_flux_edge_kernel_crippled(
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
@@ -476,7 +473,7 @@ void compute_flux_edge_crippled(
         #ifdef MANUAL_CONFLICT_AVOIDANCE
             // Write out fluxes:
             #pragma omp simd safelen(1)
-            for (int i=loop_start; i<loop_end; i++) {
+            for (long i=loop_start; i<loop_end; i++) {
                 for (int v=0; v<NVAR; v++) {
                     fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-loop_start];
                     fluxes[edges[i].b*NVAR+v] += fluxes_b[v][i-loop_start];

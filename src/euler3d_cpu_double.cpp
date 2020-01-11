@@ -291,30 +291,21 @@ int main(int argc, char** argv)
                 0, 
                 num_internal_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
-                number_of_colours[i], 
-                nel[i], 
                 &internal_serial_section_starts[i]);
 
             BinEdgesIntoColouredVectorUnits(
                 boundary_edge_starts[i], 
                 boundary_edge_starts[i]+num_boundary_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
-                number_of_colours[i], 
-                nel[i], 
                 &boundary_serial_section_starts[i]);
 
             BinEdgesIntoColouredVectorUnits(
                 wall_edge_starts[i], 
                 wall_edge_starts[i]+num_wall_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
-                number_of_colours[i], 
-                nel[i], 
                 &wall_serial_section_starts[i]);
         }
     #elif defined BIN_COLOURED_CONTIGUOUS
@@ -327,30 +318,24 @@ int main(int argc, char** argv)
                 0, 
                 num_internal_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
                 number_of_colours[i], 
-                nel[i], 
                 &internal_serial_section_starts[i]);
 
             BinEdgesIntoContiguousColouredBlocks(
                 boundary_edge_starts[i], 
                 boundary_edge_starts[i]+num_boundary_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
                 number_of_colours[i], 
-                nel[i], 
                 &boundary_serial_section_starts[i]);
 
             BinEdgesIntoContiguousColouredBlocks(
                 wall_edge_starts[i], 
                 wall_edge_starts[i]+num_wall_edges[i]-1, 
                 edges[i], 
-                number_of_edges[i], 
                 edge_colours[i], 
                 number_of_colours[i], 
-                nel[i], 
                 &wall_serial_section_starts[i]);
         }
     #endif

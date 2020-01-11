@@ -12,17 +12,17 @@ bool validate_permutation(
 	for (long i=0; i<map_size; i++) {
 		long to_idx = permtab[i];
 		if (to_idx >= map_size) {
-			fprintf(stderr, "ERROR: permtab[%d] -> to_idx=%d is >= map_size=%d\n", i, to_idx, map_size);
+			fprintf(stderr, "ERROR: permtab[%ld] -> to_idx=%ld is >= map_size=%ld\n", i, to_idx, map_size);
 			success = false;
 			break;
 		}
 		if (to_idx < 0) {
-			fprintf(stderr, "ERROR: permtab[%d] -> to_idx=%d is < 0\n", i, to_idx);
+			fprintf(stderr, "ERROR: permtab[%ld] -> to_idx=%ld is < 0\n", i, to_idx);
 			success = false;
 			break;
 		}
 		if (post_permute_record[to_idx]) {
-			fprintf(stderr, "ERROR: Permtab maps %d to %d, but a previous item has already been mapped to that location\n", i, to_idx);
+			fprintf(stderr, "ERROR: Permtab maps %ld to %ld, but a previous item has already been mapped to that location\n", i, to_idx);
 			success = false;
 			break;
 		}
@@ -31,7 +31,7 @@ bool validate_permutation(
 	if (success) {
 		for (long i=0; i<map_size; i++) {
 			if (!post_permute_record[i]) {
-				fprintf(stderr, "ERROR: No item has been mapped to %d\n", i);
+				fprintf(stderr, "ERROR: No item has been mapped to %ld\n", i);
 				success = false;
 				break;
 			}
@@ -40,7 +40,7 @@ bool validate_permutation(
 	dealloc<bool>(post_permute_record);
 
 	if (!success) {
-		fprintf(stderr, "mapsize = %d\n", map_size);
+		fprintf(stderr, "mapsize = %ld\n", map_size);
 	}
 
 	return success;
@@ -51,10 +51,7 @@ void BinEdgesIntoColouredVectorUnits(
 	long estart, 
 	long eend,
 	edge_neighbour* edges, 
-	long nedges, 
 	int* edge_colours,
-	int ncolours, 
-	long nel,
 	long* serial_section_start)
 {
 	log("BinEdgesIntoColouredVectorUnits()");
@@ -153,10 +150,8 @@ void BinEdgesIntoContiguousColouredBlocks(
 	long estart, 
 	long eend,
 	edge_neighbour* edges, 
-	long nedges, 
 	int* edge_colours,
 	int ncolours, 
-	long nel,
 	long* serial_section_start)
 {
 	log("BinEdgesIntoContiguousColouredBlocks()");
@@ -172,7 +167,6 @@ void BinEdgesIntoContiguousColouredBlocks(
 
 	long next_edge = estart;
 	long vector_block[DBLS_PER_SIMD];
-	int vector_colour;
 	int vector_idx = 0;
 	for (int c=0; c<ncolours; c++) {
 		// Find an edge that has not been processed:

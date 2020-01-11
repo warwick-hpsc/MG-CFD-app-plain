@@ -35,15 +35,7 @@ void adjust_ewt(
 
     log("adjust_ewt()\n");
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for (long i=0; i<num_edges; i++) {
         long a = edges[i].a;
@@ -73,15 +65,7 @@ void dampen_ewt(
 {
     log("dampen_ewt()\n");
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for (long i=0; i<num_edges; i++) {
         edges[i].x *= damping_factor;
@@ -97,15 +81,7 @@ void residual(
     double *restrict residuals)
 {
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for (long i=0; i<(nel*NVAR); i++) {
         residuals[i] = variables[i] - old_variables[i];
@@ -119,10 +95,6 @@ double calc_rms(
     double rms = 0.0;
     #ifdef OMP
         #pragma omp parallel for reduction(+:rms)
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
     #endif
     for (long i=0; i<(nel*NVAR); i++) {
         rms += pow(residuals[i], 2);
@@ -136,11 +108,7 @@ void check_for_invalid_variables(
     const double *restrict variables,
     long n)
 {   
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=0; i<n; i++) {
-        #pragma omp simd safelen(1)
         for (int v=0; v<NVAR; v++) {
             const long idx = i*NVAR + v;
 
@@ -197,11 +165,7 @@ void identify_differences(
         absolute_threshold = 1.0e-15;
     }
 
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=0; i<n; i++) {
-        #pragma omp simd safelen(1)
         for (int v=0; v<NVAR; v++) {
             const long idx = i*NVAR + v;
 

@@ -8,3 +8,4 @@ void update_progress_bar(float percent);
 void stop_progress_bar();
 
 #endif
+

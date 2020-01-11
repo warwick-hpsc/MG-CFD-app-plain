@@ -34,9 +34,6 @@ void compute_step_factor_legacy(
     #ifdef TIME
     start_timer();
     #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=loop_start; i<loop_end; i++)
     {
         long p_idx  = NVAR*i + VAR_DENSITY;
@@ -98,9 +95,6 @@ void compute_step_factor(
     #ifdef TIME
     start_timer();
     #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=loop_start; i<loop_end; i++)
     {
         long p_idx  = NVAR*i + VAR_DENSITY;
@@ -144,10 +138,6 @@ void compute_step_factor(
     double min_dt = step_factors[0];
     #ifdef OMP
         #pragma omp parallel for reduction(min:min_dt)
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
     #endif
     for (long i=0; i<nel; i++)
     {
@@ -156,15 +146,7 @@ void compute_step_factor(
         }
     }
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for (long i=0; i<nel; i++)
     {
@@ -172,15 +154,7 @@ void compute_step_factor(
     }
     // Bring forward a division-by-volume performed by time_step():
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for (long i=0; i<nel; i++)
     {
@@ -212,9 +186,6 @@ void update_edges(
     #endif
     #ifdef TIME
     start_timer();
-    #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
     #endif
     for (long i=loop_start; i<loop_end; i++)
     {
@@ -273,9 +244,6 @@ void time_step(
     #ifdef TIME
     start_timer();
     #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for(long i=loop_start; i<loop_end; i++)
     {
         double factor = (step_factors[i]/double(RK+1-j));
@@ -324,15 +292,7 @@ void zero_fluxes(
     log("zero_fluxes()");
 
     #ifdef OMP
-        #ifndef SIMD
-            #pragma omp parallel for simd safelen(1)
-        #else
-            #pragma omp parallel for
-        #endif
-    #else
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp parallel for
     #endif
     for(long i=0; i<nel; i++)
     {

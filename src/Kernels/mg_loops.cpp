@@ -58,9 +58,6 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
-        #endif
         for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
@@ -105,9 +102,6 @@ void up(
         #endif
         #ifdef TIME
         start_timer();
-        #endif
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
         #endif
         for(long i=0; i<mgc; i++)
         {
@@ -156,9 +150,6 @@ void up(
         #endif
         #ifdef TIME
         start_timer();
-        #endif
-        #ifndef SIMD
-            #pragma omp simd safelen(1)
         #endif
         for(long i=loop_start; i<loop_end; i++)
         {
@@ -219,9 +210,6 @@ void down(
     #endif
     #ifdef TIME
     start_timer();
-    #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
     #endif
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -292,9 +280,6 @@ void down_residuals(
     #ifdef TIME
     start_timer();
     #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p1 = mapping[i];
@@ -356,9 +341,6 @@ void down_interpolate(
     #endif
     #ifdef TIME
     start_timer();
-    #endif    
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
     #endif
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -508,9 +490,6 @@ void down_residuals_interpolate_crude(
     #endif
     #ifdef TIME
     start_timer();
-    #endif    
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
     #endif
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -692,17 +671,11 @@ void down_residuals_interpolate_proper(
     current_kernel = DOWN;
 
     double* w_sums = alloc<double>(nel2);
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=0; i<nel2; i++) {
         w_sums[i] = 0.0;
     }
 
     double* res2_wavg = alloc<double>(nel2*NVAR);
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=0; i<nel2*NVAR; i++) {
         res2_wavg[i] = 0.0;
     }
@@ -715,9 +688,6 @@ void down_residuals_interpolate_proper(
     #endif
     #ifdef TIME
     start_timer();
-    #endif
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
     #endif
     for (long i=0; i<num_edges; i++) {
         const long a2 = edges[i].a;
@@ -811,9 +781,6 @@ void down_residuals_interpolate_proper(
     record_iters(0, num_edges);
 
     // Apply:
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
-    #endif
     for (long i=0; i<nel2; i++) {
         // Divide through by sum of weights:
         for (long j=0; j<NVAR; j++) {

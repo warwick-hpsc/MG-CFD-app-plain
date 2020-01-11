@@ -2,7 +2,6 @@
 // This code is from the AIAA-2009-4001 paper
 
 inline void compute_flux_edge_kernel(
-    int a, int b, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double ewt,
     #endif
@@ -70,7 +69,7 @@ inline void compute_flux_edge_kernel(
     #else
         double speed_of_sound_b = compute_speed_of_sound(p_b, pressure_b);
     #endif
-    compute_flux_contribution(p_b, momentum_b, pe_b,
+    compute_flux_contribution(momentum_b, pe_b,
                               pressure_b, velocity_b, 
                               flux_contribution_i_momentum_x_b,
                               flux_contribution_i_momentum_y_b,
@@ -121,7 +120,7 @@ inline void compute_flux_edge_kernel(
         double speed_of_sound_a = compute_speed_of_sound(p_a, pressure_a);
     #endif
 
-    compute_flux_contribution(p_a, momentum_a, pe_a,
+    compute_flux_contribution(momentum_a, pe_a,
                             pressure_a, velocity_a, 
                             flux_contribution_i_momentum_x_a,
                             flux_contribution_i_momentum_y_a,
