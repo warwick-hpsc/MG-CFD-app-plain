@@ -58,6 +58,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+
         for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
@@ -74,6 +75,7 @@ void up(
             variables2[mz_idx2] = 0.0;
             variables2[pe_idx2] = 0.0;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
@@ -111,6 +113,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+
         for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
@@ -135,6 +138,7 @@ void up(
 
             up_scratch[p2]++;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
@@ -163,6 +167,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+
         for(long i=loop_start; i<loop_end; i++)
         {
             double average = up_scratch[i]==0 ? 1.0 : 1.0 / (double)up_scratch[i];
@@ -179,6 +184,7 @@ void up(
             variables2[mz_idx2] *= average;
             variables2[pe_idx2] *= average;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
@@ -223,6 +229,7 @@ void down(
     #ifdef TIME
     start_timer();
     #endif
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p1 = mapping[i];
@@ -251,6 +258,7 @@ void down(
         variables2[mz_idx2] -= (variables1[mz_idx1] - variables2[mz_idx2])*dz;
         variables2[pe_idx2] -= (variables1[pe_idx1] - variables2[pe_idx2])*dm;
     }
+
     #ifdef TIME
     stop_timer();
     #endif
@@ -292,6 +300,7 @@ void down_residuals(
     #ifdef TIME
     start_timer();
     #endif
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p1 = mapping[i];
@@ -314,6 +323,7 @@ void down_residuals(
         variables2[mz_idx2] += (residuals2[mz_idx1] - residuals1[mz_idx2]);
         variables2[pe_idx2] += (residuals2[pe_idx1] - residuals1[pe_idx2]);
     }
+
     #ifdef TIME
     stop_timer();
     #endif
@@ -354,6 +364,7 @@ void down_interpolate(
     #ifdef TIME
     start_timer();
     #endif
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p2 = i;
@@ -462,6 +473,7 @@ void down_interpolate(
         variables2[mz_idx2] /= w_sum;
         variables2[pe_idx2] /= w_sum;
     }
+
     #ifdef TIME
     stop_timer();
     #endif
@@ -503,6 +515,7 @@ void down_residuals_interpolate_crude(
     #ifdef TIME
     start_timer();
     #endif
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p2 = i;
@@ -646,6 +659,7 @@ void down_residuals_interpolate_crude(
         variables2[mz_idx2] += residuals2[mz_idx2] - E[VAR_MOMENTUMZ];
         variables2[pe_idx2] += residuals2[pe_idx2] - E[VAR_DENSITY_ENERGY];
     }
+
     #ifdef TIME
     stop_timer();
     #endif
@@ -694,7 +708,7 @@ void down_residuals_interpolate_proper(
 
     // a1 and b1 belong to level above (L+1); a2 and b2 belong to level below (L)
 
-    // Perform the summing stage of weighted average:
+    // 1) Perform the summing stage of weighted average:
     long loop_start = 0;
     long loop_end = loop_start + num_edges;
     #if defined OMP && (defined OMP_SCATTERS)
@@ -709,6 +723,7 @@ void down_residuals_interpolate_proper(
     #ifdef TIME
     start_timer();
     #endif
+
     for (long i=loop_start; i<loop_end; i++) {
         const long a2 = edges[i].a;
         const long a1 = mapping[a2];
@@ -792,6 +807,7 @@ void down_residuals_interpolate_proper(
             w_sums[b2] += idist_a1b2;
         }
     }
+
     #ifdef TIME
     stop_timer();
     #endif
@@ -806,7 +822,7 @@ void down_residuals_interpolate_proper(
 
 
 
-    // Apply:
+    // 2) Perform the averaging stage, then apply:
     loop_start = 0;
     loop_end = nel2;
     #if defined OMP && (defined OMP_SCATTERS)
@@ -819,13 +835,6 @@ void down_residuals_interpolate_proper(
         // Divide through by sum of weights:
         for (long j=0; j<NVAR; j++) {
             res2_wavg[i*NVAR +j] /= w_sums[i];
-
-            // if (isnan(res2_wavg[i*NVAR +j])) {
-            //     fprintf(stderr, "ERROR: nan detected\n");
-            //     fprintf(stderr, "res2 = %.5e, w_sum = %.5e\n", res2_wavg[i*NVAR +j], w_sums[i]);
-            //     fprintf(stderr, "i = %d, j = %d\n", i, j);
-            //     exit(EXIT_FAILURE);
-            // }
 
             const long idx = NVAR*i + j;
             variables2[idx] += residuals2[idx] - res2_wavg[idx];
