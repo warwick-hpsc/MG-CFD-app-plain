@@ -58,6 +58,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
 
         for(long i=loop_start; i<loop_end; i++)
         {
@@ -113,6 +114,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
 
         for(long i=loop_start; i<loop_end; i++)
         {
@@ -167,6 +169,7 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
 
         for(long i=loop_start; i<loop_end; i++)
         {
@@ -191,7 +194,6 @@ void up(
         #ifdef PAPI
         stop_papi();
         #endif
-        record_iters(loop_start, loop_end);
 
         #ifdef OMP
         }
@@ -229,6 +231,7 @@ void down(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -265,7 +268,6 @@ void down(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
@@ -300,6 +302,7 @@ void down_residuals(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -330,7 +333,6 @@ void down_residuals(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
@@ -364,6 +366,7 @@ void down_interpolate(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -480,7 +483,6 @@ void down_interpolate(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
@@ -515,6 +517,7 @@ void down_residuals_interpolate_crude(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     for(long i=loop_start; i<loop_end; i++)
     {
@@ -666,7 +669,6 @@ void down_residuals_interpolate_crude(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
@@ -723,6 +725,7 @@ void down_residuals_interpolate_proper(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
 
     for (long i=loop_start; i<loop_end; i++) {
         const long a2 = edges[i].a;
@@ -814,7 +817,6 @@ void down_residuals_interpolate_proper(
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(0, num_edges);
 
     #if defined OMP && (defined OMP_SCATTERS)
         }
@@ -831,6 +833,14 @@ void down_residuals_interpolate_proper(
             openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
 
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    record_iters(loop_start, loop_end);
+
     for (long i=loop_start; i<loop_end; i++) {
         // Divide through by sum of weights:
         for (long j=0; j<NVAR; j++) {
@@ -840,6 +850,13 @@ void down_residuals_interpolate_proper(
             variables2[idx] += residuals2[idx] - res2_wavg[idx];
         }
     }
+
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
 
     #if defined OMP && (defined OMP_SCATTERS)
         }
