@@ -97,13 +97,21 @@ void up(
 
     // Accumulate from level below:
     {
+        loop_start = 0;
+        loop_end = mgc;
+        #if defined OMP && defined OMP_SCATTERS
+            #pragma omp parallel firstprivate(loop_start, loop_end)
+            {
+                openmp_distribute_loop_iterations(&loop_start, &loop_end);
+        #endif
+
         #ifdef PAPI
         start_papi();
         #endif
         #ifdef TIME
         start_timer();
         #endif
-        for(long i=0; i<mgc; i++)
+        for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
 
@@ -132,6 +140,10 @@ void up(
         #endif
         #ifdef PAPI
         stop_papi();
+        #endif
+
+        #if defined OMP && defined OMP_SCATTERS
+        }
         #endif
     }
     
@@ -683,13 +695,21 @@ void down_residuals_interpolate_proper(
     // a1 and b1 belong to level above (L+1); a2 and b2 belong to level below (L)
 
     // Perform the summing stage of weighted average:
+    long loop_start = 0;
+    long loop_end = loop_start + num_edges;
+    #if defined OMP && (defined OMP_SCATTERS)
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
     #ifdef PAPI
     start_papi();
     #endif
     #ifdef TIME
     start_timer();
     #endif
-    for (long i=0; i<num_edges; i++) {
+    for (long i=loop_start; i<loop_end; i++) {
         const long a2 = edges[i].a;
         const long a1 = mapping[a2];
         const double3 ca1 = coords1[a1];
@@ -780,8 +800,22 @@ void down_residuals_interpolate_proper(
     #endif
     record_iters(0, num_edges);
 
+    #if defined OMP && (defined OMP_SCATTERS)
+        }
+    #endif
+
+
+
     // Apply:
-    for (long i=0; i<nel2; i++) {
+    loop_start = 0;
+    loop_end = nel2;
+    #if defined OMP && (defined OMP_SCATTERS)
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    for (long i=loop_start; i<loop_end; i++) {
         // Divide through by sum of weights:
         for (long j=0; j<NVAR; j++) {
             res2_wavg[i*NVAR +j] /= w_sums[i];
@@ -797,4 +831,8 @@ void down_residuals_interpolate_proper(
             variables2[idx] += residuals2[idx] - res2_wavg[idx];
         }
     }
+
+    #if defined OMP && (defined OMP_SCATTERS)
+        }
+    #endif
 }
