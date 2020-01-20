@@ -27,7 +27,7 @@
 #include "timer.h"
 #include "loop_stats.h"
 
-void up(
+void mg_restrict(
     double *restrict variables1, 
     double *restrict variables2, 
     long nel2, 
@@ -35,8 +35,8 @@ void up(
     long *restrict up_scratch, 
     long mgc)
 {
-    log("up()");
-    current_kernel = UP;
+    log("restrict()");
+    current_kernel = RESTRICT;
 
     long loop_start, loop_end;
 
@@ -201,7 +201,7 @@ void up(
     }
 }
 
-void down(
+void prolong(
     double *restrict variables1, 
     double *restrict variables2, 
     long *restrict mapping, 
@@ -209,12 +209,12 @@ void down(
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    // This is the original 'up' operator added by my predecessor. 
+    // This is the original 'prolong' operator added by my predecessor. 
     // I think it is mathematically flawed, quickly corrupting the solution.
     // Attempts to fix are made in later functions.
 
-    log("down()");
-    current_kernel = DOWN;
+    log("prolong()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -274,7 +274,7 @@ void down(
     #endif
 }
 
-void down_residuals(
+void prolong_residuals(
     double *restrict residuals1, 
     // Depending on MG configuration variables2 and residuals2
     // may point to the same array, so cannot use 'restrict' 
@@ -284,8 +284,8 @@ void down_residuals(
     long *restrict mapping, 
     long mgc)
 {
-    log("down_residuals()");
-    current_kernel = DOWN;
+    log("prolong_residuals()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -339,7 +339,7 @@ void down_residuals(
     #endif
 }
 
-void down_interpolate(
+void prolong_interpolate(
     double *restrict variables1, 
     long nel1, 
     double *restrict variables2, 
@@ -348,8 +348,8 @@ void down_interpolate(
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    log("down_interpolate()");
-    current_kernel = DOWN;
+    log("prolong_interpolate()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -489,7 +489,7 @@ void down_interpolate(
     #endif
 }
 
-void down_residuals_interpolate_crude(
+void prolong_residuals_interpolate_crude(
     double *restrict residuals1, 
     long nel1, 
     double *restrict residuals2,
@@ -499,8 +499,8 @@ void down_residuals_interpolate_crude(
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    log("down_residuals_interpolate_crude()");
-    current_kernel = DOWN;
+    log("prolong_residuals_interpolate_crude()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -675,7 +675,7 @@ void down_residuals_interpolate_crude(
     #endif
 }
 
-void down_residuals_interpolate_proper(
+void prolong_residuals_interpolate_proper(
     edge_neighbour *edges,
     long num_edges,
     double *restrict residuals1, 
@@ -695,8 +695,8 @@ void down_residuals_interpolate_proper(
     // across N's MG node and MG nodes of N's neighbours, requiring an 
     // edge-based loop. The weight is 1.0/distance.
 
-    log("down_residuals_interpolate_proper()");
-    current_kernel = DOWN;
+    log("prolong_residuals_interpolate_proper()");
+    current_kernel = PROLONG;
 
     double* w_sums = alloc<double>(nel2);
     for (long i=0; i<nel2; i++) {
