@@ -95,10 +95,10 @@ void stop_timer()
     else if (current_kernel == TIME_STEP) {
         time_step_kernel_times[tid][level] += duration;
     }
-    else if (current_kernel == UP) {
+    else if (current_kernel == RESTRICT) {
         up_kernel_times[tid][level] += duration;
     }
-    else if (current_kernel == DOWN) {
+    else if (current_kernel == PROLONG) {
         down_kernel_times[tid][level] += duration;
     }
 }
