@@ -33,8 +33,8 @@
 #define UPDATE 2
 #define INDIRECT_RW 3
 #define TIME_STEP 4
-#define UP 5
-#define DOWN 6
+#define RESTRICT 5
+#define PROLONG 6
 #define NUM_KERNELS (DOWN+1)
 
 #define MESH_FVCORR 0

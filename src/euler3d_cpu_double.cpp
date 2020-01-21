@@ -529,27 +529,27 @@ int main(int argc, char** argv)
                     level++;
                     #ifdef UP_RESIDUALS
                         if (level == 1) {
-                            up(residuals[level-1], 
-                               variables[level], 
-                               nel[level], 
-                               mg_connectivity[level-1], 
-                               up_scratch, 
-                               mg_connectivity_size[level-1]);
+                            mg_restrict(residuals[level-1], 
+                                        variables[level], 
+                                        nel[level], 
+                                        mg_connectivity[level-1], 
+                                        up_scratch, 
+                                        mg_connectivity_size[level-1]);
                         } else {
-                            up(variables[level-1], 
-                               variables[level], 
-                               nel[level], 
-                               mg_connectivity[level-1], 
-                               up_scratch, 
-                               mg_connectivity_size[level-1]);
+                            mg_restrict(variables[level-1], 
+                                        variables[level], 
+                                        nel[level], 
+                                        mg_connectivity[level-1], 
+                                        up_scratch, 
+                                        mg_connectivity_size[level-1]);
                         }
                     #else
-                        up(variables[level-1], 
-                           variables[level], 
-                           nel[level], 
-                           mg_connectivity[level-1], 
-                           up_scratch, 
-                           mg_connectivity_size[level-1]);
+                        mg_restrict(variables[level-1], 
+                                    variables[level], 
+                                    nel[level], 
+                                    mg_connectivity[level-1], 
+                                    up_scratch, 
+                                    mg_connectivity_size[level-1]);
                     #endif
 
                     if(level == (levels-1))
@@ -561,8 +561,8 @@ int main(int argc, char** argv)
                 {
                     level--;
 
-                    // // down() generates NaN's after 3 MG cycles
-                    // down(
+                    // // prolong() generates NaN's after 3 MG cycles
+                    // prolong(
                     //     variables[level+1], 
                     //     variables[level], 
                     //     mg_connectivity[level], 
@@ -570,8 +570,8 @@ int main(int argc, char** argv)
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // // down_interpolate() generates NaN's after 33 MG cycles
-                    // down_interpolate(
+                    // // prolong_interpolate() generates NaN's after 33 MG cycles
+                    // prolong_interpolate(
                     //     variables[level+1], 
                     //     nel[level+1], 
                     //     variables[level], 
@@ -580,10 +580,10 @@ int main(int argc, char** argv)
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // // down_residuals() generates NaN's after 1 MG cycles
+                    // // prolong_residuals() generates NaN's after 1 MG cycles
                     // #ifdef UP_RESIDUAL
                     //     if (level == 0) {
-                    //         down_residuals(
+                    //         prolong_residuals(
                     //             variables[level+1], 
                     //             variables[level], 
                     //             residuals[level], 
@@ -591,7 +591,7 @@ int main(int argc, char** argv)
                     //             mg_connectivity_size[level]);
                     //     } 
                     //     else {
-                    //         down_residuals(
+                    //         prolong_residuals(
                     //             variables[level+1], 
                     //             residuals[level], 
                     //             residuals[level], 
@@ -599,7 +599,7 @@ int main(int argc, char** argv)
                     //             mg_connectivity_size[level]);
                     //     }
                     // #else
-                    //     down_residuals(
+                    //     prolong_residuals(
                     //         residuals[level+1], 
                     //         variables[level], 
                     //         residuals[level], 
@@ -609,7 +609,7 @@ int main(int argc, char** argv)
 
                     // #ifdef UP_RESIDUAL
                     //     if (level == 0) {
-                    //         down_residuals_interpolate_crude(
+                    //         prolong_residuals_interpolate_crude(
                     //             variables[level+1], 
                     //             nel[level+1], 
                     //             residuals[level], 
@@ -620,7 +620,7 @@ int main(int argc, char** argv)
                     //             coords[level]);
                     //     } 
                     //     else {
-                    //         down_residuals_interpolate_crude(
+                    //         prolong_residuals_interpolate_crude(
                     //             variables[level+1], 
                     //             nel[level+1], 
                     //             variables[level], 
@@ -631,7 +631,7 @@ int main(int argc, char** argv)
                     //             coords[level]);
                     //     }
                     // #else
-                    //     down_residuals_interpolate_crude(
+                    //     prolong_residuals_interpolate_crude(
                     //         residuals[level+1], 
                     //         nel[level+1], 
                     //         residuals[level], 
@@ -644,7 +644,7 @@ int main(int argc, char** argv)
 
                     #ifdef UP_RESIDUAL
                         if (level == 0) {
-                            down_residuals_interpolate_proper(
+                            prolong_residuals_interpolate_proper(
                                 edges[level], 
                                 num_internal_edges[level],
                                 variables[level+1], 
@@ -656,7 +656,7 @@ int main(int argc, char** argv)
                                 coords[level]);
                         } 
                         else {
-                            down_residuals_interpolate_proper(
+                            prolong_residuals_interpolate_proper(
                                 edges[level], 
                                 num_internal_edges[level],
                                 variables[level+1], 
@@ -668,7 +668,7 @@ int main(int argc, char** argv)
                                 coords[level]);
                         }
                     #else
-                        down_residuals_interpolate_proper(
+                        prolong_residuals_interpolate_proper(
                             edges[level], 
                             num_internal_edges[level],
                             residuals[level+1], 

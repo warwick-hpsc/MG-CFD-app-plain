@@ -72,10 +72,10 @@ void record_iters(long loop_start, long loop_end)
     else if (current_kernel == TIME_STEP) {
         time_step_kernel_niters[tid][level] += niters;
     }
-    else if (current_kernel == UP) {
+    else if (current_kernel == RESTRICT) {
         up_kernel_niters[tid][level] += niters;
     }
-    else if (current_kernel == DOWN) {
+    else if (current_kernel == PROLONG) {
         down_kernel_niters[tid][level] += niters;
     }
 }
