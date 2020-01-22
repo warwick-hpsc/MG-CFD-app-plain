@@ -25,17 +25,17 @@
  
 #define NVAR (VAR_DENSITY_ENERGY+1)
 
-#define MG_UP 0
-#define MG_DOWN 1
+#define MG_RESTRICT 0
+#define MG_PROLONG 1
 
 #define COMPUTE_STEP 0
 #define COMPUTE_FLUX_EDGE 1
 #define UPDATE 2
 #define INDIRECT_RW 3
 #define TIME_STEP 4
-#define UP 5
-#define DOWN 6
-#define NUM_KERNELS (DOWN+1)
+#define RESTRICT 5
+#define PROLONG 6
+#define NUM_KERNELS (PROLONG+1)
 
 #define MESH_FVCORR 0
 #define MESH_M6_WING 2
