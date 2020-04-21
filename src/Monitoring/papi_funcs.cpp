@@ -19,8 +19,8 @@ std::vector<std::vector<long_long> > compute_flux_edge_kernel_event_counts;
 std::vector<std::vector<long_long> > update_kernel_event_counts;
 std::vector<std::vector<long_long> > indirect_rw_kernel_event_counts;
 std::vector<std::vector<long_long> > time_step_kernel_event_counts;
-std::vector<std::vector<long_long> > up_kernel_event_counts;
-std::vector<std::vector<long_long> > down_kernel_event_counts;
+std::vector<std::vector<long_long> > restrict_kernel_event_counts;
+std::vector<std::vector<long_long> > prolong_kernel_event_counts;
 
 std::vector<long_long*> temp_count_stores;
 
@@ -47,8 +47,8 @@ void init_papi()
     update_kernel_event_counts.resize(num_threads);
     indirect_rw_kernel_event_counts.resize(num_threads);
     time_step_kernel_event_counts.resize(num_threads);
-    up_kernel_event_counts.resize(num_threads);
-    down_kernel_event_counts.resize(num_threads);
+    restrict_kernel_event_counts.resize(num_threads);
+    prolong_kernel_event_counts.resize(num_threads);
 
     temp_count_stores.resize(num_threads);
 
@@ -111,7 +111,7 @@ void load_papi_events()
         std::string line;
         std::ifstream file_if(conf.papi_config_file);
         if(!file_if.is_open()) {
-            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         while(std::getline(file_if, line))
@@ -178,7 +178,7 @@ void load_papi_events()
             }
         }
         if (file_if.bad()) {
-            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         log("Finished parsing PAPI file");
@@ -209,8 +209,8 @@ void load_papi_events()
         update_kernel_event_counts.at(tid).resize(n*levels);
         indirect_rw_kernel_event_counts.at(tid).resize(n*levels);
         time_step_kernel_event_counts.at(tid).resize(n*levels);
-        up_kernel_event_counts.at(tid).resize(n*levels);
-        down_kernel_event_counts.at(tid).resize(n*levels);
+        restrict_kernel_event_counts.at(tid).resize(n*levels);
+        prolong_kernel_event_counts.at(tid).resize(n*levels);
 
         temp_count_stores.at(tid) = alloc<long_long>(n*levels);
 
@@ -304,14 +304,14 @@ void stop_papi()
             time_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
-    else if (current_kernel == UP) {
+    else if (current_kernel == RESTRICT) {
         for (int e=0; e<num_events; e++) {
-            up_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
+            restrict_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
-    else if (current_kernel == DOWN) {
+    else if (current_kernel == PROLONG) {
         for (int e=0; e<num_events; e++) {
-            down_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
+            prolong_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
 }
@@ -356,14 +356,13 @@ void dump_papi_counters_to_file(int size)
             header << "update" << l << "," ;
             header << "compute_step" << l << "," ;
             header << "time_step" << l << "," ;
-            header << "up" << l << "," ;
-            header << "down" << l << "," ;
+            header << "restrict" << l << "," ;
+            header << "prolong" << l << "," ;
             header << "indirect_rw" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -374,7 +373,7 @@ void dump_papi_counters_to_file(int size)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     int num_events = num_thread_events[tid];
@@ -401,8 +400,8 @@ void dump_papi_counters_to_file(int size)
             event_data_line << update_kernel_event_counts[tid][idx] << ',';
             event_data_line << compute_step_kernel_event_counts[tid][idx] << ',';
             event_data_line << time_step_kernel_event_counts[tid][idx] << ',';
-            event_data_line << up_kernel_event_counts[tid][idx] << ',';
-            event_data_line << down_kernel_event_counts[tid][idx] << ',';
+            event_data_line << restrict_kernel_event_counts[tid][idx] << ',';
+            event_data_line << prolong_kernel_event_counts[tid][idx] << ',';
             event_data_line << indirect_rw_kernel_event_counts[tid][idx] << ',';
         }
         

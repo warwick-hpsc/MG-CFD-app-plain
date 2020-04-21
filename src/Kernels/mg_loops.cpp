@@ -20,7 +20,6 @@
 //************************************************//
 
 #include <stdlib.h>
-#include <cmath>
 
 #include "mg_loops.h"
 
@@ -28,7 +27,7 @@
 #include "timer.h"
 #include "loop_stats.h"
 
-void up(
+void mg_restrict(
     double *restrict variables1, 
     double *restrict variables2, 
     long nel2, 
@@ -36,8 +35,8 @@ void up(
     long *restrict up_scratch, 
     long mgc)
 {
-    log("up()");
-    current_kernel = UP;
+    log("restrict()");
+    current_kernel = RESTRICT;
 
     long loop_start, loop_end;
 
@@ -59,6 +58,8 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
+
         for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
@@ -75,6 +76,7 @@ void up(
             variables2[mz_idx2] = 0.0;
             variables2[pe_idx2] = 0.0;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
@@ -98,13 +100,23 @@ void up(
 
     // Accumulate from level below:
     {
+        loop_start = 0;
+        loop_end = mgc;
+        #if defined OMP && defined OMP_SCATTERS
+            #pragma omp parallel firstprivate(loop_start, loop_end)
+            {
+                openmp_distribute_loop_iterations(&loop_start, &loop_end);
+        #endif
+
         #ifdef PAPI
         start_papi();
         #endif
         #ifdef TIME
         start_timer();
         #endif
-        for(long i=0; i<mgc; i++)
+        record_iters(loop_start, loop_end);
+
+        for(long i=loop_start; i<loop_end; i++)
         {
             long p2 = mapping[i];
 
@@ -128,11 +140,16 @@ void up(
 
             up_scratch[p2]++;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
         #ifdef PAPI
         stop_papi();
+        #endif
+
+        #if defined OMP && defined OMP_SCATTERS
+        }
         #endif
     }
     
@@ -152,6 +169,8 @@ void up(
         #ifdef TIME
         start_timer();
         #endif
+        record_iters(loop_start, loop_end);
+
         for(long i=loop_start; i<loop_end; i++)
         {
             double average = up_scratch[i]==0 ? 1.0 : 1.0 / (double)up_scratch[i];
@@ -168,13 +187,13 @@ void up(
             variables2[mz_idx2] *= average;
             variables2[pe_idx2] *= average;
         }
+
         #ifdef TIME
         stop_timer();
         #endif
         #ifdef PAPI
         stop_papi();
         #endif
-        record_iters(loop_start, loop_end);
 
         #ifdef OMP
         }
@@ -182,22 +201,20 @@ void up(
     }
 }
 
-void down(
+void prolong(
     double *restrict variables1, 
-    long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    // This is the original 'up' operator added by my predecessor. 
+    // This is the original 'prolong' operator added by my predecessor. 
     // I think it is mathematically flawed, quickly corrupting the solution.
     // Attempts to fix are made in later functions.
 
-    log("down()");
-    current_kernel = DOWN;
+    log("prolong()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -214,6 +231,8 @@ void down(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p1 = mapping[i];
@@ -242,36 +261,31 @@ void down(
         variables2[mz_idx2] -= (variables1[mz_idx1] - variables2[mz_idx2])*dz;
         variables2[pe_idx2] -= (variables1[pe_idx1] - variables2[pe_idx2])*dm;
     }
+
     #ifdef TIME
     stop_timer();
     #endif
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
     #endif
 }
 
-void down_residuals(
+void prolong_residuals(
     double *restrict residuals1, 
-    long nel1, 
-    // double *restrict variables2, 
-    // double *restrict residuals2, 
-    // Depending on MG configuration, variables2 and residuals2
-    // may point to the same array.
+    // Depending on MG configuration variables2 and residuals2
+    // may point to the same array, so cannot use 'restrict' 
+    // qualifier:
     double *variables2, 
     double *residuals2, 
-    long nel2, 
     long *restrict mapping, 
-    long mgc, 
-    double3 *restrict coords1, 
-    double3 *restrict coords2)
+    long mgc)
 {
-    log("down_residuals()");
-    current_kernel = DOWN;
+    log("prolong_residuals()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -288,16 +302,12 @@ void down_residuals(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p1 = mapping[i];
         
-        //1. Calculate dx, dy, dz, dm
-        double dx = fabs(coords2[i].x - coords1[p1].x);
-        double dy = fabs(coords2[i].y - coords1[p1].y);
-        double dz = fabs(coords2[i].z - coords1[p1].z);
-        double dm = sqrt(dx*dx + dy*dy + dz*dz);
-
         const long p_idx2  = NVAR*i + VAR_DENSITY;
         const long mx_idx2 = NVAR*i + VAR_MOMENTUMX;
         const long my_idx2 = NVAR*i + VAR_MOMENTUMY;
@@ -316,31 +326,30 @@ void down_residuals(
         variables2[mz_idx2] += (residuals2[mz_idx1] - residuals1[mz_idx2]);
         variables2[pe_idx2] += (residuals2[pe_idx1] - residuals1[pe_idx2]);
     }
+
     #ifdef TIME
     stop_timer();
     #endif
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
     #endif
 }
 
-void down_interpolate(
+void prolong_interpolate(
     double *restrict variables1, 
     long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    log("down_interpolate()");
-    current_kernel = DOWN;
+    log("prolong_interpolate()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -357,6 +366,8 @@ void down_interpolate(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p2 = i;
@@ -394,7 +405,7 @@ void down_interpolate(
         double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
         double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
 
-        double dm_sum = dm + dm_a + dm_b;
+        // double dm_sum = dm + dm_a + dm_b;
 
         double p2_factor, p2a_factor, p2b_factor, w_sum;
         if (dm == 0.0) {
@@ -465,32 +476,31 @@ void down_interpolate(
         variables2[mz_idx2] /= w_sum;
         variables2[pe_idx2] /= w_sum;
     }
+
     #ifdef TIME
     stop_timer();
     #endif
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
     #endif
 }
 
-void down_residuals_interpolate_crude(
+void prolong_residuals_interpolate_crude(
     double *restrict residuals1, 
     long nel1, 
     double *restrict residuals2,
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
-    log("down_residuals_interpolate_crude()");
-    current_kernel = DOWN;
+    log("prolong_residuals_interpolate_crude()");
+    current_kernel = PROLONG;
 
     long loop_start = 0;
     long loop_end = mgc;
@@ -507,6 +517,8 @@ void down_residuals_interpolate_crude(
     #ifdef TIME
     start_timer();
     #endif
+    record_iters(loop_start, loop_end);
+
     for(long i=loop_start; i<loop_end; i++)
     {
         const long p2 = i;
@@ -545,7 +557,7 @@ void down_residuals_interpolate_crude(
         double dz_b = fabs(coords2[p2].z - coords1[p1b].z);
         double dm_b = sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b);
 
-        double dm_sum = dm + dm_a + dm_b;
+        // double dm_sum = dm + dm_a + dm_b;
 
         double p2_factor, p2a_factor, p2b_factor, w_sum;
         if (dm == 0.0) {
@@ -650,20 +662,20 @@ void down_residuals_interpolate_crude(
         variables2[mz_idx2] += residuals2[mz_idx2] - E[VAR_MOMENTUMZ];
         variables2[pe_idx2] += residuals2[pe_idx2] - E[VAR_DENSITY_ENERGY];
     }
+
     #ifdef TIME
     stop_timer();
     #endif
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(loop_start, loop_end);
 
     #ifdef OMP
     }
     #endif
 }
 
-void down_residuals_interpolate_proper(
+void prolong_residuals_interpolate_proper(
     edge_neighbour *edges,
     long num_edges,
     double *restrict residuals1, 
@@ -671,7 +683,6 @@ void down_residuals_interpolate_proper(
     double *restrict variables2, 
     long nel2,
     long *restrict mapping, 
-    long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2)
 {
@@ -684,8 +695,8 @@ void down_residuals_interpolate_proper(
     // across N's MG node and MG nodes of N's neighbours, requiring an 
     // edge-based loop. The weight is 1.0/distance.
 
-    log("down_residuals_interpolate_proper()");
-    current_kernel = DOWN;
+    log("prolong_residuals_interpolate_proper()");
+    current_kernel = PROLONG;
 
     double* w_sums = alloc<double>(nel2);
     for (long i=0; i<nel2; i++) {
@@ -699,14 +710,24 @@ void down_residuals_interpolate_proper(
 
     // a1 and b1 belong to level above (L+1); a2 and b2 belong to level below (L)
 
-    // Perform the summing stage of weighted average:
+    // 1) Perform the summing stage of weighted average:
+    long loop_start = 0;
+    long loop_end = loop_start + num_edges;
+    #if defined OMP && (defined OMP_SCATTERS)
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
     #ifdef PAPI
     start_papi();
     #endif
     #ifdef TIME
     start_timer();
     #endif
-    for (long i=0; i<num_edges; i++) {
+    record_iters(loop_start, loop_end);
+
+    for (long i=loop_start; i<loop_end; i++) {
         const long a2 = edges[i].a;
         const long a1 = mapping[a2];
         const double3 ca1 = coords1[a1];
@@ -789,29 +810,55 @@ void down_residuals_interpolate_proper(
             w_sums[b2] += idist_a1b2;
         }
     }
+
     #ifdef TIME
     stop_timer();
     #endif
     #ifdef PAPI
     stop_papi();
     #endif
-    record_iters(0, num_edges);
 
-    // Apply:
-    for (long i=0; i<nel2; i++) {
+    #if defined OMP && (defined OMP_SCATTERS)
+        }
+    #endif
+
+
+
+    // 2) Perform the averaging stage, then apply:
+    loop_start = 0;
+    loop_end = nel2;
+    #if defined OMP && (defined OMP_SCATTERS)
+        #pragma omp parallel firstprivate(loop_start, loop_end)
+        {
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+    #endif
+
+    #ifdef PAPI
+    start_papi();
+    #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    record_iters(loop_start, loop_end);
+
+    for (long i=loop_start; i<loop_end; i++) {
         // Divide through by sum of weights:
         for (long j=0; j<NVAR; j++) {
             res2_wavg[i*NVAR +j] /= w_sums[i];
-
-            // if (isnan(res2_wavg[i*NVAR +j])) {
-            //     fprintf(stderr, "ERROR: nan detected\n");
-            //     fprintf(stderr, "res2 = %.5e, w_sum = %.5e\n", res2_wavg[i*NVAR +j], w_sums[i]);
-            //     fprintf(stderr, "i = %d, j = %d\n", i, j);
-            //     exit(EXIT_FAILURE);
-            // }
 
             const long idx = NVAR*i + j;
             variables2[idx] += residuals2[idx] - res2_wavg[idx];
         }
     }
+
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
+    #endif
+
+    #if defined OMP && (defined OMP_SCATTERS)
+        }
+    #endif
 }

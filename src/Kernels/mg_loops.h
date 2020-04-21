@@ -24,7 +24,7 @@
 
 #include "common.h"
 
-void up(
+void mg_restrict(
     double *restrict variables1, 
     double *restrict variables2, 
     long nel2, 
@@ -32,53 +32,44 @@ void up(
     long *restrict up_scratch, 
     long mgc);
 
-void down(
+void prolong(
     double *restrict variables1, 
-    long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 
-void down_residuals(
+void prolong_residuals(
     double *restrict residuals1, 
-    long nel1, 
-    // double *restrict variables2, 
-    // double *restrict residuals2, 
-    // Depending on MG configuration, variables2 and residuals2
-    // may point to the same array.
+    // Depending on MG configuration variables2 and residuals2
+    // may point to the same array, so cannot use 'restrict' 
+    // qualifier:
     double *variables2, 
     double *residuals2, 
-    long nel2, 
     long *restrict mapping, 
-    long mgc, 
-    double3 *restrict coords1, 
-    double3 *restrict coords2);
+    long mgc);
 
-void down_interpolate(
+void prolong_interpolate(
     double *restrict variables1, 
     long nel1, 
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 
-void down_residuals_interpolate_crude(
+void prolong_residuals_interpolate_crude(
     double *restrict residuals1, 
     long nel1, 
     double *restrict residuals2,
     double *restrict variables2, 
-    long nel2, 
     long *restrict mapping, 
     long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 
-void down_residuals_interpolate_proper(
+void prolong_residuals_interpolate_proper(
     edge_neighbour *edges,
     long num_edges,
     double *restrict residuals1, 
@@ -86,7 +77,6 @@ void down_residuals_interpolate_proper(
     double *restrict variables2, 
     long nel2,
     long *restrict mapping, 
-    long mgc, 
     double3 *restrict coords1, 
     double3 *restrict coords2);
 

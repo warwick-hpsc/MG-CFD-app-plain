@@ -11,8 +11,8 @@ std::vector<std::vector<long> > compute_flux_edge_kernel_niters;
 std::vector<std::vector<long> > update_kernel_niters;
 std::vector<std::vector<long> > indirect_rw_kernel_niters;
 std::vector<std::vector<long> > time_step_kernel_niters;
-std::vector<std::vector<long> > up_kernel_niters;
-std::vector<std::vector<long> > down_kernel_niters;
+std::vector<std::vector<long> > restrict_kernel_niters;
+std::vector<std::vector<long> > prolong_kernel_niters;
 
 void init_iters()
 {
@@ -31,8 +31,8 @@ void init_iters()
     update_kernel_niters.resize(num_threads);
     indirect_rw_kernel_niters.resize(num_threads);
     time_step_kernel_niters.resize(num_threads);
-    up_kernel_niters.resize(num_threads);
-    down_kernel_niters.resize(num_threads);
+    restrict_kernel_niters.resize(num_threads);
+    prolong_kernel_niters.resize(num_threads);
 
     for (int t=0; t<num_threads; t++) {
         compute_step_kernel_niters.at(t).resize(levels, 0);
@@ -40,8 +40,8 @@ void init_iters()
         update_kernel_niters.at(t).resize(levels, 0);
         indirect_rw_kernel_niters.at(t).resize(levels, 0);
         time_step_kernel_niters.at(t).resize(levels, 0);
-        up_kernel_niters.at(t).resize(levels, 0);
-        down_kernel_niters.at(t).resize(levels, 0);
+        restrict_kernel_niters.at(t).resize(levels, 0);
+        prolong_kernel_niters.at(t).resize(levels, 0);
     }
 }
 
@@ -72,11 +72,11 @@ void record_iters(long loop_start, long loop_end)
     else if (current_kernel == TIME_STEP) {
         time_step_kernel_niters[tid][level] += niters;
     }
-    else if (current_kernel == UP) {
-        up_kernel_niters[tid][level] += niters;
+    else if (current_kernel == RESTRICT) {
+        restrict_kernel_niters[tid][level] += niters;
     }
-    else if (current_kernel == DOWN) {
-        down_kernel_niters[tid][level] += niters;
+    else if (current_kernel == PROLONG) {
+        prolong_kernel_niters[tid][level] += niters;
     }
 }
 
@@ -118,14 +118,13 @@ void dump_loop_stats_to_file(int size)
             header << "update" << l << "," ;
             header << "compute_step" << l << "," ;
             header << "time_step" << l << "," ;
-            header << "up" << l << "," ;
-            header << "down" << l << "," ;
+            header << "restrict" << l << "," ;
+            header << "prolong" << l << "," ;
             header << "indirect_rw" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -136,7 +135,7 @@ void dump_loop_stats_to_file(int size)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     std::ostringstream data_line;
@@ -149,8 +148,8 @@ void dump_loop_stats_to_file(int size)
         data_line << update_kernel_niters[tid][l] << "," ;
         data_line << compute_step_kernel_niters[tid][l] << "," ;
         data_line << time_step_kernel_niters[tid][l] << "," ;
-        data_line << up_kernel_niters[tid][l] << "," ;
-        data_line << down_kernel_niters[tid][l] << "," ;
+        data_line << restrict_kernel_niters[tid][l] << "," ;
+        data_line << prolong_kernel_niters[tid][l] << "," ;
         data_line << indirect_rw_kernel_niters[tid][l] << "," ;
     }
 
