@@ -245,6 +245,7 @@ def analyse_object_files():
                                 simd == "Y" and \
                                 infer_field(output_dirpath, "Instruction set") == "AVX512" and \
                                 infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
+            compile_info["serial write loop"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "Manual"
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
