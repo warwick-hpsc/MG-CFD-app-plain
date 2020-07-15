@@ -11,6 +11,7 @@
 #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
   #define COLOURED_CONFLICT_AVOIDANCE 1
 #elif defined COLOURED_CONFLICT_AVOIDANCE
+  #pragma message("Colouring scheme not specified, disabling coloured CA")
   #undef COLOURED_CONFLICT_AVOIDANCE
 #endif
 
