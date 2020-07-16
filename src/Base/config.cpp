@@ -29,6 +29,23 @@
 
 config conf;
 
+struct option long_opts[] = {
+    { "help",                 no_argument,       NULL, 'h' },
+    { "config-filepath",      required_argument, NULL, 'c' },
+    { "input-file",           required_argument, NULL, 'i' },
+    { "input-directory",      required_argument, NULL, 'd' },
+    { "papi_config_file",     required_argument, NULL, 'p' },
+    { "output-file-prefix",   required_argument, NULL, 'o' },
+    { "mesh-duplicate-count", required_argument, NULL, 'm' },
+    { "num-cycles",           required_argument, NULL, 'g' },
+    { "validate-result",      no_argument,       NULL, 'v' },
+    { "output-variables",     no_argument,       (int*)&conf.output_variables,    1 },
+    { "output-fluxes",        no_argument,       (int*)&conf.output_fluxes,       1 },
+    { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
+    {NULL, 0, NULL, 0} 
+};
+#define GETOPTS "hc:i:d:p:o:m:g:v"
+
 void set_config_defaults() {
     conf.config_filepath = (char*)malloc(sizeof(char));
     conf.config_filepath[0] = '\0';
