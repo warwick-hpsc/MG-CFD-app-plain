@@ -37,6 +37,9 @@ ifeq ($(COMPILER),gnu)
 	GCC_OPT_REPORT_OPTIONS := 
 	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
+	# ## Enable all warnings, and treat as errors, to help cleanup code:
+	# WARNINGS := -Wall -Wunused-function -Wunused-parameter -Werror
+
 	HOST_EXEC_TARGET = -march=native
 	CPU_SSE41_EXEC_TARGET = -msse4.1
 	CPU_SSE42_EXEC_TARGET = -msse4.2

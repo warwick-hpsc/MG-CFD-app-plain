@@ -106,8 +106,6 @@ flux_contribution_i_density_energy_a.z = velocity_a.z*de_p;
 
 double factor_a = -ewt*(speed_a + speed_b + speed_of_sound_a + speed_of_sound_b);
 
-double factor_b = factor_a;
-
 double factor_x = ex;
 double factor_y = ey;
 double factor_z = ez;
