@@ -1041,6 +1041,13 @@ void prepare_csv_identification(
         data_line << "UNKNOWN," ;
     #endif
 
+    if (write_header) header << "Precise FP,";
+    #ifdef PRECISE_FP
+        data_line << "Y,";
+    #else
+        data_line << "N,";
+    #endif
+
     if (write_header) header << "SIMD," ;
     #ifdef SIMD
         data_line << "Y,";
@@ -1051,8 +1058,12 @@ void prepare_csv_identification(
     if (write_header) header << "SIMD conflict avoidance strategy," ;
     #ifdef COLOURED_CONFLICT_AVOIDANCE
         data_line << "ColourEdges,";
-    #elif defined MANUAL_CONFLICT_AVOIDANCE
-        data_line << "Manual,";
+    #elif (defined MANUAL_GATHER) && (defined MANUAL_SCATTER)
+        data_line << "ManualGatherScatter,";
+    #elif defined MANUAL_GATHER
+        data_line << "ManualGather,";
+    #elif defined MANUAL_SCATTER
+        data_line << "ManualScatter,";
     #else
         data_line << "None,";
     #endif

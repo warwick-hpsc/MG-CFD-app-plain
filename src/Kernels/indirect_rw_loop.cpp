@@ -51,31 +51,55 @@ void indirect_rw(
     record_iters(loop_start, loop_end);
 
     #ifndef SIMD
-        #pragma omp simd safelen(1)
+        #ifdef __clang__
+            #pragma clang loop vectorize(disable)
+        #else
+            #pragma omp simd safelen(1)
+        #endif
     #else
         #ifdef FLUX_FISSION
             // SIMD is safe
-            #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #ifdef __clang__
+                #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+            #else
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #endif
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
-                #pragma omp simd simdlen(DBLS_PER_SIMD)
-            #elif defined MANUAL_CONFLICT_AVOIDANCE
+                #ifdef __clang__
+                    #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                #else
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #endif
+            #elif defined MANUAL_SCATTER
                 const long loop_end_orig = loop_end;
                 long v_start = loop_start;
                 long v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 double fluxes_a[NVAR][DBLS_PER_SIMD];
                 double fluxes_b[NVAR][DBLS_PER_SIMD];
+                #ifdef MANUAL_GATHER
+                    double variables_a[NVAR][DBLS_PER_SIMD];
+                    double variables_b[NVAR][DBLS_PER_SIMD];
+                #endif
                 for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     for (int x=0; x<NVAR; x++) {
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             fluxes_a[x][n] = 0.0;
                             fluxes_b[x][n] = 0.0;
+                            #ifdef MANUAL_GATHER
+                                variables_a[x][n] = variables[edges[v+n].a*NVAR+x];
+                                variables_b[x][n] = variables[edges[v+n].b*NVAR+x];
+                            #endif
                         }
                     }
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
-                    #pragma omp simd simdlen(DBLS_PER_SIMD)
+                    #ifdef __clang__
+                        #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                    #else
+                        #pragma omp simd simdlen(DBLS_PER_SIMD)
+                    #endif
 
             #elif defined USE_AVX512CD
                 // Always prefer using OMP pragma to vectorise, gives better performance 
@@ -99,12 +123,17 @@ void indirect_rw(
                 edges[i].x, 
                 edges[i].y, 
                 edges[i].z,
-                &variables[edges[i].a*NVAR],
-                &variables[edges[i].b*NVAR],
+                #if defined SIMD && defined MANUAL_GATHER
+                    variables_a, 
+                    variables_b,
+                #else
+                    &variables[edges[i].a*NVAR],
+                    &variables[edges[i].b*NVAR],
+                #endif
                 #ifdef FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+                    #if defined SIMD && defined MANUAL_SCATTER
                         i-loop_start,
                         fluxes_a, 
                         fluxes_b
@@ -117,21 +146,23 @@ void indirect_rw(
         #endif
     }
 
-    #if defined SIMD && defined MANUAL_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
+    #if defined SIMD && defined MANUAL_SCATTER && (!defined FLUX_FISSION)
         // Write out fluxes:
             for (int x=0; x<NVAR; x++) {
-                #pragma omp simd safelen(1)
+                #ifdef __clang__
+                    #pragma clang loop vectorize(disable)
+                #else
+                    #pragma omp simd safelen(1)
+                #endif
                 for (int n=0; n<DBLS_PER_SIMD; n++) {
-                    long a = edges[v+n].a;
-                    long b = edges[v+n].b;
-                    fluxes[a*NVAR+x] += fluxes_a[x][n];
-                    fluxes[b*NVAR+x] += fluxes_b[x][n];
+                    fluxes[edges[v+n].a*NVAR+x] += fluxes_a[x][n];
+                    fluxes[edges[v+n].b*NVAR+x] += fluxes_b[x][n];
                 }
             }
         } // Close outer loop over SIMD blocks
     #endif
 
-    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_CONFLICT_AVOIDANCE) && (!defined FLUX_FISSION)
+    #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_SCATTER) && (!defined FLUX_FISSION)
         // Compute fluxes of 'remainder' edges without SIMD:
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             loop_start = serial_section_start;
@@ -141,11 +172,15 @@ void indirect_rw(
                 // a workload distribution is required.
                 openmp_distribute_loop_iterations(&loop_start, &loop_end);
             #endif
-        #elif defined MANUAL_CONFLICT_AVOIDANCE
+        #elif defined MANUAL_SCATTER
             for (int x=0; x<NVAR; x++) {
                 for (int i=0; i<DBLS_PER_SIMD; i++) {
                     fluxes_a[x][i] = 0.0;
                     fluxes_b[x][i] = 0.0;
+                    #ifdef MANUAL_GATHER
+                        variables_a[x][i] = variables[edges[v_end+i].a*NVAR+x];
+                        variables_b[x][i] = variables[edges[v_end+i].b*NVAR+x];
+                    #endif
                 }
             }
             loop_start = v_end;
@@ -156,7 +191,11 @@ void indirect_rw(
             #endif
         #endif
         
-        #pragma omp simd safelen(1)
+        #ifdef __clang__
+            #pragma clang loop vectorize(disable)
+        #else
+            #pragma omp simd safelen(1)
+        #endif
         for (long i=loop_start; i<loop_end; i++)
         {
             indirect_rw_kernel(
@@ -166,12 +205,17 @@ void indirect_rw(
                 edges[i].x, 
                 edges[i].y, 
                 edges[i].z,
-                &variables[edges[i].a*NVAR],
-                &variables[edges[i].b*NVAR],
+                #if defined SIMD && defined MANUAL_GATHER
+                    variables_a, 
+                    variables_b,
+                #else
+                    &variables[edges[i].a*NVAR],
+                    &variables[edges[i].b*NVAR],
+                #endif
                 #ifdef FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #ifdef MANUAL_CONFLICT_AVOIDANCE
+                    #ifdef MANUAL_SCATTER
                         i-loop_start,
                         fluxes_a, 
                         fluxes_b
@@ -182,7 +226,7 @@ void indirect_rw(
                 #endif
                 );
         }
-        #ifdef MANUAL_CONFLICT_AVOIDANCE
+        #ifdef MANUAL_SCATTER
             // Write out fluxes:
             for (long i=loop_start; i<loop_end; i++) {
                 for (int v=0; v<NVAR; v++) {

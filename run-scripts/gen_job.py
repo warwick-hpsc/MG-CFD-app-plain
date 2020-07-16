@@ -29,6 +29,7 @@ defaults["debug"] = False
 defaults["insn set"] = "Host"
 defaults["base flags"] = "-DTIME"
 defaults["flux flags"] = [""]
+defaults["precise fp"] = True
 defaults["compile only"] = False
 # Job scheduling:
 defaults["unit walltime"] = 0.0
@@ -174,6 +175,7 @@ if __name__=="__main__":
     else:
         isas = get_key_value(profile, "compile", "insn set", True)
     base_flags = get_key_value(profile, "compile", "base flags", True)
+    precise_fp = get_key_value(profile, "optimisation", "precise fp", True)
 
     if "permutable flags" in profile["compile"]:
         ## Backwards compatibility
@@ -205,6 +207,8 @@ if __name__=="__main__":
         iteration_space["isa"] = isas
     if not base_flags is None:
         iteration_space["base flags"] = base_flags
+    if not precise_fp is None:
+        iteration_space["precise fp"] = precise_fp
     if not flux_flags_permutations is None:
         iteration_space["flux flags"] = flux_flags_permutations
     if not threads is None:
@@ -238,6 +242,16 @@ if __name__=="__main__":
             elif isa.startswith("AVX") and not isa == "AVX512":
                 if simd_len > 4:
                     item["simd len"] = 4
+
+        if item["compiler"] == "intel" and item["precise fp"]:
+            disable_precise_fp = False
+            if item["isa"] == "AVX512" or item["isa"] == "KNL-AVX512":
+                disable_precise_fp = True
+            elif item["isa"] == "Host" and ("avx512cd" in subprocess.check_output(['lscpu'])):
+                disable_precise_fp = True
+            if disable_precise_fp:
+                print("WARNING: Intel compiler segfaults when compiling precise FP with target AVX512, so disabling precise FP")
+                item["precise fp"] = False
         iterables_labelled_processed.append(item)
     ## Prune duplicates:
     iterables_labelled_pruned = []
@@ -298,10 +312,16 @@ if __name__=="__main__":
                 build_flags += " -DDBLS_PER_SIMD={0}".format(item.get("simd len"))
                 ca_scheme = item.get("simd CA scheme")
                 if ca_scheme == "manual":
-                    build_flags += " -DMANUAL_CONFLICT_AVOIDANCE"
+                    build_flags += " -DMANUAL_SCATTER -DMANUAL_GATHER"
+                elif ca_scheme == "manual scatter":
+                    build_flags += " -DMANUAL_SCATTER"
                 elif ca_scheme == "colour":
                     build_flags += " -DCOLOURED_CONFLICT_AVOIDANCE"
                     build_flags += " -DBIN_COLOURED_VECTORS"
+
+            precise_fp = item.get("precise fp")
+            if precise_fp:
+                build_flags += " -DPRECISE_FP"
 
             bin_filename = "euler3d_cpu_double_" + compiler
             bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"

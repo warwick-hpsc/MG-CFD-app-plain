@@ -15,9 +15,15 @@
   #undef COLOURED_CONFLICT_AVOIDANCE
 #endif
 
+#if defined MANUAL_GATHER
+	#ifndef MANUAL_SCATTER
+		#define MANUAL_SCATTER
+	#endif
+#endif
+
 #if defined SIMD && !(defined FLUX_FISSION)
     #ifdef COLOURED_CONFLICT_AVOIDANCE
-    #elif defined MANUAL_CONFLICT_AVOIDANCE
+    #elif defined MANUAL_SCATTER
     #elif defined __AVX512CD__ && defined __ICC
 		#pragma message("Enabling USE_AVX512CD flag")
         #define USE_AVX512CD 1

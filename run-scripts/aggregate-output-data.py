@@ -193,14 +193,31 @@ def calc_ins_per_iter(output_dirpath, kernel):
     return ins_per_iter
 
 def infer_field(output_dirpath, field):
-    times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if not os.path.isfile(times_filepath):
-        return 1
+    if field == "Precise FP":
+        ## Infer this specific field from compiler stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            ## Must use old logic for deducing how this was compiled:
+            ##   FP was precise for all runs except for AVX512 compiled with Intel, as 
+            ##   Intel would segfault.
+            if infer_field(output_dirpath, "CC")=="intel" and "AVX512" in infer_field(output_dirpath, "Instruction set"):
+                return "N"
+            else:
+                return "Y"
+
+        if grep("precise-fp", log_filepath):
+            return "Y"
+        else:
+            return "N"
     else:
-        times = pd.read_csv(times_filepath)
-        if not field in times.columns.values:
-            raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
-        return times.loc[0, field]
+        times_filepath = os.path.join(output_dirpath, "Times.csv")
+        if not os.path.isfile(times_filepath):
+            return 1
+        else:
+            times = pd.read_csv(times_filepath)
+            if not field in times.columns.values:
+                raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
+            return times.loc[0, field]
 
 def analyse_object_files():
     print("Analysing object files")
@@ -245,7 +262,8 @@ def analyse_object_files():
                                 simd == "Y" and \
                                 infer_field(output_dirpath, "Instruction set") == "AVX512" and \
                                 infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
-            compile_info["serial write loop"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "Manual"
+            compile_info["serial write loop"] = "Manual" in infer_field(output_dirpath, "SIMD conflict avoidance strategy") and "Scatter" in infer_field(output_dirpath, "SIMD conflict avoidance strategy")
+            compile_info["serial pack loop"]  = "Manual" in infer_field(output_dirpath, "SIMD conflict avoidance strategy") and "Gather"  in infer_field(output_dirpath, "SIMD conflict avoidance strategy")
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
@@ -320,6 +338,10 @@ def collate_csvs():
                 for filename in fnmatch.filter(filenames, cat+'.csv'):
                     df_filepath = os.path.join(root, filename)
                     df = clean_pd_read_csv(df_filepath)
+
+                    # Now require 'Precise FP' column:
+                    if not "Precise FP" in df.columns.values:
+                        df["Precise FP"] = infer_field(root, "Precise FP")
 
                     if df_agg is None:
                         df_agg = df

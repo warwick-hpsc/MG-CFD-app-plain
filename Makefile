@@ -78,7 +78,10 @@ else ifeq ($(COMPILER),clang)
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
 
-	OPT_REPORT_OPTIONS := -Rpass-missed=loop-vec -Rpass-analysis=loop-vec
+	OPT_REPORT_OPTIONS := -Rpass=loop-vec -Rpass=loop-vectorize
+	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec -Rpass-missed=loop-vectorize
+	OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vec -Rpass-analysis=loop-vectorize
+	OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	CFLAGS += $(OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -march=native
@@ -151,26 +154,10 @@ else
 	BUILD_FLAGS += -DINSN_SET=$(INSN_SET)
 endif
 
-## Disable aggressive floating-point optimization, to improve ability 
-## of MG-CFD to assess floating-point performance. This is also necessary 
-## to validate result against pre-computed solution.
-PRECISE_FP = yes
-ifeq ($(COMPILER),intel)
-    ## ... but not if targeting AVX-512 ISA with Intel compiler, because Intel compiler will segfault.
-	ifeq ($(INSN_SET),AVX512)
-		PRECISE_FP = no
-        $(info ##########################################################################)
-        $(info WARNING: Disabling precise FP to avoid ICC segfault when targeting AVX-512)
-        $(info ##########################################################################)
-	else ifeq ($(INSN_SET),Host)
-		cpu_flags := $(shell lscpu | grep Flags)
-		ifeq (avx512cd,$(findstring avx512cd, $(cpu_flags)))
-			PRECISE_FP = no
-            $(info ##########################################################################)
-            $(info WARNING: Disabling precise FP to avoid ICC segfault when targeting AVX-512)
-            $(info ##########################################################################)
-		endif
-	endif
+ifeq (DPRECISE_FP,$(findstring DPRECISE_FP, $(BUILD_FLAGS)))
+	PRECISE_FP = yes
+else
+	PRECISE_FP = no
 endif
 ifeq ($(PRECISE_FP),yes)
 	ifeq ($(COMPILER),gnu)
@@ -181,6 +168,14 @@ ifeq ($(PRECISE_FP),yes)
 		OPTIMISATION += -fno-fast-math
 	else ifeq ($(COMPILER),cray)
 		OPTIMISATION += -h fp2=noapprox
+	endif
+else
+	ifeq ($(COMPILER),gnu)
+		OPTIMISATION += -ffast-math
+	else ifeq ($(COMPILER),intel)
+        OPTIMISATION += -fp-model fast=2
+	else ifeq ($(COMPILER),clang)
+		OPTIMISATION += -ffast-math
 	endif
 endif
 LIBS :=

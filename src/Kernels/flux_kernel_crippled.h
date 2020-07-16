@@ -7,15 +7,20 @@ inline void compute_flux_edge_kernel_crippled(
     #else
         double ex, double ey, double ez,
     #endif
-    const double *restrict variables_a, 
-    const double *restrict variables_b, 
+    #if defined SIMD && defined MANUAL_GATHER
+        const double variables_a[][DBLS_PER_SIMD],
+        const double variables_b[][DBLS_PER_SIMD],
+    #else
+        const double *restrict variables_a, 
+        const double *restrict variables_b, 
+    #endif
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
     #else
-        #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+        #if defined SIMD && defined MANUAL_SCATTER
             int simd_idx,
-            double fluxes_a[*][DBLS_PER_SIMD],
-            double fluxes_b[*][DBLS_PER_SIMD]
+            double fluxes_a[][DBLS_PER_SIMD],
+            double fluxes_b[][DBLS_PER_SIMD]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b
@@ -38,11 +43,19 @@ inline void compute_flux_edge_kernel_crippled(
     const int my_b_idx = VAR_MOMENTUMY;
     const int mz_b_idx = VAR_MOMENTUMZ;
     const int pe_b_idx = VAR_DENSITY_ENERGY;
-    p_b          = variables_b[ p_b_idx];
-    momentum_b.x = variables_b[mx_b_idx];
-    momentum_b.y = variables_b[my_b_idx];
-    momentum_b.z = variables_b[mz_b_idx];
-    pe_b         = variables_b[pe_b_idx];
+    #if defined SIMD && defined MANUAL_GATHER
+        p_b          = variables_b[ p_b_idx][simd_idx];
+        momentum_b.x = variables_b[mx_b_idx][simd_idx];
+        momentum_b.y = variables_b[my_b_idx][simd_idx];
+        momentum_b.z = variables_b[mz_b_idx][simd_idx];
+        pe_b         = variables_b[pe_b_idx][simd_idx];
+    #else
+        p_b          = variables_b[ p_b_idx];
+        momentum_b.x = variables_b[mx_b_idx];
+        momentum_b.y = variables_b[my_b_idx];
+        momentum_b.z = variables_b[mz_b_idx];
+        pe_b         = variables_b[pe_b_idx];
+    #endif
 
     double p_b_reciprocal = (double)1.0;
 
@@ -85,11 +98,19 @@ inline void compute_flux_edge_kernel_crippled(
     const int my_a_idx = VAR_MOMENTUMY;
     const int mz_a_idx = VAR_MOMENTUMZ;
     const int pe_a_idx = VAR_DENSITY_ENERGY;
-    p_a          = variables_a[ p_a_idx];
-    momentum_a.x = variables_a[mx_a_idx];
-    momentum_a.y = variables_a[my_a_idx];
-    momentum_a.z = variables_a[mz_a_idx];
-    pe_a         = variables_a[pe_a_idx];
+    #if defined SIMD && defined MANUAL_GATHER
+        p_a          = variables_a[ p_a_idx][simd_idx];
+        momentum_a.x = variables_a[mx_a_idx][simd_idx];
+        momentum_a.y = variables_a[my_a_idx][simd_idx];
+        momentum_a.z = variables_a[mz_a_idx][simd_idx];
+        pe_a         = variables_a[pe_a_idx][simd_idx];
+    #else
+        p_a          = variables_a[ p_a_idx];
+        momentum_a.x = variables_a[mx_a_idx];
+        momentum_a.y = variables_a[my_a_idx];
+        momentum_a.z = variables_a[mz_a_idx];
+        pe_a         = variables_a[pe_a_idx];
+    #endif
 
     double p_a_reciprocal = ((double)1.0)/p_a;
 
@@ -172,7 +193,7 @@ inline void compute_flux_edge_kernel_crippled(
         edge_variables[VAR_MOMENTUMZ     ].b = mz_b_val;
         edge_variables[VAR_DENSITY_ENERGY].b = pe_b_val;
     #else
-        #if defined SIMD and defined MANUAL_CONFLICT_AVOIDANCE
+        #if defined SIMD && defined MANUAL_SCATTER
             fluxes_a[VAR_DENSITY][simd_idx]   += p_a_val;
             fluxes_a[VAR_MOMENTUMX][simd_idx] += mx_a_val;
             fluxes_a[VAR_MOMENTUMY][simd_idx] += my_a_val;
