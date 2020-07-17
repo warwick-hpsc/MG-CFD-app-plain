@@ -29,7 +29,7 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
+kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "indirect_rw"]
 
 essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
 
