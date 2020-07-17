@@ -8,7 +8,7 @@ void show_progress_bar() {
 	for (int i=0; i<width; i++) {
 		printf(" ");
 	}
-	printf("] 0%\r");
+	printf("] 0%%\r");
 	fflush(stdout);
 }
 
@@ -23,7 +23,7 @@ void update_progress_bar(float percent) {
 		else if (i == pos) printf(">");
 		else printf(" ");
 	}
-	printf("] %d%\r", (int)(percent*100));
+	printf("] %d%%\r", (int)(percent*100));
 	fflush(stdout);
 }
 
