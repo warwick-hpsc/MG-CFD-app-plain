@@ -7,8 +7,8 @@ inline void indirect_rw_kernel(
     #endif
     double ex, double ey, double ez,
     #if defined SIMD && defined MANUAL_GATHER
-        const double variables_a[][DBLS_PER_SIMD],
-        const double variables_b[][DBLS_PER_SIMD],
+        const double variables_a[][MANUAL_WIDTH],
+        const double variables_b[][MANUAL_WIDTH],
     #else
         const double *restrict variables_a, 
         const double *restrict variables_b, 
@@ -18,8 +18,8 @@ inline void indirect_rw_kernel(
     #else
         #if defined SIMD && defined MANUAL_SCATTER
             int simd_idx,
-            double fluxes_a[][DBLS_PER_SIMD],
-            double fluxes_b[][DBLS_PER_SIMD]
+            double fluxes_a[][MANUAL_WIDTH],
+            double fluxes_b[][MANUAL_WIDTH]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b
@@ -30,11 +30,11 @@ inline void indirect_rw_kernel(
     // Process edge-point A:
     double p_a, pe_a;
     double3 momentum_a;
-    const int p_a_idx  = VAR_DENSITY;
-    const int mx_a_idx = VAR_MOMENTUMX;
-    const int my_a_idx = VAR_MOMENTUMY;
-    const int mz_a_idx = VAR_MOMENTUMZ;
-    const int pe_a_idx = VAR_DENSITY_ENERGY;
+    const long p_a_idx  = VAR_DENSITY;
+    const long mx_a_idx = VAR_MOMENTUMX;
+    const long my_a_idx = VAR_MOMENTUMY;
+    const long mz_a_idx = VAR_MOMENTUMZ;
+    const long pe_a_idx = VAR_DENSITY_ENERGY;
     #if defined SIMD && defined MANUAL_GATHER
         p_a          = variables_a[ p_a_idx][simd_idx];
         momentum_a.x = variables_a[mx_a_idx][simd_idx];
@@ -52,11 +52,11 @@ inline void indirect_rw_kernel(
     // Process edge-point B:
     double p_b, pe_b;
     double3 momentum_b;
-    const int p_b_idx  = VAR_DENSITY;
-    const int mx_b_idx = VAR_MOMENTUMX;
-    const int my_b_idx = VAR_MOMENTUMY;
-    const int mz_b_idx = VAR_MOMENTUMZ;
-    const int pe_b_idx = VAR_DENSITY_ENERGY;
+    const long p_b_idx  = VAR_DENSITY;
+    const long mx_b_idx = VAR_MOMENTUMX;
+    const long my_b_idx = VAR_MOMENTUMY;
+    const long mz_b_idx = VAR_MOMENTUMZ;
+    const long pe_b_idx = VAR_DENSITY_ENERGY;
     #if defined SIMD && defined MANUAL_GATHER
         p_b          = variables_b[ p_b_idx][simd_idx];
         momentum_b.x = variables_b[mx_b_idx][simd_idx];

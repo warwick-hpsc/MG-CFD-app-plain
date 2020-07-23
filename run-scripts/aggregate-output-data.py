@@ -29,9 +29,11 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-kernels = ["flux", "update", "compute_step", "time_step", "up", "down", "indirect_rw"]
+kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "indirect_rw"]
 
 essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
+essential_colnames += ["SIMD failed"]
+essential_colnames += ["SIMD conflict avoidance strategy"]
 
 def grep(text, filepath):
     found = False
@@ -161,7 +163,11 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
-        simd_len = iters.loc[0,"SIMD len"]
+        simd_failed = did_simd_fail(output_dirpath)
+        if simd_failed:
+            simd_len = 1
+        else:
+            simd_len = iters.loc[0,"SIMD len"]
 
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
@@ -181,14 +187,18 @@ def calc_ins_per_iter(output_dirpath, kernel):
             num_insn = papi_and_iters.loc[0, timer]
 
             num_iters = papi_and_iters.loc[0, timer+"_iters"]
-            # 'num_iters' is counting non-vectorised iterations. If code 
-            # was vectorised then fewer loop iterations will have been 
-            # performed. Make that adjustment:
-            num_iters /= simd_len
+            if num_iters == 0:
+                ins_per_iter = 0.0
+            else:
+                num_iters = float(num_iters)
+                # 'num_iters' is counting non-vectorised iterations. If code 
+                # was vectorised then fewer loop iterations will have been 
+                # performed. Make that adjustment:
+                num_iters /= float(simd_len)
 
-            # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
+                # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
 
-            ins_per_iter = float(num_insn) / float(num_iters)
+                ins_per_iter = float(num_insn) / float(num_iters)
 
     return ins_per_iter
 
@@ -218,6 +228,52 @@ def infer_field(output_dirpath, field):
             if not field in times.columns.values:
                 raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
             return times.loc[0, field]
+
+def did_simd_fail(output_dirpath, compiler=None):
+    failed = False
+    log_filepath =  os.path.join(output_dirpath, "flux_loops.o.log")
+
+    if compiler is None:
+        compiler = infer_field(output_dirpath, "CC")
+
+    if compiler == "clang":
+        f = open(log_filepath, "r")
+        simd_fail_found = False
+        simd_success_found = False
+        flux_loop_simd_fail = False
+        # for line in f:
+        for i,line in enumerate(f):
+            if "loop not vectorized" in line:
+                simd_fail_found = True
+                simd_success_found = False
+                ## Source code snippet should be on next line, confirming which loop
+                continue
+            if "vectorized loop" in line:
+                simd_success_found = True
+                simd_fail_found = False
+                ## Source code snippet should be on next line, confirming which loop
+                continue
+
+            if "for (long i=flux_loop_start" in line:
+                if simd_fail_found:
+                    flux_loop_simd_fail = True
+                    break
+                if simd_success_found:
+                    break
+            simd_fail_found = False
+            simd_success_found = False
+
+        if flux_loop_simd_fail:
+            failed = True
+
+    elif compiler == "gnu":
+        f = open(log_filepath, "r")
+        for line in f:
+            if re.match("src/Kernels/flux_kernel.elemfunc.c.*not vectorized", line):
+                failed = True
+                break
+
+    return failed
 
 def analyse_object_files():
     print("Analysing object files")
@@ -258,12 +314,20 @@ def analyse_object_files():
             simd = infer_field(output_dirpath, "SIMD")
             if simd == "N":
                 compile_info["SIMD len"] = 1
+            simd_failed = did_simd_fail(output_dirpath, compile_info["compiler"])
+            compile_info["SIMD failed"] = simd_failed
             avx512cd_required = compile_info["compiler"] == "intel" and \
                                 simd == "Y" and \
                                 infer_field(output_dirpath, "Instruction set") == "AVX512" and \
                                 infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
-            compile_info["serial write loop"] = "Manual" in infer_field(output_dirpath, "SIMD conflict avoidance strategy") and "Scatter" in infer_field(output_dirpath, "SIMD conflict avoidance strategy")
-            compile_info["serial pack loop"]  = "Manual" in infer_field(output_dirpath, "SIMD conflict avoidance strategy") and "Gather"  in infer_field(output_dirpath, "SIMD conflict avoidance strategy")
+            compile_info["SIMD CA scheme"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy")
+            compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
+            compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
+            if "manual" in compile_info["SIMD CA scheme"].lower():
+                if compile_info["compiler"] == "clang":
+                    compile_info["manual CA block width"] = (compile_info["SIMD len"]*3)+2
+                else:
+                    compile_info["manual CA block width"] = compile_info["SIMD len"]
 
             loops_tally_df = None
             for k in kernel_to_object.keys():
@@ -271,19 +335,10 @@ def analyse_object_files():
 
                 obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
                 try:
-                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
+                    asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
                 except:
-                    continue
-                if (loop.simd_len != compile_info["SIMD len"]) and loop.simd_len == 1:
-                    # raise Exception("Requested SIMD len {0} does not match the actual SIMD len {1}".format(compile_info["SIMD len"], loop.simd_len))
-                    # print("WARNING: SIMD was requested but loop object code is not vectorised. Output CSV files will be corrected.")
-                    ## Correct output CSV files:
-                    for f in os.listdir(output_dirpath):
-                        if f.endswith(".csv"):
-                            df = clean_pd_read_csv(os.path.join(output_dirpath, f))
-                            df["SIMD"] = "N"
-                            df["SIMD len"] = loop.simd_len
-                            df.to_csv(os.path.join(output_dirpath, f), index=False)
+                    raise
+                    # continue
                 loop_tally = count_loop_instructions(asm_loop_filepath)
                 for i in loop_tally.keys():
                     loop_tally["insn."+i] = loop_tally[i]
@@ -311,18 +366,19 @@ def analyse_object_files():
 
             if not loops_tally_df is None:
                 if "insn.LOAD_SPILLS" in loops_tally_df.columns.values:
-                    ## The 'indirect rw' loop does not actually have any register spilling, so 
-                    ## any that were identified by 'assembly-loop-extractor' are false positives. 
-                    ## Assume that the same number of false positives are identified in the 'flux' kernel, 
-                    ## so remove those:
-                    claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
-                    loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
+                    if "indirect_rw" in loops_tally_df["kernel"]:
+                        ## The 'indirect rw' loop does not actually have any register spilling, so 
+                        ## any that were identified by 'assembly-loop-extractor' are false positives. 
+                        ## Assume that the same number of false positives are identified in the 'flux' kernel, 
+                        ## so remove those:
+                        claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
+                        loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
 
                 job_id_df = get_output_run_config(output_dirpath)
                 df = job_id_df.join(loops_tally_df)
                 df.to_csv(ic_filepath, index=False)
 
-                f = categorise_aggregated_instructions_tally(ic_filepath)
+                f = categorise_aggregated_instructions_tally_csv(ic_filepath)
                 f.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
@@ -338,6 +394,9 @@ def collate_csvs():
                 for filename in fnmatch.filter(filenames, cat+'.csv'):
                     df_filepath = os.path.join(root, filename)
                     df = clean_pd_read_csv(df_filepath)
+
+                    simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
+                    df["SIMD failed"] = simd_failed
 
                     # Now require 'Precise FP' column:
                     if not "Precise FP" in df.columns.values:
@@ -554,7 +613,8 @@ def count_fp_ins():
             insn_df = insn_df.drop(colname, axis=1)
 
     if "SIMD len" in insn_df.columns.values:
-        insn_df["FLOPs/iter"] *= insn_df["SIMD len"]
+        simd_mask = np.invert(insn_df["SIMD failed"])
+        insn_df.loc[simd_mask, "FLOPs/iter"] *= insn_df.loc[simd_mask, "SIMD len"]
 
     return insn_df
 
@@ -593,8 +653,9 @@ def combine_all():
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
             ## counts the number of serial iterations.
+            simd_mask = np.invert(iters_df["SIMD failed"])
             for dc in data_colnames:
-                iters_df[dc] /= iters_df["SIMD len"]
+                iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
 
         fp_counts = count_fp_ins()
         if not fp_counts is None:

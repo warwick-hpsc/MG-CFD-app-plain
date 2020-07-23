@@ -416,7 +416,7 @@ bool read_grid_from_bin(
         return false;
     }
     else if (*mg_size != 0) {
-        unsigned long mg_size_u = (unsigned long)mg_size;
+        unsigned long mg_size_u = (unsigned long)(*mg_size);
         *mg_connectivity = alloc<long>(mg_size_u);
         if (fread(*mg_connectivity, sizeof(long), *mg_size, fp) != mg_size_u) {
             log("Corruption detected in '%s'", data_file_name);

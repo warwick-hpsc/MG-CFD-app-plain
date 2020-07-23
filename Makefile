@@ -35,6 +35,7 @@ ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -ftree-vectorize
 
 	GCC_OPT_REPORT_OPTIONS := 
+	GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-missed
 	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
@@ -77,10 +78,11 @@ else ifeq ($(COMPILER),clang)
 	CPP := clang++
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
+	CFLAGS += -finline-hint-functions
 
-	OPT_REPORT_OPTIONS := -Rpass=loop-vec -Rpass=loop-vectorize
-	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec -Rpass-missed=loop-vectorize
-	OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vec -Rpass-analysis=loop-vectorize
+	OPT_REPORT_OPTIONS := 
+	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec ## Report SIMD failures
+	OPT_REPORT_OPTIONS += -Rpass=loop-vec ## Report SIMD success
 	OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	CFLAGS += $(OPT_REPORT_OPTIONS)
 
@@ -247,7 +249,7 @@ debug: generic_debug
 
 $(OBJ_DIR)/%.o: src/%.cpp
 	mkdir -p $(@D)
-	$(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES)
+	$(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES) 2>&1 | tee $@.log
 
 generic: $(OBJECTS)
 	mkdir -p $(BIN_DIR)

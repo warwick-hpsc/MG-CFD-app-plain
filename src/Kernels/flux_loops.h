@@ -31,6 +31,7 @@ void compute_flux_edge(
     long first_edge,
     long nedges,
     const edge_neighbour *restrict edges, 
+    // edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif

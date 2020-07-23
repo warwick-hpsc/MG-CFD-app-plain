@@ -8,8 +8,8 @@ inline void compute_flux_edge_kernel_crippled(
         double ex, double ey, double ez,
     #endif
     #if defined SIMD && defined MANUAL_GATHER
-        const double variables_a[][DBLS_PER_SIMD],
-        const double variables_b[][DBLS_PER_SIMD],
+        const double variables_a[][MANUAL_WIDTH],
+        const double variables_b[][MANUAL_WIDTH],
     #else
         const double *restrict variables_a, 
         const double *restrict variables_b, 
@@ -19,8 +19,8 @@ inline void compute_flux_edge_kernel_crippled(
     #else
         #if defined SIMD && defined MANUAL_SCATTER
             int simd_idx,
-            double fluxes_a[][DBLS_PER_SIMD],
-            double fluxes_b[][DBLS_PER_SIMD]
+            double fluxes_a[][MANUAL_WIDTH],
+            double fluxes_b[][MANUAL_WIDTH]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b
@@ -194,16 +194,16 @@ inline void compute_flux_edge_kernel_crippled(
         edge_variables[VAR_DENSITY_ENERGY].b = pe_b_val;
     #else
         #if defined SIMD && defined MANUAL_SCATTER
-            fluxes_a[VAR_DENSITY][simd_idx]   += p_a_val;
-            fluxes_a[VAR_MOMENTUMX][simd_idx] += mx_a_val;
-            fluxes_a[VAR_MOMENTUMY][simd_idx] += my_a_val;
-            fluxes_a[VAR_MOMENTUMZ][simd_idx] += mz_a_val;
+            fluxes_a[VAR_DENSITY]  [simd_idx]      += p_a_val;
+            fluxes_a[VAR_MOMENTUMX][simd_idx]      += mx_a_val;
+            fluxes_a[VAR_MOMENTUMY][simd_idx]      += my_a_val;
+            fluxes_a[VAR_MOMENTUMZ][simd_idx]      += mz_a_val;
             fluxes_a[VAR_DENSITY_ENERGY][simd_idx] += pe_a_val;
 
-            fluxes_b[VAR_DENSITY][simd_idx]   += p_b_val;
-            fluxes_b[VAR_MOMENTUMX][simd_idx] += mx_b_val;
-            fluxes_b[VAR_MOMENTUMY][simd_idx] += my_b_val;
-            fluxes_b[VAR_MOMENTUMZ][simd_idx] += mz_b_val;
+            fluxes_b[VAR_DENSITY]  [simd_idx]      += p_b_val;
+            fluxes_b[VAR_MOMENTUMX][simd_idx]      += mx_b_val;
+            fluxes_b[VAR_MOMENTUMY][simd_idx]      += my_b_val;
+            fluxes_b[VAR_MOMENTUMZ][simd_idx]      += mz_b_val;
             fluxes_b[VAR_DENSITY_ENERGY][simd_idx] += pe_b_val;
         #else
             fluxes_a[VAR_DENSITY]  +=  p_a_val;

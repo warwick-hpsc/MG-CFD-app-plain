@@ -74,6 +74,8 @@ fi
 bin_filename="$bin_filename"`echo "$flags_final" | tr -d " "`.b
 bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
+objs_dirpath="${app_dirpath}"/obj/"${compiler}"`echo "$flags_final" | tr -d " "`
+
 if $do_compile ; then
   export BUILD_FLAGS="$flags_final"
   cd "${app_dirpath}"
@@ -94,6 +96,14 @@ elif [ ! -f "$bin_filepath" ]; then
   exit 1
 fi
 
+# Grab compile log:
+if [ -f "$objs_dirpath"/Kernels/flux_loops.o.log ]; then
+  cp "$objs_dirpath"/Kernels/flux_loops.o.log "$run_outdir"/
+fi
+if [ -f "$objs_dirpath"/Kernels/indirect_rw_loop.o.log ]; then
+  cp "$objs_dirpath"/Kernels/indirect_rw_loop.o.log "$run_outdir"/
+fi
+
 # Grab object files:
 if [ ! -d "${run_outdir}/objects" ]; then
     mkdir "${run_outdir}/objects"
@@ -110,7 +120,11 @@ for loop in flux_loops indirect_rw_loop ; do
   done
   cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
   # Update: run 'objdump' on the system to get assembly:
-  objdump_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
+  objdump_raw_command="objdump -M att -M att-mnemonic -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
+  objdump_raw_command+=" > ${run_outdir}/objects/${loop}.o.raw-asm"
+  echo "$objdump_raw_command"
+  eval "$objdump_raw_command"
+  objdump_command="cat ${run_outdir}/objects/${loop}.o.raw-asm"
   objdump_command+=' | sed "s/^Disassembly of section/ fnc: Disassembly/g"'
   objdump_command+=' | sed "s/:$//g" | grep "^ " | grep ":" | sed "s/^[ \t]*//g"'
   objdump_command+=" > ${run_outdir}/objects/${loop}.o.asm"

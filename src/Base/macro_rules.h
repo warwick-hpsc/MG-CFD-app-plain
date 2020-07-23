@@ -21,6 +21,24 @@
 	#endif
 #endif
 
+#if defined MANUAL_GATHER || defined MANUAL_SCATTER
+  #ifndef MANUAL_WIDTH
+    // #define MANUAL_WIDTH 512
+    #ifdef __clang__
+      // Despite attempts to use aligned arrays, Clang-generated binary is 
+      // determined to perform 2 serial loop iterations for each SIMD-loop full pass. 
+      // So to get any SIMD execution, need at least 2+simd_width. 
+      // Then Amadhl's law applies, as those serial iterations prevent 
+      // full 4x SIMD speedup. With 3x SIMD iterations, get 2.8x fewer 
+      // iterations overall, theoretically a sweet spot (as going wider 
+      // potentially hits  memory limits with all that batched packing/unpacking):
+      #define MANUAL_WIDTH ((DBLS_PER_SIMD*3)+2)
+    #else
+      #define MANUAL_WIDTH DBLS_PER_SIMD
+    #endif
+  #endif
+#endif
+
 #if defined SIMD && !(defined FLUX_FISSION)
     #ifdef COLOURED_CONFLICT_AVOIDANCE
     #elif defined MANUAL_SCATTER
