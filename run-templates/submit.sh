@@ -1,9 +1,13 @@
-if [ ! -f <RUN_DIRPATH>/Times.csv ]; then
+if [ ! -f <RUN_DIRPATH>/job-is-complete.txt ]; then
   basedir=`pwd`
   cd <RUN_DIRPATH>
 
   if [ "$submit_cmd" = "" ]; then
-    ./<BATCH_FILENAME> --compile --execute | tee submit.log
+    if <COMPILE_ONLY> ; then
+	  ./<BATCH_FILENAME> --compile | tee submit.log
+	else
+      ./<BATCH_FILENAME> --compile --execute | tee submit.log
+	fi
   else
     if [ ! -f "job-in-queue.txt" ] && [ ! -f "job-is-running.txt" ]; then
       if [ ! -f <BIN_FILEPATH> ]; then
