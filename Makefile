@@ -56,6 +56,7 @@ else ifeq ($(COMPILER),intel)
 	CFLAGS += -vec-threshold0
 
 	INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=all -qopt-report=5
+	# INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=vec -qopt-report=5
 	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
@@ -164,10 +165,14 @@ endif
 ifeq ($(PRECISE_FP),yes)
 	ifeq ($(COMPILER),gnu)
 		OPTIMISATION += -fno-fast-math
+		## Disable C math function error checking, as prevents SIMD:
+		OPTIMISATION += -fno-math-errno
 	else ifeq ($(COMPILER),intel)
 		OPTIMISATION += -fp-model precise
 	else ifeq ($(COMPILER),clang)
 		OPTIMISATION += -fno-fast-math
+		## Disable C math function error checking, as prevents SIMD:
+		OPTIMISATION += -fno-math-errno
 	else ifeq ($(COMPILER),cray)
 		OPTIMISATION += -h fp2=noapprox
 	endif

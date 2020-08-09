@@ -76,45 +76,28 @@ void indirect_rw(
     record_iters(loop_start, loop_end);
 
     #ifndef SIMD
-        #ifdef __clang__
-            #pragma clang loop vectorize(disable)
-        #else
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp simd safelen(1)
     #else
         #ifdef FLUX_FISSION
             // SIMD is safe
-            #ifdef __clang__
-                #pragma clang loop vectorize_width(DBLS_PER_SIMD)
-            #else
-                #pragma omp simd simdlen(DBLS_PER_SIMD)
-            #endif
+            #pragma omp simd simdlen(DBLS_PER_SIMD)
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
-                #ifdef __clang__
-                    #pragma clang loop vectorize_width(DBLS_PER_SIMD)
-                    #pragma nounroll
-                #else
-                    #pragma omp simd simdlen(DBLS_PER_SIMD)
-                #endif
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
+                // Preventing unrolling of outer loop helps assembly-loop-extractor
+                #pragma nounroll
             #elif defined MANUAL_SCATTER
                 const long loop_end_orig = loop_end;
                 long v_start = loop_start;
                 long v_end = loop_start + ((loop_end-loop_start)/MANUAL_WIDTH)*MANUAL_WIDTH;
                 for (long v=v_start; v<v_end; v+=MANUAL_WIDTH) {
                     #ifdef MANUAL_GATHER
-                        #ifdef __clang__
-                            // Preventing unrolling of outer loop helps assembly-loop-extractor
-                            #pragma nounroll
-                            #pragma clang loop vectorize(disable)
-                        #else
-                            #pragma omp simd safelen(1)
-                        #endif
+                        #pragma omp simd safelen(1)
+                        // Preventing unrolling of outer loop helps assembly-loop-extractor
+                        #pragma nounroll
                         for (int n=0; n<MANUAL_WIDTH; n++) {
-                            #ifdef __clang__
-                                #pragma unroll
-                            #endif
+                            #pragma unroll
                             for (int x=0; x<NVAR; x++) {
                                 variables_a[x][n] = variables[edges[v+n].a*NVAR+x];
                                 variables_b[x][n] = variables[edges[v+n].b*NVAR+x];
@@ -127,10 +110,8 @@ void indirect_rw(
                     #ifdef __clang__
                         // __builtin_assume(flux_loop_start%DBLS_PER_SIMD == 0);
                         // __builtin_assume(loop_end%DBLS_PER_SIMD == 0);
-                        #pragma clang loop vectorize_width(DBLS_PER_SIMD)
-                    #else
-                        #pragma omp simd simdlen(DBLS_PER_SIMD)
                     #endif
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
 
             #elif defined USE_AVX512CD
                 // Always prefer using OMP pragma to vectorise, gives better performance 
@@ -186,17 +167,11 @@ void indirect_rw(
 
     #if defined SIMD && defined MANUAL_SCATTER && (!defined FLUX_FISSION)
         // Write out fluxes:
-            #ifdef __clang__
-                // Preventing unrolling of outer loop helps assembly-loop-extractor
-                #pragma nounroll
-            #endif
+            // Preventing unrolling of outer loop helps assembly-loop-extractor
+            #pragma nounroll
             for (long n=0; n<MANUAL_WIDTH; n++) {
-                #ifdef __clang__
-                    #pragma clang loop vectorize(disable)
-                    #pragma unroll
-                #else
-                    #pragma omp simd safelen(1)
-                #endif
+                #pragma omp simd safelen(1)
+                #pragma unroll
                 for (long x=0; x<NVAR; x++) {
                     fluxes[edges[v+n].a*NVAR+x] += fluxes_a[x][n];
                     fluxes[edges[v+n].b*NVAR+x] += fluxes_b[x][n];
@@ -239,12 +214,7 @@ void indirect_rw(
             #endif
         #endif
 
-        #ifdef __clang__
-            #pragma clang loop vectorize(disable)
-            #pragma nounroll
-        #else
-            #pragma omp simd safelen(1)
-        #endif
+        #pragma omp simd safelen(1)
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
             indirect_rw_kernel(
