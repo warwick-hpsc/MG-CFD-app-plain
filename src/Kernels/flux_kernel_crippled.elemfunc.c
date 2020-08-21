@@ -9,8 +9,8 @@ inline void compute_flux_edge_kernel_crippled(
         double ex, double ey, double ez,
     #endif
     #if defined SIMD && defined MANUAL_GATHER
-        const double variables_a[][MANUAL_WIDTH],
-        const double variables_b[][MANUAL_WIDTH],
+        const double variables_a[][DBLS_PER_SIMD],
+        const double variables_b[][DBLS_PER_SIMD],
     #else
         const double *restrict variables_a, 
         const double *restrict variables_b, 
@@ -20,8 +20,8 @@ inline void compute_flux_edge_kernel_crippled(
     #else
         #if defined SIMD && defined MANUAL_SCATTER
             int simd_idx,
-            double fluxes_a[][MANUAL_WIDTH],
-            double fluxes_b[][MANUAL_WIDTH]
+            double fluxes_a[][DBLS_PER_SIMD],
+            double fluxes_b[][DBLS_PER_SIMD]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b

@@ -85,7 +85,6 @@ T* alloc(long N)
         return new T[N];
     #else
         return (T*)malloc(N*sizeof(T));
-        // return (T*)aligned_alloc(64, N*sizeof(T));
     #endif
 }
 

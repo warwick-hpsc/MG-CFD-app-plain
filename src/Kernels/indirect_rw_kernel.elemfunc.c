@@ -6,11 +6,12 @@ inline void indirect_rw_kernel(
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double ewt,
     #endif
-    double ex, double ey, double ez,
     #if defined SIMD && defined MANUAL_GATHER
-        const double variables_a[][MANUAL_WIDTH],
-        const double variables_b[][MANUAL_WIDTH],
+        const double edge_vector[][DBLS_PER_SIMD],
+        const double variables_a[][DBLS_PER_SIMD],
+        const double variables_b[][DBLS_PER_SIMD],
     #else
+        double ex, double ey, double ez,
         const double *restrict variables_a, 
         const double *restrict variables_b, 
     #endif
@@ -35,9 +36,15 @@ inline void indirect_rw_kernel(
         const int simd_idx = i - loop_start;
     #endif
 
-    double ex = edges[i].x;
-    double ey = edges[i].y;
-    double ez = edges[i].z;
+    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+        double ex = edge_vectors[0][simd_idx];
+        double ey = edge_vectors[1][simd_idx];
+        double ez = edge_vectors[2][simd_idx];
+    #else
+        double ex = edges[i].x;
+        double ey = edges[i].y;
+        double ez = edges[i].z;
+    #endif
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double ewt = edge_weights[i];
     #endif

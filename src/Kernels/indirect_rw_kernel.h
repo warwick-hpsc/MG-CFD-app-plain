@@ -1,15 +1,17 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
+FORCE_INLINE
 inline void indirect_rw_kernel(
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double ewt,
     #endif
-    double ex, double ey, double ez,
     #if defined SIMD && defined MANUAL_GATHER
-        const double variables_a[][MANUAL_WIDTH],
-        const double variables_b[][MANUAL_WIDTH],
+        const double edge_vectors[][DBLS_PER_SIMD],
+        const double variables_a[][DBLS_PER_SIMD],
+        const double variables_b[][DBLS_PER_SIMD],
     #else
+        double ex, double ey, double ez,
         const double *restrict variables_a, 
         const double *restrict variables_b, 
     #endif
@@ -18,8 +20,8 @@ inline void indirect_rw_kernel(
     #else
         #if defined SIMD && defined MANUAL_SCATTER
             int simd_idx,
-            double fluxes_a[][MANUAL_WIDTH],
-            double fluxes_b[][MANUAL_WIDTH]
+            double fluxes_a[][DBLS_PER_SIMD],
+            double fluxes_b[][DBLS_PER_SIMD]
         #else
             double *restrict fluxes_a, 
             double *restrict fluxes_b
@@ -27,6 +29,12 @@ inline void indirect_rw_kernel(
     #endif
     )
 {
+    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+        double ex = edge_vectors[0][simd_idx];
+        double ey = edge_vectors[1][simd_idx];
+        double ez = edge_vectors[2][simd_idx];
+    #endif
+
     // Process edge-point A:
     double p_a, pe_a;
     double3 momentum_a;
