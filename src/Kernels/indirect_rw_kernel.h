@@ -86,14 +86,14 @@ inline void indirect_rw_kernel(
     double pe_a_val = pe_b - ey;
     
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        double p_b_val = p_a + ewt;
+        double p_b_val = p_a - ewt;
         #else
-        double p_b_val = p_a + ey;
+        double p_b_val = p_a - ey;
     #endif
-    double mx_b_val = momentum_a.y + momentum_a.z * ez;
-    double my_b_val = momentum_a.x * momentum_a.z;
-    double mz_b_val = momentum_a.x + momentum_a.y;
-    double pe_b_val = pe_a - ey;
+    double mx_b_val = momentum_a.y + momentum_a.z;
+    double my_b_val = momentum_a.x * momentum_a.z - ez;
+    double mz_b_val = momentum_a.x - momentum_a.y;
+    double pe_b_val = pe_a + ey;
     
     // Write out fluxes to memory:
     #ifdef FLUX_FISSION
