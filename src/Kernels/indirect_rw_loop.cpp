@@ -70,24 +70,40 @@ void indirect_rw(
     record_iters(loop_start, loop_end);
 
     #ifndef SIMD
-        #pragma omp simd safelen(1)
+        #ifdef __clang__
+            #pragma clang loop vectorize(disable)
+        #else
+            #pragma omp simd safelen(1)
+        #endif
+        #pragma nounroll
     #else
         #ifdef FLUX_FISSION
             // SIMD is safe
-            #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #ifdef __clang__
+                #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+            #else
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #endif
+            #pragma nounroll
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
-                // Preventing unrolling of outer loop helps assembly-loop-extractor
-                #pragma nounroll
             #elif defined MANUAL_SCATTER
                 const long loop_end_orig = loop_end;
                 long v_start = loop_start;
                 long v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
                 for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     #ifdef MANUAL_GATHER
-                        #pragma omp simd safelen(1)
+                        #ifdef __clang__
+                            // When Clang encouters "#pragma omp simd" it turns on its loop unroller, 
+                            // even when '-fno-unroll-loops' flag was passed to turn it off.
+                            // Frustrating as this gather loop needs to be vectorised. 
+                            // So use Clang-specific pragma instead:
+                            #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                        #else
+                            #pragma omp simd simdlen(DBLS_PER_SIMD)
+                        #endif
                         // Preventing unrolling of outer loop helps assembly-loop-extractor
                         #pragma nounroll
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
@@ -105,10 +121,11 @@ void indirect_rw(
                     loop_end = v+DBLS_PER_SIMD;
 
                     #ifdef __clang__
-                        // __builtin_assume(flux_loop_start%DBLS_PER_SIMD == 0);
-                        // __builtin_assume(loop_end%DBLS_PER_SIMD == 0);
+                        #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                        #pragma nounroll
+                    #else
+                        #pragma omp simd simdlen(DBLS_PER_SIMD)
                     #endif
-                    #pragma omp simd simdlen(DBLS_PER_SIMD)
 
             #elif defined USE_AVX512CD
                 // Always prefer using OMP pragma to vectorise, gives better performance 
