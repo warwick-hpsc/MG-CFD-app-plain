@@ -3,41 +3,50 @@
 
 FORCE_INLINE
 inline void compute_flux_edge_kernel(
-    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        double ewt,
+    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+        int simd_idx,
     #endif
+
     #if defined SIMD && defined MANUAL_GATHER
+        #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+            const double edge_weights[DBLS_PER_SIMD],
+        #endif
         const double edge_vectors[][DBLS_PER_SIMD],
         const double variables_a[][DBLS_PER_SIMD],
         const double variables_b[][DBLS_PER_SIMD],
     #else
+        #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+            double ewt,
+        #endif
         double ex, double ey, double ez,
         const double *restrict variables_a, 
         const double *restrict variables_b, 
     #endif
-    #ifdef FLUX_FISSION
+
+    #if defined SIMD && defined MANUAL_SCATTER
+        double fluxes_a[][DBLS_PER_SIMD],
+        double fluxes_b[][DBLS_PER_SIMD]
+    #elif defined FLUX_FISSION
         edge *restrict edge_variables
     #else
-        #if defined SIMD && defined MANUAL_SCATTER
-            int simd_idx,
-            double fluxes_a[][DBLS_PER_SIMD],
-            double fluxes_b[][DBLS_PER_SIMD]
-        #else
-            double *restrict fluxes_a, 
-            double *restrict fluxes_b
-        #endif
+        double *restrict fluxes_a, 
+        double *restrict fluxes_b
     #endif
     )
 {
-    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+    #if defined SIMD && defined MANUAL_GATHER
         double ex = edge_vectors[0][simd_idx];
         double ey = edge_vectors[1][simd_idx];
         double ez = edge_vectors[2][simd_idx];
-    #endif
-
-    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+        #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+            double ewt = edge_weights[simd_idx];
+        #else
+            double ewt = sqrt(ex*ex + ey*ey + ez*ez);
+        #endif
     #else
-        double ewt = sqrt(ex*ex + ey*ey + ez*ez);
+        #ifndef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+            double ewt = sqrt(ex*ex + ey*ey + ez*ez);
+        #endif
     #endif
 
     ////////////////////////////////////

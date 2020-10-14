@@ -15,7 +15,22 @@
   #undef COLOURED_CONFLICT_AVOIDANCE
 #endif
 
-#if defined MANUAL_GATHER
+#ifdef MANUAL
+  #define MANUAL_GATHER
+  #define MANUAL_SCATTER
+  #undef MANUAL
+#endif
+
+#ifdef FLUX_FISSION
+  #ifdef MANUAL_GATHER
+    #undef MANUAL_GATHER
+  #endif
+  #ifdef MANUAL_SCATTER
+    #undef MANUAL_SCATTER
+  #endif
+#endif
+
+#ifdef MANUAL_GATHER
 	#ifndef MANUAL_SCATTER
 		#define MANUAL_SCATTER
 	#endif

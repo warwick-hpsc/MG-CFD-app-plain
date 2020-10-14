@@ -13,11 +13,11 @@
 void compute_flux_edge(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
-    // edge_neighbour *restrict edges, 
+    const long *restrict edge_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
+    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -46,18 +46,20 @@ void compute_flux_edge(
     #endif
 
     #if defined MANUAL_SCATTER
-        double fluxes_a[NVAR][DBLS_PER_SIMD];
-        double fluxes_b[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_a[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_b[NVAR][DBLS_PER_SIMD];
         #ifdef MANUAL_GATHER
-            double variables_a[NVAR][DBLS_PER_SIMD];
-            double variables_b[NVAR][DBLS_PER_SIMD];
+            double simd_variables_a[NVAR][DBLS_PER_SIMD];
+            double simd_variables_b[NVAR][DBLS_PER_SIMD];
         #endif
-        double edge_vectors[NDIM][DBLS_PER_SIMD];
+        double simd_edge_vectors[NDIM][DBLS_PER_SIMD];
+        // double simd_ewt[1][DBLS_PER_SIMD];
+        double simd_ewt[DBLS_PER_SIMD];
 
         for (int n=0; n<DBLS_PER_SIMD; n++) {
             for (int x=0; x<NVAR; x++) {
-                fluxes_a[x][n] = 0.0;
-                fluxes_b[x][n] = 0.0;
+                simd_fluxes_a[x][n] = 0.0;
+                simd_fluxes_b[x][n] = 0.0;
             }
         }
     #endif
@@ -99,7 +101,7 @@ void compute_flux_edge(
                             // even when '-fno-unroll-loops' flag was passed to turn it off.
                             // Frustrating as this gather loop needs to be vectorised. 
                             // So use Clang-specific pragma instead:
-                            #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                            #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
                         #else
                             #pragma omp simd simdlen(DBLS_PER_SIMD)
                         #endif
@@ -108,12 +110,16 @@ void compute_flux_edge(
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             #pragma unroll
                             for (int x=0; x<NVAR; x++) {
-                                variables_a[x][n] = variables[edges[v+n].a*NVAR+x];
-                                variables_b[x][n] = variables[edges[v+n].b*NVAR+x];
+                                simd_variables_a[x][n] = variables[edge_nodes[(v+n)*2]  *NVAR+x];
+                                simd_variables_b[x][n] = variables[edge_nodes[(v+n)*2+1]*NVAR+x];
                             }
-                            edge_vectors[0][n] = edges[v+n].x;
-                            edge_vectors[1][n] = edges[v+n].y;
-                            edge_vectors[2][n] = edges[v+n].z;
+
+                            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                                simd_ewt[n] = edge_weights[v+n];
+                            #endif
+                            simd_edge_vectors[0][n] = edge_vectors[(v+n)*NDIM];
+                            simd_edge_vectors[1][n] = edge_vectors[(v+n)*NDIM+1];
+                            simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                         }
                     #endif
                     flux_loop_start = v;
@@ -140,29 +146,34 @@ void compute_flux_edge(
             #include "flux_kernel.elemfunc.c"
         #else
             compute_flux_edge_kernel(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-flux_loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    edge_vectors,
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    edges[i].x, edges[i].y, edges[i].z,
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2]  *NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #if defined SIMD && defined MANUAL_SCATTER
-                        i-flux_loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         #endif
@@ -175,10 +186,10 @@ void compute_flux_edge(
             for (long n=0; n<DBLS_PER_SIMD; n++) {
                 #pragma unroll
                 for (long x=0; x<NVAR; x++) {
-                    fluxes[edges[v+n].a*NVAR+x] += fluxes_a[x][n];
-                    fluxes[edges[v+n].b*NVAR+x] += fluxes_b[x][n];
-                    fluxes_a[x][n] = 0.0;
-                    fluxes_b[x][n] = 0.0;
+                    fluxes[edge_nodes[(v+n)*2]  *NVAR+x] += simd_fluxes_a[x][n];
+                    fluxes[edge_nodes[(v+n)*2+1]*NVAR+x] += simd_fluxes_b[x][n];
+                    simd_fluxes_a[x][n] = 0.0;
+                    simd_fluxes_b[x][n] = 0.0;
                     // Note: zeroing fluxes[] here prevents Clang replacing 
                     // with LLVM memset() calls, which prevents assembly-loop-extractor 
                     // confidently identifying compute loop.
@@ -203,16 +214,19 @@ void compute_flux_edge(
             for (long i=remainder_loop_start; i<loop_end; i++) {
                 const int simd_idx = i-remainder_loop_start;
                 for (int x=0; x<NVAR; x++) {
-                    fluxes_a[x][simd_idx] = 0.0;
-                    fluxes_b[x][simd_idx] = 0.0;
+                    simd_fluxes_a[x][simd_idx] = 0.0;
+                    simd_fluxes_b[x][simd_idx] = 0.0;
                     #ifdef MANUAL_GATHER
-                        variables_a[x][simd_idx] = variables[edges[i].a*NVAR+x];
-                        variables_b[x][simd_idx] = variables[edges[i].b*NVAR+x];
+                        simd_variables_a[x][simd_idx] = variables[edge_nodes[i*2  ]*NVAR+x];
+                        simd_variables_b[x][simd_idx] = variables[edge_nodes[i*2+1]*NVAR+x];
                     #endif
                 }
-                edge_vectors[0][simd_idx] = edges[i].x;
-                edge_vectors[1][simd_idx] = edges[i].y;
-                edge_vectors[2][simd_idx] = edges[i].z;
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    simd_ewt[simd_idx] = edge_weights[i];
+                #endif
+                simd_edge_vectors[0][simd_idx] = edge_vectors[i*NDIM];
+                simd_edge_vectors[1][simd_idx] = edge_vectors[i*NDIM+1];
+                simd_edge_vectors[2][simd_idx] = edge_vectors[i*NDIM+2];
             }
             #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
                 // Each thread already has its own remainders to process, no need to 
@@ -224,29 +238,34 @@ void compute_flux_edge(
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
             compute_flux_edge_kernel(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-remainder_loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    edge_vectors,
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    edges[i].x, edges[i].y, edges[i].z,
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2  ]*NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #ifdef MANUAL_SCATTER
-                        i-remainder_loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         }
@@ -254,8 +273,8 @@ void compute_flux_edge(
             // Write out fluxes:
             for (long i=remainder_loop_start; i<loop_end; i++) {
                 for (int x=0; x<NVAR; x++) {
-                    fluxes[edges[i].a*NVAR+x] += fluxes_a[x][i-remainder_loop_start];
-                    fluxes[edges[i].b*NVAR+x] += fluxes_b[x][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2  ]*NVAR+x] += simd_fluxes_a[x][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2+1]*NVAR+x] += simd_fluxes_b[x][i-remainder_loop_start];
                 }
             }
         #endif
@@ -283,9 +302,11 @@ void compute_flux_edge(
 void compute_flux_edge_crippled(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
+    const long *restrict edge_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
+    #else
+        const double *restrict edge_vectors,
     #endif
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -303,6 +324,7 @@ void compute_flux_edge_crippled(
 
     long flux_loop_start = first_edge;
     long loop_end = flux_loop_start + nedges;
+
     #if defined SIMD && defined COLOURED_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         loop_end = serial_section_start;
     #endif
@@ -314,16 +336,19 @@ void compute_flux_edge_crippled(
     #endif
 
     #if defined MANUAL_SCATTER
-        double fluxes_a[NVAR][DBLS_PER_SIMD];
-        double fluxes_b[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_a[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_b[NVAR][DBLS_PER_SIMD];
         #ifdef MANUAL_GATHER
-            double variables_a[NVAR][DBLS_PER_SIMD];
-            double variables_b[NVAR][DBLS_PER_SIMD];
+            double simd_variables_a[NVAR][DBLS_PER_SIMD];
+            double simd_variables_b[NVAR][DBLS_PER_SIMD];
         #endif
+        double simd_edge_vectors[NDIM][DBLS_PER_SIMD];
+        double simd_ewt[DBLS_PER_SIMD];
+
         for (int n=0; n<DBLS_PER_SIMD; n++) {
             for (int x=0; x<NVAR; x++) {
-                fluxes_a[x][n] = 0.0;
-                fluxes_b[x][n] = 0.0;
+                simd_fluxes_a[x][n] = 0.0;
+                simd_fluxes_b[x][n] = 0.0;
             }
         }
     #endif
@@ -337,7 +362,11 @@ void compute_flux_edge_crippled(
     record_iters(flux_loop_start, loop_end);
 
     #ifndef SIMD
-        #pragma omp simd safelen(1)
+        #ifdef __clang__
+            #pragma clang loop vectorize(disable)
+        #else
+            #pragma omp simd safelen(1)
+        #endif
     #else
         #ifdef FLUX_FISSION
             // SIMD is safe
@@ -346,23 +375,36 @@ void compute_flux_edge_crippled(
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
-                #pragma nounroll
             #elif defined MANUAL_SCATTER
                 const long loop_end_orig = loop_end;
                 long v_start = flux_loop_start;
                 long v_end = flux_loop_start + ((loop_end-flux_loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
-                #pragma nounroll
                 for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     #ifdef MANUAL_GATHER
+                        #ifdef __clang__
+                            // When Clang encouters "#pragma omp simd" it turns on its loop unroller, 
+                            // even when '-fno-unroll-loops' flag was passed to turn it off.
+                            // Frustrating as this gather loop needs to be vectorised. 
+                            // So use Clang-specific pragma instead:
+                            #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+                        #else
+                            #pragma omp simd simdlen(DBLS_PER_SIMD)
+                        #endif
                         // Preventing unrolling of outer loop helps assembly-loop-extractor
                         #pragma nounroll
-                        #pragma omp simd safelen(1)
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             #pragma unroll
                             for (int x=0; x<NVAR; x++) {
-                                variables_a[x][n] = variables[edges[v+n].a*NVAR+x];
-                                variables_b[x][n] = variables[edges[v+n].b*NVAR+x];
+                                simd_variables_a[x][n] = variables[edge_nodes[(v+n)*2]  *NVAR+x];
+                                simd_variables_b[x][n] = variables[edge_nodes[(v+n)*2+1]*NVAR+x];
                             }
+
+                            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                                simd_ewt[n] = edge_weights[v+n];
+                            #endif
+                            simd_edge_vectors[0][n] = edge_vectors[(v+n)*NDIM];
+                            simd_edge_vectors[1][n] = edge_vectors[(v+n)*NDIM+1];
+                            simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                         }
                     #endif
                     flux_loop_start = v;
@@ -384,36 +426,39 @@ void compute_flux_edge_crippled(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "flux_kernel_crippled.elemfunc.c"
-        #elif defined __clang__
-            // Clang is not inlining call, so manually inline here:
+        #elif defined __GNUC__ && ! defined __clang__
+            // Inlining call makes GNU vector log easier to parse
             #include "flux_kernel_crippled.elemfunc.c"
         #else
             compute_flux_edge_kernel_crippled(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
-                #else
-                    edges[i].x, 
-                    edges[i].y, 
-                    edges[i].z,
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-flux_loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2]  *NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #if defined SIMD && defined MANUAL_SCATTER
-                        i-flux_loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         #endif
@@ -425,12 +470,11 @@ void compute_flux_edge_crippled(
             #pragma nounroll
             for (long n=0; n<DBLS_PER_SIMD; n++) {
                 #pragma unroll
-                #pragma omp simd safelen(1)
                 for (long x=0; x<NVAR; x++) {
-                    fluxes[edges[v+n].a*NVAR+x] += fluxes_a[x][n];
-                    fluxes[edges[v+n].b*NVAR+x] += fluxes_b[x][n];
-                    fluxes_a[x][n] = 0.0;
-                    fluxes_b[x][n] = 0.0;
+                    fluxes[edge_nodes[(v+n)*2]  *NVAR+x] += simd_fluxes_a[x][n];
+                    fluxes[edge_nodes[(v+n)*2+1]*NVAR+x] += simd_fluxes_b[x][n];
+                    simd_fluxes_a[x][n] = 0.0;
+                    simd_fluxes_b[x][n] = 0.0;
                     // Note: zeroing fluxes[] here prevents Clang replacing 
                     // with LLVM memset() calls, which prevents assembly-loop-extractor 
                     // confidently identifying compute loop.
@@ -452,15 +496,22 @@ void compute_flux_edge_crippled(
         #elif defined MANUAL_SCATTER
             long remainder_loop_start = v_end;
             loop_end = loop_end_orig;
-            for (int x=0; x<NVAR; x++) {
-                for (long i=remainder_loop_start; i<loop_end; i++) {
-                    fluxes_a[x][i-remainder_loop_start] = 0.0;
-                    fluxes_b[x][i-remainder_loop_start] = 0.0;
+            for (long i=remainder_loop_start; i<loop_end; i++) {
+                const int simd_idx = i-remainder_loop_start;
+                for (int x=0; x<NVAR; x++) {
+                    simd_fluxes_a[x][simd_idx] = 0.0;
+                    simd_fluxes_b[x][simd_idx] = 0.0;
                     #ifdef MANUAL_GATHER
-                        variables_a[x][i-remainder_loop_start] = variables[edges[i].a*NVAR+x];
-                        variables_b[x][i-remainder_loop_start] = variables[edges[i].b*NVAR+x];
+                        simd_variables_a[x][simd_idx] = variables[edge_nodes[i*2  ]*NVAR+x];
+                        simd_variables_b[x][simd_idx] = variables[edge_nodes[i*2+1]*NVAR+x];
                     #endif
                 }
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    simd_ewt[simd_idx] = edge_weights[i];
+                #endif
+                simd_edge_vectors[0][simd_idx] = edge_vectors[i*NDIM];
+                simd_edge_vectors[1][simd_idx] = edge_vectors[i*NDIM+1];
+                simd_edge_vectors[2][simd_idx] = edge_vectors[i*NDIM+2];
             }
             #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
                 // Each thread already has its own remainders to process, no need to 
@@ -472,31 +523,34 @@ void compute_flux_edge_crippled(
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
             compute_flux_edge_kernel_crippled(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
-                #else
-                    edges[i].x, 
-                    edges[i].y, 
-                    edges[i].z,
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-remainder_loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2  ]*NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #ifdef MANUAL_SCATTER
-                        i-remainder_loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         }
@@ -504,8 +558,8 @@ void compute_flux_edge_crippled(
             // Write out fluxes:
             for (long i=remainder_loop_start; i<loop_end; i++) {
                 for (int x=0; x<NVAR; x++) {
-                    fluxes[edges[i].a*NVAR+x] += fluxes_a[x][i-remainder_loop_start];
-                    fluxes[edges[i].b*NVAR+x] += fluxes_b[x][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2  ]*NVAR+x] += simd_fluxes_a[x][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2+1]*NVAR+x] += simd_fluxes_b[x][i-remainder_loop_start];
                 }
             }
         #endif

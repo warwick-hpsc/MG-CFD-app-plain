@@ -448,12 +448,32 @@ int main(int argc, char** argv)
         }
     }
 
+    ///////////////////////////////////////////////////////////////////////////
+    // Reshape arrays for better vectorisation:
+    ///////////////////////////////////////////////////////////////////////////
+    long* edge_nodes[levels];
+    double* edge_vectors[levels];
+    for (int l=0; l<levels; l++) {
+        edge_nodes[l] = alloc<long>(number_of_edges[l]*2);
+        edge_vectors[l] = alloc<double>(number_of_edges[l]*NDIM);
+        for (long e=0; e<number_of_edges[l]; e++) {
+            edge_nodes[l][e*2]   = edges[l][e].a;
+            edge_nodes[l][e*2+1] = edges[l][e].b;
+
+            edge_vectors[l][e*NDIM]   = edges[l][e].x;
+            edge_vectors[l][e*NDIM+1] = edges[l][e].y;
+            edge_vectors[l][e*NDIM+2] = edges[l][e].z;
+        }
+    }
+
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double* edge_weights[levels];
         for (int i=0; i<levels; i++) {
             edge_weights[i] = alloc<double>(number_of_edges[i]);
             for (long e=0; e<number_of_edges[i]; e++) {
-                edge_weights[i][e] = sqrt(edges[i][e].x*edges[i][e].x + edges[i][e].y*edges[i][e].y + edges[i][e].z*edges[i][e].z);
+                edge_weights[i][e] = sqrt(  edge_vectors[i][e*NDIM]  *edge_vectors[i][e*NDIM] 
+                                          + edge_vectors[i][e*NDIM+1]*edge_vectors[i][e*NDIM+1] 
+                                          + edge_vectors[i][e*NDIM+2]*edge_vectors[i][e*NDIM+2]);
             }
         }
     #endif
@@ -497,10 +517,11 @@ int main(int argc, char** argv)
                 compute_flux_edge_crippled(
                     internal_edge_starts[level], 
                     num_internal_edges[level],
-                    edges[level], 
+                    edge_nodes[level], 
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                         edge_weights[level],
                     #endif
+                    edge_vectors[level],
                     variables[level], 
                     #ifndef FLUX_FISSION
                         fluxes[level]
@@ -520,10 +541,11 @@ int main(int argc, char** argv)
             compute_flux_edge(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
-                edges[level], 
+                edge_nodes[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
+                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
@@ -594,10 +616,11 @@ int main(int argc, char** argv)
             indirect_rw(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
-                edges[level], 
+                edge_nodes[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
+                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
@@ -807,13 +830,13 @@ int main(int argc, char** argv)
     // Validate solution:
     ////////////////////////////////////
     printf("\n");
+    bool data_check_passed = true;
     if (conf.validate_result) {
         printf("Beginning validation of variables[]\n");
         for (int level=0; level<levels; level++) {
             check_for_invalid_variables(variables[level], nel[level]);
         }
         printf("  NaN check passed\n");
-        bool data_check_passed = true;
         bool res;
         // for (int level=0; level<levels; level++) {
         // Update: only interested in the finest mesh:
@@ -843,8 +866,8 @@ int main(int argc, char** argv)
         }
         if (data_check_passed) {
             printf("PASS: variables[] validated successfully\n");
-        // } else {
-        //     printf("FAIL: variables[] validation failed\n");
+        } else {
+            printf("FAIL: variables[] validation failed\n");
         }
         printf("\n");
     }
@@ -911,5 +934,8 @@ int main(int argc, char** argv)
     delete[] (layers);
     delete[] (mg_connectivity_filename);
 
+    // return 0;
+    if (!data_check_passed)
+        return 1;
     return 0;
 }

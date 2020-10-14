@@ -30,11 +30,11 @@ void compute_wall_flux_edge(
 void compute_flux_edge(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
-    // edge_neighbour *restrict edges, 
+    const long *restrict edges_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
+    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -50,10 +50,11 @@ void compute_flux_edge(
 void compute_flux_edge_crippled(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
+    const long *restrict edge_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
+    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables

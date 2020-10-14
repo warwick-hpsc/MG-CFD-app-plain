@@ -12,11 +12,11 @@
 void indirect_rw(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
-    // edge_neighbour *restrict edges, 
+    const long *restrict edge_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
+    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -45,18 +45,19 @@ void indirect_rw(
     #endif
 
     #if defined MANUAL_SCATTER
-        double fluxes_a[NVAR][DBLS_PER_SIMD];
-        double fluxes_b[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_a[NVAR][DBLS_PER_SIMD];
+        double simd_fluxes_b[NVAR][DBLS_PER_SIMD];
         #ifdef MANUAL_GATHER
-            double variables_a[NVAR][DBLS_PER_SIMD];
-            double variables_b[NVAR][DBLS_PER_SIMD];
+            double simd_variables_a[NVAR][DBLS_PER_SIMD];
+            double simd_variables_b[NVAR][DBLS_PER_SIMD];
         #endif
-        double edge_vectors[NDIM][DBLS_PER_SIMD];
+        double simd_edge_vectors[NDIM][DBLS_PER_SIMD];
+        double simd_ewt[DBLS_PER_SIMD];
 
         for (int n=0; n<DBLS_PER_SIMD; n++) {
             for (int x=0; x<NVAR; x++) {
-                fluxes_a[x][n] = 0.0;
-                fluxes_b[x][n] = 0.0;
+                simd_fluxes_a[x][n] = 0.0;
+                simd_fluxes_b[x][n] = 0.0;
             }
         }
     #endif
@@ -100,7 +101,8 @@ void indirect_rw(
                             // even when '-fno-unroll-loops' flag was passed to turn it off.
                             // Frustrating as this gather loop needs to be vectorised. 
                             // So use Clang-specific pragma instead:
-                            #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                            // #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                            #pragma omp simd simdlen(DBLS_PER_SIMD)
                         #else
                             #pragma omp simd simdlen(DBLS_PER_SIMD)
                         #endif
@@ -109,23 +111,22 @@ void indirect_rw(
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             #pragma unroll
                             for (int x=0; x<NVAR; x++) {
-                                variables_a[x][n] = variables[edges[v+n].a*NVAR+x];
-                                variables_b[x][n] = variables[edges[v+n].b*NVAR+x];
+                                simd_variables_a[x][n] = variables[edge_nodes[(v+n)*2]  *NVAR+x];
+                                simd_variables_b[x][n] = variables[edge_nodes[(v+n)*2+1]*NVAR+x];
                             }
-                            edge_vectors[0][n] = edges[v+n].x;
-                            edge_vectors[1][n] = edges[v+n].y;
-                            edge_vectors[2][n] = edges[v+n].z;
+
+                            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                                simd_ewt[n] = edge_weights[v+n];
+                            #endif
+                            simd_edge_vectors[0][n] = edge_vectors[(v+n)*NDIM];
+                            simd_edge_vectors[1][n] = edge_vectors[(v+n)*NDIM+1];
+                            simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                         }
                     #endif
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
 
-                    #ifdef __clang__
-                        #pragma clang loop vectorize_width(DBLS_PER_SIMD)
-                        #pragma nounroll
-                    #else
-                        #pragma omp simd simdlen(DBLS_PER_SIMD)
-                    #endif
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
 
             #elif defined USE_AVX512CD
                 // Always prefer using OMP pragma to vectorise, gives better performance 
@@ -146,29 +147,34 @@ void indirect_rw(
             #include "indirect_rw_kernel.elemfunc.c"
         #else
             indirect_rw_kernel(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    edge_vectors,
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    edges[i].x, edges[i].y, edges[i].z,
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2]  *NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #if defined SIMD && defined MANUAL_SCATTER
-                        i-loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         #endif
@@ -179,13 +185,12 @@ void indirect_rw(
             // Preventing unrolling of outer loop helps assembly-loop-extractor
             #pragma nounroll
             for (long n=0; n<DBLS_PER_SIMD; n++) {
-                #pragma omp simd safelen(1)
                 #pragma unroll
                 for (long x=0; x<NVAR; x++) {
-                    fluxes[edges[v+n].a*NVAR+x] += fluxes_a[x][n];
-                    fluxes[edges[v+n].b*NVAR+x] += fluxes_b[x][n];
-                    fluxes_a[x][n] = 0.0;
-                    fluxes_b[x][n] = 0.0;
+                    fluxes[edge_nodes[(v+n)*2]  *NVAR+x] += simd_fluxes_a[x][n];
+                    fluxes[edge_nodes[(v+n)*2+1]*NVAR+x] += simd_fluxes_b[x][n];
+                    simd_fluxes_a[x][n] = 0.0;
+                    simd_fluxes_b[x][n] = 0.0;
                     // Note: zeroing fluxes[] here prevents Clang replacing 
                     // with LLVM memset() calls, which prevents assembly-loop-extractor 
                     // confidently identifying compute loop.
@@ -210,16 +215,19 @@ void indirect_rw(
             for (long i=remainder_loop_start; i<loop_end; i++) {
                 const int simd_idx = i-remainder_loop_start;
                 for (int x=0; x<NVAR; x++) {
-                    fluxes_a[x][simd_idx] = 0.0;
-                    fluxes_b[x][simd_idx] = 0.0;
+                    simd_fluxes_a[x][simd_idx] = 0.0;
+                    simd_fluxes_b[x][simd_idx] = 0.0;
                     #ifdef MANUAL_GATHER
-                        variables_a[x][simd_idx] = variables[edges[i].a*NVAR+x];
-                        variables_b[x][simd_idx] = variables[edges[i].b*NVAR+x];
+                        simd_variables_a[x][simd_idx] = variables[edge_nodes[i*2  ]*NVAR+x];
+                        simd_variables_b[x][simd_idx] = variables[edge_nodes[i*2+1]*NVAR+x];
                     #endif
                 }
-                edge_vectors[0][simd_idx] = edges[i].x;
-                edge_vectors[1][simd_idx] = edges[i].y;
-                edge_vectors[2][simd_idx] = edges[i].z;
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    simd_ewt[simd_idx] = edge_weights[i];
+                #endif
+                simd_edge_vectors[0][simd_idx] = edge_vectors[i*NDIM];
+                simd_edge_vectors[1][simd_idx] = edge_vectors[i*NDIM+1];
+                simd_edge_vectors[2][simd_idx] = edge_vectors[i*NDIM+2];
             }
             #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
                 // Each thread already has its own remainders to process, no need to 
@@ -231,29 +239,34 @@ void indirect_rw(
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
             indirect_rw_kernel(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
+                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+                    i-remainder_loop_start,
                 #endif
+
                 #if defined SIMD && defined MANUAL_GATHER
-                    edge_vectors,
-                    variables_a, 
-                    variables_b,
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        simd_ewt,
+                    #endif
+                    simd_edge_vectors,
+                    simd_variables_a, 
+                    simd_variables_b,
                 #else
-                    edges[i].x, edges[i].y, edges[i].z,
-                    &variables[edges[i].a*NVAR],
-                    &variables[edges[i].b*NVAR],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[i],
+                    #endif
+                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                    &variables[edge_nodes[i*2  ]*NVAR],
+                    &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
-                #ifdef FLUX_FISSION
+
+                #if defined SIMD && defined MANUAL_SCATTER
+                    simd_fluxes_a, 
+                    simd_fluxes_b
+                #elif defined FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
-                    #ifdef MANUAL_SCATTER
-                        i-remainder_loop_start,
-                        fluxes_a, 
-                        fluxes_b
-                    #else
-                        &fluxes[edges[i].a*NVAR],
-                        &fluxes[edges[i].b*NVAR]
-                    #endif
+                    &fluxes[edge_nodes[i*2  ]*NVAR],
+                    &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
         }
@@ -261,8 +274,8 @@ void indirect_rw(
             // Write out fluxes:
             for (long i=remainder_loop_start; i<loop_end; i++) {
                 for (int v=0; v<NVAR; v++) {
-                    fluxes[edges[i].a*NVAR+v] += fluxes_a[v][i-remainder_loop_start];
-                    fluxes[edges[i].b*NVAR+v] += fluxes_b[v][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2  ]*NVAR+v] += simd_fluxes_a[v][i-remainder_loop_start];
+                    fluxes[edge_nodes[i*2+1]*NVAR+v] += simd_fluxes_b[v][i-remainder_loop_start];
                 }
             }
         #endif
