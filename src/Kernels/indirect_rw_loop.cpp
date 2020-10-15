@@ -89,7 +89,11 @@ void indirect_rw(
         #else
             // Conflict avoidance is required for safe SIMD
             #if defined COLOURED_CONFLICT_AVOIDANCE
-                #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #ifdef __clang__
+                    #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+                #else
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #endif
             #elif defined MANUAL_SCATTER
                 const long loop_end_orig = loop_end;
                 long v_start = loop_start;
@@ -97,17 +101,19 @@ void indirect_rw(
                 for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                     #ifdef MANUAL_GATHER
                         #ifdef __clang__
-                            // When Clang encouters "#pragma omp simd" it turns on its loop unroller, 
-                            // even when '-fno-unroll-loops' flag was passed to turn it off.
-                            // Frustrating as this gather loop needs to be vectorised. 
-                            // So use Clang-specific pragma instead:
-                            // #pragma clang loop vectorize_width(DBLS_PER_SIMD)
-                            #pragma omp simd simdlen(DBLS_PER_SIMD)
+                            // Warning: if you ask Clang to vectorize this loop containing 
+                            //          indirect reads, it will do it BUT the resulting 
+                            //          assembly sequence is 10x longer than non-SIMD - 
+                            //          a mangled mess of shuffles and moves, serial and packed.
+                            //          Doesn't affect performance, but DOES affect ability of 
+                            //          assembly-loop-extractor to identify this loop.
+                            //
+                            //          Possibly only Intel can handle this loop nicely. 
+                            //
+                            // #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
                         #else
                             #pragma omp simd simdlen(DBLS_PER_SIMD)
                         #endif
-                        // Preventing unrolling of outer loop helps assembly-loop-extractor
-                        #pragma nounroll
                         for (int n=0; n<DBLS_PER_SIMD; n++) {
                             #pragma unroll
                             for (int x=0; x<NVAR; x++) {
