@@ -9,12 +9,12 @@ inline void indirect_rw_kernel(
 
     #if defined SIMD && defined MANUAL_GATHER
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-            const double edge_weights[DBLS_PER_SIMD],
+            const double simd_edge_weights[DBLS_PER_SIMD],
         #else
         #endif
-        const double edge_vectors[][DBLS_PER_SIMD],
-        const double variables_a[][DBLS_PER_SIMD],
-        const double variables_b[][DBLS_PER_SIMD],
+        const double simd_edge_vectors[][DBLS_PER_SIMD],
+        const double simd_variables_a[][DBLS_PER_SIMD],
+        const double simd_variables_b[][DBLS_PER_SIMD],
     #else
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
             double ewt,
@@ -25,8 +25,8 @@ inline void indirect_rw_kernel(
     #endif
 
     #if defined SIMD && defined MANUAL_SCATTER
-        double fluxes_a[][DBLS_PER_SIMD],
-        double fluxes_b[][DBLS_PER_SIMD]
+        double simd_fluxes_a[][DBLS_PER_SIMD],
+        double simd_fluxes_b[][DBLS_PER_SIMD]
     #elif defined FLUX_FISSION
         edge *restrict edge_variables
     #else
@@ -36,9 +36,9 @@ inline void indirect_rw_kernel(
     )
 {
     #if defined SIMD && defined MANUAL_GATHER
-        double ex = edge_vectors[0][simd_idx];
-        double ey = edge_vectors[1][simd_idx];
-        double ez = edge_vectors[2][simd_idx];
+        double ex = simd_edge_vectors[0][simd_idx];
+        double ey = simd_edge_vectors[1][simd_idx];
+        double ez = simd_edge_vectors[2][simd_idx];
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
             double ewt = edge_weights[simd_idx];
         #else
@@ -59,11 +59,11 @@ inline void indirect_rw_kernel(
     const long mz_a_idx = VAR_MOMENTUMZ;
     const long pe_a_idx = VAR_DENSITY_ENERGY;
     #if defined SIMD && defined MANUAL_GATHER
-        p_a          = variables_a[ p_a_idx][simd_idx];
-        momentum_a.x = variables_a[mx_a_idx][simd_idx];
-        momentum_a.y = variables_a[my_a_idx][simd_idx];
-        momentum_a.z = variables_a[mz_a_idx][simd_idx];
-        pe_a         = variables_a[pe_a_idx][simd_idx];
+        p_a          = simd_variables_a[ p_a_idx][simd_idx];
+        momentum_a.x = simd_variables_a[mx_a_idx][simd_idx];
+        momentum_a.y = simd_variables_a[my_a_idx][simd_idx];
+        momentum_a.z = simd_variables_a[mz_a_idx][simd_idx];
+        pe_a         = simd_variables_a[pe_a_idx][simd_idx];
     #else
         p_a          = variables_a[ p_a_idx];
         momentum_a.x = variables_a[mx_a_idx];
@@ -81,11 +81,11 @@ inline void indirect_rw_kernel(
     const long mz_b_idx = VAR_MOMENTUMZ;
     const long pe_b_idx = VAR_DENSITY_ENERGY;
     #if defined SIMD && defined MANUAL_GATHER
-        p_b          = variables_b[ p_b_idx][simd_idx];
-        momentum_b.x = variables_b[mx_b_idx][simd_idx];
-        momentum_b.y = variables_b[my_b_idx][simd_idx];
-        momentum_b.z = variables_b[mz_b_idx][simd_idx];
-        pe_b         = variables_b[pe_b_idx][simd_idx];
+        p_b          = simd_variables_b[ p_b_idx][simd_idx];
+        momentum_b.x = simd_variables_b[mx_b_idx][simd_idx];
+        momentum_b.y = simd_variables_b[my_b_idx][simd_idx];
+        momentum_b.z = simd_variables_b[mz_b_idx][simd_idx];
+        pe_b         = simd_variables_b[pe_b_idx][simd_idx];
     #else
         p_b          = variables_b[ p_b_idx];
         momentum_b.x = variables_b[mx_b_idx];
@@ -125,17 +125,17 @@ inline void indirect_rw_kernel(
         edge_variables[VAR_DENSITY_ENERGY].b = pe_b_val;
     #else
         #if defined SIMD && defined MANUAL_SCATTER
-            fluxes_a[VAR_DENSITY][simd_idx]        += p_a_val;
-            fluxes_a[VAR_MOMENTUMX][simd_idx]      += mx_a_val;
-            fluxes_a[VAR_MOMENTUMY][simd_idx]      += my_a_val;
-            fluxes_a[VAR_MOMENTUMZ][simd_idx]      += mz_a_val;
-            fluxes_a[VAR_DENSITY_ENERGY][simd_idx] += pe_a_val;
+            simd_fluxes_a[VAR_DENSITY][simd_idx]        += p_a_val;
+            simd_fluxes_a[VAR_MOMENTUMX][simd_idx]      += mx_a_val;
+            simd_fluxes_a[VAR_MOMENTUMY][simd_idx]      += my_a_val;
+            simd_fluxes_a[VAR_MOMENTUMZ][simd_idx]      += mz_a_val;
+            simd_fluxes_a[VAR_DENSITY_ENERGY][simd_idx] += pe_a_val;
 
-            fluxes_b[VAR_DENSITY][simd_idx]        += p_b_val;
-            fluxes_b[VAR_MOMENTUMX][simd_idx]      += mx_b_val;
-            fluxes_b[VAR_MOMENTUMY][simd_idx]      += my_b_val;
-            fluxes_b[VAR_MOMENTUMZ][simd_idx]      += mz_b_val;
-            fluxes_b[VAR_DENSITY_ENERGY][simd_idx] += pe_b_val;
+            simd_fluxes_b[VAR_DENSITY][simd_idx]        += p_b_val;
+            simd_fluxes_b[VAR_MOMENTUMX][simd_idx]      += mx_b_val;
+            simd_fluxes_b[VAR_MOMENTUMY][simd_idx]      += my_b_val;
+            simd_fluxes_b[VAR_MOMENTUMZ][simd_idx]      += mz_b_val;
+            simd_fluxes_b[VAR_DENSITY_ENERGY][simd_idx] += pe_b_val;
         #else
             fluxes_a[VAR_DENSITY]  +=  p_a_val;
             fluxes_a[VAR_MOMENTUMX] += mx_a_val;

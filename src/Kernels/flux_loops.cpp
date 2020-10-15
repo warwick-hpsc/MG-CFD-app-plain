@@ -140,6 +140,9 @@ void compute_flux_edge(
                 // Always prefer using OMP pragma to vectorise, gives better performance 
                 // than default auto-vectoriser triggered by absent pragma
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
+
+            #else
+                #pragma omp simd safelen(1)
             #endif
         #endif
     #endif
@@ -432,6 +435,9 @@ void compute_flux_edge_crippled(
                 // Always prefer using OMP pragma to vectorise, gives better performance 
                 // than default auto-vectoriser triggered by absent pragma
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
+
+            #else
+                #pragma omp simd safelen(1)
             #endif
         #endif
     #endif
