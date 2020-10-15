@@ -203,6 +203,14 @@ def calc_ins_per_iter(output_dirpath, kernel):
     return ins_per_iter
 
 def infer_field(output_dirpath, field):
+    value = None
+
+    times_filepath = os.path.join(output_dirpath, "Times.csv")
+    if not os.path.isfile(times_filepath):
+        times = pd.read_csv(times_filepath)
+        if field in times.columns.values:
+            return times.loc[0, field]
+
     if field == "Precise FP":
         ## Infer this specific field from compiler stdout:
         log_filepath = os.path.join(output_dirpath, "submit.log")
@@ -211,23 +219,87 @@ def infer_field(output_dirpath, field):
             ##   FP was precise for all runs except for AVX512 compiled with Intel, as 
             ##   Intel would segfault.
             if infer_field(output_dirpath, "CC")=="intel" and "AVX512" in infer_field(output_dirpath, "Instruction set"):
-                return "N"
+                value = "N"
             else:
-                return "Y"
-
+                value = "Y"
         if grep("precise-fp", log_filepath):
-            return "Y"
+            value = "Y"
         else:
-            return "N"
+            value = "N"
+
+    elif field == "CC":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("COMPILER=", log_filepath):
+            if grep("COMPILER=clang", log_filepath):
+                value = "clang"
+            elif grep("COMPILER=gnu", log_filepath):
+                value = "gnu"
+            elif grep("COMPILER=intel", log_filepath):
+                value = "intel"
+
+    elif field == "SIMD":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("-DSIMD-", log_filepath):
+            value = True
+        else:
+            value = False
+
+    elif field == "SIMD len":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if not grep("-DSIMD-", log_filepath):
+            value = 1
+        else:
+            if grep("DBLS_PER_SIMD=2-", log_filepath):
+                value = 2
+            elif grep("DBLS_PER_SIMD=4-", log_filepath):
+                value = 4
+            elif grep("DBLS_PER_SIMD=8-", log_filepath):
+                value = 8
+            elif grep("DBLS_PER_SIMD=1-", log_filepath):
+                value = 1
+
+    elif field == "SIMD conflict avoidance strategy":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("-DMANUAL_GATHER-", log_filepath) and grep("-DMANUAL_SCATTER-", log_filepath):
+            value = "ManualGatherScatter"
+        elif grep("-DMANUAL_GATHER-", log_filepath):
+            value = "ManualGather"
+        elif grep("-DMANUAL_SCATTER-", log_filepath):
+            value = "ManualScatter"
+        elif grep("-DCOLOURED_CONFLICT_AVOIDANCE-", log_filepath):
+            if grep("-DBIN_COLOURED_VECTORS-", log_filepath):
+                value = "ColouredEdgeVectors"
+            elif grep("-DBIN_COLOURED_CONTIGUOUS-", log_filepath):
+                value = "ColouredEdgesContiguous"
+            else:
+                value = "None"
+        else:
+            value = "None"
+
     else:
         times_filepath = os.path.join(output_dirpath, "Times.csv")
-        if not os.path.isfile(times_filepath):
-            return 1
-        else:
+        if os.path.isfile(times_filepath):
             times = pd.read_csv(times_filepath)
             if not field in times.columns.values:
                 raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
-            return times.loc[0, field]
+            value = times.loc[0, field]
+
+    if value is None:
+        raise Exception("Cannot infer field '{0}'".format(field))
+    
+    return value
 
 def did_simd_fail(output_dirpath, compiler=None):
     failed = False
