@@ -1057,7 +1057,13 @@ void prepare_csv_identification(
 
     if (write_header) header << "SIMD conflict avoidance strategy," ;
     #ifdef COLOURED_CONFLICT_AVOIDANCE
-        data_line << "ColourEdges,";
+        #ifdef BIN_COLOURED_VECTORS
+            data_line << "ColouredEdgeVectors,";
+        #elif defined BIN_COLOURED_CONTIGUOUS
+            data_line << "ColouredEdgesContiguous,";
+        #else
+            data_line << "None,";
+        #endif
     #elif (defined MANUAL_GATHER) && (defined MANUAL_SCATTER)
         data_line << "ManualGatherScatter,";
     #elif defined MANUAL_GATHER
