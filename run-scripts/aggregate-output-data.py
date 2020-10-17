@@ -538,15 +538,18 @@ def aggregate():
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+
+        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+
         df_agg = df.groupby(get_job_id_colnames(df))
 
-        df_mean = df_agg.mean().reset_index()
+        df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_mean.to_csv(out_filepath, index=False)
 
         if cat == "Times":
             # Calculate STDEV as % of mean:
-            df_std = df_agg.std().reset_index()
+            df_std = df_agg.std().reset_index().replace(np.NaN, 0.0)
             renames = {}
             for x in data_colnames:
                 renames[x] = x+"_mean"
@@ -583,9 +586,12 @@ def aggregate():
         df["counter"] = "#iterations"
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+
+        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+
         df_agg = df.groupby(get_job_id_colnames(df))
 
-        df_mean = df_agg.mean().reset_index()
+        df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         ## Next, compute sum and max across threads within each run:
         if "ThreadNum" in df.columns.values:
             del job_id_colnames[job_id_colnames.index("ThreadNum")]
@@ -608,43 +614,44 @@ def aggregate():
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
-        ## First, compute per-thread average across repeat runs:
-        df_agg = df.groupby(get_job_id_colnames(df))
 
-        df_mean = df_agg.mean().reset_index()
+        ## Exclude zero values from statistics:
+        df[data_colnames] = df[data_colnames].replace(0.0, np.NaN)
+
+        df_grps = df.groupby(get_job_id_colnames(df))
+
+        ## First, compute per-thread average across repeat runs:
+        df_thread_means = df_grps.mean().reset_index().replace(np.NaN, 0.0)
+
         ## Next, compute sum and max across threads within each run:
         if "ThreadNum" in df.columns.values:
             del job_id_colnames[job_id_colnames.index("ThreadNum")]
-            df_mean2 = df_mean.drop("ThreadNum", axis=1)
-        else:
-            df_mean2 = df_mean
-        df_agg2 = df_mean2.groupby(job_id_colnames)
-        df_sum = df_agg2.sum().reset_index()
-        for pe in Set(df_sum["PAPI counter"]):
-            df_sum.loc[df_sum["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
-        df_max = df_agg2.max().reset_index()
-        for pe in Set(df_max["PAPI counter"]):
-            df_max.loc[df_max["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
-        df_mean2 = df_agg2.mean().reset_index()
-        for pe in Set(df_mean2["PAPI counter"]):
-            df_mean2.loc[df_mean2["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
-        df_agg3 = df_sum.append(df_max, sort=True).append(df_mean2, sort=True)
-        out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
-        df_agg3.to_csv(out_filepath, index=False)
+            df_thread_means = df_thread_means.drop("ThreadNum", axis=1)
+
+        df_grps = df_thread_means.groupby(job_id_colnames)
+        df_run_sums = df_grps.sum().reset_index()
+        df_run_maxs = df_grps.max().reset_index()
+
+        df_grps = df_thread_means.replace(0, np.NaN).groupby(job_id_colnames)
+        df_run_means = df_grps.mean().reset_index().replace(np.NaN, 0.0)
 
         # Calculate STDEV as % of mean:
-        df_std = df_agg.std().reset_index()
-        renames = {}
-        for x in data_colnames:
-            renames[x] = x+"_mean"
-        df_std = df_std.merge(df_mean.rename(index=str, columns=renames))
-        for c in data_colnames:
-            df_std[c] = df_std[c] / df_std[c+"_mean"]
-            df_std.loc[df_std[c+"_mean"]==0.0,c] = 0.0
-            df_std.loc[df_std[c+"_mean"]==0,c]   = 0.0
-        df_std = df_std.drop([x+"_mean" for x in data_colnames], axis=1)
+        df_std = df_grps.std().reset_index().replace(np.NaN, 0.0)
+        df_std_pct = safe_frame_divide(df_std, df_run_means)
+
+        for pe in Set(df_run_sums["PAPI counter"]):
+            df_run_sums.loc[df_run_sums["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
+        for pe in Set(df_run_maxs["PAPI counter"]):
+            df_run_maxs.loc[df_run_maxs["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
+        for pe in Set(df_run_means["PAPI counter"]):
+            df_run_means.loc[df_run_means["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
+        df_agg = df_run_sums.append(df_run_maxs, sort=True).append(df_run_means, sort=True)
+        
+        out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
+        df_agg.to_csv(out_filepath, index=False)
+
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
-        df_std.to_csv(out_filepath, index=False)
+        df_std_pct.to_csv(out_filepath, index=False)
 
 def count_fp_ins():
     insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")

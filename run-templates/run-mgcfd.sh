@@ -177,4 +177,6 @@ cd "${data_dirpath}"
 echo ""
 echo "$exec_command"
 eval "$exec_command"
+
+touch "${run_outdir}"/job-is-complete.txt
 rm "${run_outdir}"/job-is-running.txt
