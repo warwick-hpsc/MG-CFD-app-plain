@@ -52,17 +52,23 @@ void init_papi()
 
     temp_count_stores.resize(num_threads);
 
-    if (PAPI_num_counters() < 2) {
-       fprintf(stderr, "No hardware counters here, or PAPI not supported.\n");
-       exit(-1);
-    }
-    log("PAPI_num_counters() complete");
-
     if ((ret=PAPI_library_init(PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
         fprintf(stderr, "PAPI_library_init() failed: '%s'.\n", PAPI_strerror(ret));
         exit(EXIT_FAILURE);
     }
     log("PAPI_library_init() complete");
+
+    // int num_ctrs = PAPI_num_counters();
+    int num_ctrs = 0;
+    int num_comps = PAPI_num_components();
+    for (int c=0; c<num_comps; c++) {
+        num_ctrs += PAPI_num_cmp_hwctrs(c);
+    }
+    if (num_ctrs < 2) {
+       fprintf(stderr, "No hardware counters here, or PAPI not supported.\n");
+       exit(-1);
+    }
+    log("PAPI_num_counters() complete");
 
     #ifdef OMP
         #pragma omp parallel
