@@ -153,7 +153,7 @@ void compute_flux_edge(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "flux_kernel.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__
+        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
             // Inlining call makes GNU vector log easier to parse
             #include "flux_kernel.elemfunc.c"
         #else
@@ -448,7 +448,7 @@ void compute_flux_edge_crippled(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "flux_kernel_crippled.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__
+        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
             // Inlining call makes GNU vector log easier to parse
             #include "flux_kernel_crippled.elemfunc.c"
         #else

@@ -151,7 +151,7 @@ void indirect_rw(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "indirect_rw_kernel.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__
+        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
             // Inlining call makes GNU vector log easier to parse
             #include "indirect_rw_kernel.elemfunc.c"
         #else

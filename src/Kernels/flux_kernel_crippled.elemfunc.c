@@ -273,17 +273,17 @@ inline void compute_flux_edge_kernel_crippled(
             }
         #else
             #if defined SIMD && defined MANUAL_SCATTER
-                simd_fluxes_a[VAR_DENSITY]  [simd_idx]      += p_a_val;
-                simd_fluxes_a[VAR_MOMENTUMX][simd_idx]      += mx_a_val;
-                simd_fluxes_a[VAR_MOMENTUMY][simd_idx]      += my_a_val;
-                simd_fluxes_a[VAR_MOMENTUMZ][simd_idx]      += mz_a_val;
-                simd_fluxes_a[VAR_DENSITY_ENERGY][simd_idx] += pe_a_val;
+                simd_fluxes_a[VAR_DENSITY]  [simd_idx]      = p_a_val;
+                simd_fluxes_a[VAR_MOMENTUMX][simd_idx]      = mx_a_val;
+                simd_fluxes_a[VAR_MOMENTUMY][simd_idx]      = my_a_val;
+                simd_fluxes_a[VAR_MOMENTUMZ][simd_idx]      = mz_a_val;
+                simd_fluxes_a[VAR_DENSITY_ENERGY][simd_idx] = pe_a_val;
 
-                simd_fluxes_b[VAR_DENSITY]  [simd_idx]      += p_b_val;
-                simd_fluxes_b[VAR_MOMENTUMX][simd_idx]      += mx_b_val;
-                simd_fluxes_b[VAR_MOMENTUMY][simd_idx]      += my_b_val;
-                simd_fluxes_b[VAR_MOMENTUMZ][simd_idx]      += mz_b_val;
-                simd_fluxes_b[VAR_DENSITY_ENERGY][simd_idx] += pe_b_val;
+                simd_fluxes_b[VAR_DENSITY]  [simd_idx]      = p_b_val;
+                simd_fluxes_b[VAR_MOMENTUMX][simd_idx]      = mx_b_val;
+                simd_fluxes_b[VAR_MOMENTUMY][simd_idx]      = my_b_val;
+                simd_fluxes_b[VAR_MOMENTUMZ][simd_idx]      = mz_b_val;
+                simd_fluxes_b[VAR_DENSITY_ENERGY][simd_idx] = pe_b_val;
             #else
                 fluxes[p_a_flx_idx]  +=  p_a_val;
                 fluxes[mx_a_flx_idx] += mx_a_val;
