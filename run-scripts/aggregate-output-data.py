@@ -549,11 +549,16 @@ def aggregate():
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
 
+        job_id_colnames = sorted(job_id_colnames)
+        data_colnames = sorted(data_colnames)
+        df = df[job_id_colnames + data_colnames]
+
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
         df_agg = df.groupby(get_job_id_colnames(df))
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
+        df_mean = df_mean[job_id_colnames + data_colnames]
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_mean.to_csv(out_filepath, index=False)
 
@@ -582,7 +587,12 @@ def aggregate():
                 df = df.drop("ThreadNum", axis=1)
             job_id_colnames = get_job_id_colnames(df)
             data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
-            df_agg = df.groupby(get_job_id_colnames(df))
+
+            job_id_colnames = sorted(job_id_colnames)
+            data_colnames = sorted(data_colnames)
+            df = df[job_id_colnames + data_colnames]
+
+            df_agg = df.groupby(job_id_colnames)
 
             df_mean = df_agg.mean().reset_index()
             out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
@@ -598,6 +608,10 @@ def aggregate():
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
 
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+
+        job_id_colnames = sorted(job_id_colnames)
+        data_colnames = sorted(data_colnames)
+        df = df[job_id_colnames + data_colnames]
 
         df_agg = df.groupby(get_job_id_colnames(df))
 
