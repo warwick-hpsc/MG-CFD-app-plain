@@ -206,7 +206,7 @@ def infer_field(output_dirpath, field):
     value = None
 
     times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if not os.path.isfile(times_filepath):
+    if os.path.isfile(times_filepath):
         times = pd.read_csv(times_filepath)
         if field in times.columns.values:
             return times.loc[0, field]
