@@ -81,7 +81,7 @@ void indirect_rw(
         #ifdef FLUX_FISSION
             // SIMD is safe
             #ifdef __clang__
-                #pragma clang loop vectorize_width(DBLS_PER_SIMD)
+                #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
             #else
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
             #endif
@@ -132,7 +132,11 @@ void indirect_rw(
                     loop_start = v;
                     loop_end = v+DBLS_PER_SIMD;
 
-                    #pragma omp simd simdlen(DBLS_PER_SIMD)
+                    #ifdef __clang__
+                        #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+                    #else
+                        #pragma omp simd simdlen(DBLS_PER_SIMD)
+                    #endif
 
             #elif defined USE_AVX512CD
                 // Always prefer using OMP pragma to vectorise, gives better performance 
@@ -141,6 +145,7 @@ void indirect_rw(
 
             #else
                 #pragma omp simd safelen(1)
+                #pragma nounroll
             #endif
         #endif
     #endif
