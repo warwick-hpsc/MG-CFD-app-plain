@@ -177,9 +177,9 @@ else ifeq ($(COMPILER),cray)
 
 	## Loop unroller interferes with vectorizer, disable:
 	ifeq ($(_cray_wraps_clang),1)
-		## Todo: how does non-LLVM Cray expose loop unroller?
-	else
 		OPTIMISATION += -fno-unroll-loops
+	else
+		## Todo: how does non-LLVM Cray expose loop unroller?
 	endif
 
 	WARNINGS := 
