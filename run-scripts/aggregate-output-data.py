@@ -359,9 +359,9 @@ def analyse_object_files():
                 continue
 
             ic_filepath = os.path.join(output_dirpath, "instruction-counts.csv")
-            if os.path.isfile(ic_filepath):
-                continue
             ic_cat_filepath = os.path.join(output_dirpath, "instruction-counts-categorised.csv")
+            if os.path.isfile(ic_filepath) and os.path.isfile(ic_cat_filepath):
+                continue
 
             # print("Processing: " + output_dirpath)
 
