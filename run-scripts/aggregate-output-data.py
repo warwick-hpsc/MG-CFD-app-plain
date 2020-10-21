@@ -450,7 +450,17 @@ def analyse_object_files():
                 df = job_id_df.join(loops_tally_df)
                 df.to_csv(ic_filepath, index=False)
 
-                f = categorise_aggregated_instructions_tally_csv(ic_filepath)
+                target_is_aarch64 = False
+                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
+                for line in open(raw_asm_filepath):
+                  if "aarch64" in line:
+                    target_is_aarch64 = True
+                    break
+
+                if target_is_aarch64:
+                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_aarch64=True)
+                else:
+                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_intel64=True)
                 f.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
