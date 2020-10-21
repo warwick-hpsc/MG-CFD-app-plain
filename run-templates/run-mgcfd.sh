@@ -120,7 +120,7 @@ for loop in flux_loops indirect_rw_loop ; do
   done
   cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
   # Update: run 'objdump' on the system to get assembly:
-  objdump_raw_command="objdump -M att -M att-mnemonic -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
+  objdump_raw_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
   objdump_raw_command+=" > ${run_outdir}/objects/${loop}.o.raw-asm"
   echo "$objdump_raw_command"
   eval "$objdump_raw_command"
