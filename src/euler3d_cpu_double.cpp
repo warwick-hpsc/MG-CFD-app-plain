@@ -18,6 +18,7 @@
 #include "io_enhanced.h"
 
 // Kernels:
+#include "kernel_wrappers.h"
 #include "flux_loops.h"
 #include "indirect_rw_loop.h"
 #include "cfd_loops.h"

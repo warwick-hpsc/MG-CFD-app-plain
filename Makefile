@@ -284,6 +284,7 @@ OBJ_DIR_DBG = obj/$(BUILD_FLAGS_COMPRESSED)_debug
 #####################################################
 
 SOURCES = src/euler3d_cpu_double.cpp \
+		  src/kernel_wrappers.cpp \
 		  src/Base/common.cpp \
 		  src/Base/config.cpp \
 		  src/Base/io.cpp \
@@ -293,6 +294,8 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Kernels/mg_loops.cpp \
 		  src/Kernels/indirect_rw_loop.cpp \
 		  src/Kernels/validation.cpp \
+		  src/Kernels_vectorised/flux_vecloops.cpp \
+		  src/Kernels_vectorised/indirect_rw_vecloop.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \
 		  src/Monitoring/loop_stats.cpp \
@@ -304,7 +307,7 @@ SOURCES = src/euler3d_cpu_double.cpp \
 OBJECTS     := $(patsubst src/%.cpp, $(OBJ_DIR)/%.o,     $(SOURCES))
 OBJECTS_DBG := $(patsubst src/%.cpp, $(OBJ_DIR_DBG)/%.o, $(SOURCES))
 
-INCLUDES += -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring -Isrc/Meshing
+INCLUDES += -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Kernels_vectorised -Isrc/Monitoring -Isrc/Meshing
 
 #############
 ## TARGETS ##

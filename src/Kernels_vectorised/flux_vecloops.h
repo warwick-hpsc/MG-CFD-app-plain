@@ -1,33 +1,9 @@
-#ifndef FLUX_KERNELS_H
-#define FLUX_KERNELS_H
+#ifndef FLUX_VECKERNELS_H
+#define FLUX_VECKERNELS_H
 
 #include "common.h"
 
-void compute_boundary_flux_edge_loop(
-    long first_edge,
-    long nedges,
-    const edge_neighbour *restrict edges, 
-    const double *restrict variables, 
-    #ifdef FLUX_FISSION
-        edge *restrict edge_variables
-    #else
-        double *restrict fluxes
-    #endif
-    );
-
-void compute_wall_flux_edge_loop(
-    long first_edge,
-    long nedges,
-    const edge_neighbour *restrict edges, 
-    const double *restrict variables, 
-    #ifdef FLUX_FISSION
-        edge *restrict edge_variables
-    #else
-        double *restrict fluxes
-    #endif
-    );
-
-void compute_flux_edge_loop(
+void compute_flux_edge_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -47,7 +23,7 @@ void compute_flux_edge_loop(
     );
 
 #ifdef FLUX_CRIPPLE
-void compute_flux_edge_crippled_loop(
+void compute_flux_edge_crippled_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 

@@ -156,7 +156,7 @@ def get_output_run_config(output_dirpath):
     return job_id_df
 
 def calc_ins_per_iter(output_dirpath, kernel):
-    if kernel == "compute_flux_edge" or kernel == "compute_flux_edge_crippled":
+    if "compute_flux_edge" in kernel:
         timer = "flux0"
     elif kernel == "indirect_rw":
         timer = "indirect_rw0"
@@ -310,7 +310,7 @@ def infer_field(output_dirpath, field):
 
 def did_simd_fail(output_dirpath, compiler=None):
     failed = False
-    log_filepath =  os.path.join(output_dirpath, "flux_loops.o.log")
+    log_filepath =  os.path.join(output_dirpath, "flux_vecloops.o.log")
 
     if compiler is None:
         compiler = infer_field(output_dirpath, "CC")
@@ -372,7 +372,7 @@ def analyse_object_files():
 
             # print("Processing: " + output_dirpath)
 
-            kernel_to_object = {}
+            loop_to_object = {}
 
             run_filename_candidates = [x+".batch" for x in ["slurm", "pbs", "moab", "lsf"]]
             run_filename_candidates.append("run.sh")
@@ -382,11 +382,6 @@ def analyse_object_files():
                     break
             if run_filename == "":
                 raise IOError("Cannot find a run script for run: " + output_dirpath)
-            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
-                kernel_to_object["compute_flux_edge_crippled"] = "flux_loops.o"
-            else:
-                kernel_to_object["compute_flux_edge"] = "flux_loops.o"
-            kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
             compile_info["compiler"] = infer_field(output_dirpath, "CC")
             compile_info["SIMD len"] = infer_field(output_dirpath, "SIMD len")
@@ -402,6 +397,18 @@ def analyse_object_files():
             compile_info["SIMD CA scheme"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy")
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
+
+            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
+                compute_flux_edge_loop_name = "compute_flux_edge_crippled"
+            else:
+                compute_flux_edge_loop_name = "compute_flux_edge"
+            if simd:
+                loop_to_object[compute_flux_edge_loop_name+"_vecloop"] = "flux_vecloops.o"
+                loop_to_object["indirect_rw_vecloop"] = "indirect_rw_vecloop.o"
+            else:
+                loop_to_object[compute_flux_edge_loop_name+"_loop"] = "flux_loops.o"
+                loop_to_object["indirect_rw_loop"] = "indirect_rw_loop.o"
+
             if "manual" in compile_info["SIMD CA scheme"].lower():
                 if compile_info["compiler"] == "clang":
                     compile_info["manual CA block width"] = (compile_info["SIMD len"]*3)+2
@@ -409,10 +416,15 @@ def analyse_object_files():
                     compile_info["manual CA block width"] = compile_info["SIMD len"]
 
             loops_tally_df = None
-            for k in kernel_to_object.keys():
+            for k in loop_to_object.keys():
+                if "compute_flux_edge" in k:
+                    k_pretty = "compute_flux_edge"
+                elif "indirect_rw" in k:
+                    k_pretty = "indirect_rw"
+
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
-                obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
+                obj_filepath = os.path.join(output_dirpath, "objects", loop_to_object[k])
                 try:
                     asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
                 except:
@@ -424,9 +436,7 @@ def analyse_object_files():
                     loop_tally2["insn."+i] = loop_tally[i]
                 loop_tally = loop_tally2
 
-                if k == "compute_flux_edge_crippled":
-                    k = "compute_flux_edge"
-                loop_tally["kernel"] = k
+                loop_tally["kernel"] = k_pretty
 
                 if loops_tally_df is None:
                     tmp_dict = {}
@@ -467,7 +477,10 @@ def analyse_object_files():
                 df.to_csv(ic_filepath, index=False)
 
                 target_is_aarch64 = False
-                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
+                if simd:
+                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
+                else:
+                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
                 for line in open(raw_asm_filepath):
                   if "aarch64" in line:
                     target_is_aarch64 = True
@@ -704,9 +717,20 @@ def count_fp_ins():
         "[v]?div[sp][sd]", "[v]?sqrt[sp][sd]", 
         "vrcp14[sp]d", "vrcp28[sp]d", 
         "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
-        "[v]?mul[sp][sd]"
+        "[v]?mul[sp][sd]", "vgetexpsd", "vgetmantsd", "vscalefsd"
     ]
     intel_fp_fma_insns = ["vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]"]
+
+    aarch64_fp_insns = [
+        "[v]?fadd", "[v]?fsub", 
+        "[v]?fdiv", "[v]?fsqrt", 
+        "[v]?fmul",
+        "vfneg"
+    ]
+    aarch64_fp_fma_insn = [
+        "f[n]?madd", "f[n]?msub", "vfml[as]"
+    ]
+
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
     insn_df = safe_pd_filter(insn_df, "kernel", "compute_flux_edge")
     insn_df["FLOPs/iter"] = 0
@@ -723,6 +747,20 @@ def count_fp_ins():
                     break
             if not fp_detected:
                 for f in intel_fp_fma_insns:
+                    if re.match(f, insn):
+                        insn_df["FLOPs/iter"]  += 2*insn_df[colname]
+                        insn_df["FP ins/iter"] +=   insn_df[colname]
+                        fp_detected = True
+                        break
+            if not fp_detected:
+                for f in aarch64_fp_insns:
+                    if re.match(f, insn):
+                        insn_df["FLOPs/iter"]  += insn_df[colname]
+                        insn_df["FP ins/iter"] += insn_df[colname]
+                        fp_detected = True
+                        break
+            if not fp_detected:
+                for f in aarch64_fp_fma_insn:
                     if re.match(f, insn):
                         insn_df["FLOPs/iter"]  += 2*insn_df[colname]
                         insn_df["FP ins/iter"] +=   insn_df[colname]

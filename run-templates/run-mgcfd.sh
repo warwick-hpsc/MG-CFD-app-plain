@@ -100,8 +100,14 @@ fi
 if [ -f "$objs_dirpath"/Kernels/flux_loops.o.log ]; then
   cp "$objs_dirpath"/Kernels/flux_loops.o.log "$run_outdir"/
 fi
+if [ -f "$objs_dirpath"/Kernels_vectorised/flux_vecloops.o.log ]; then
+  cp "$objs_dirpath"/Kernels_vectorised/flux_vecloops.o.log "$run_outdir"/
+fi
 if [ -f "$objs_dirpath"/Kernels/indirect_rw_loop.o.log ]; then
   cp "$objs_dirpath"/Kernels/indirect_rw_loop.o.log "$run_outdir"/
+fi
+if [ -f "$objs_dirpath"/Kernels_vectorised/indirect_rw_vecloop.o.log ]; then
+  cp "$objs_dirpath"/Kernels_vectorised/indirect_rw_vecloop.o.log "$run_outdir"/
 fi
 
 # Grab object files:
@@ -111,14 +117,19 @@ fi
 obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
-for loop in flux_loops indirect_rw_loop ; do
+for loop in flux_loops flux_vecloops indirect_rw_loop indirect_rw_vecloop ; do
   # Grab any optimisation reports:
   for ext in lst optrpt ; do
     if [ -f "${obj_dir}/Kernels/${loop}.${ext}" ]; then
       cp "${obj_dir}/Kernels/${loop}.${ext}" "${run_outdir}"/objects/
     fi
   done
-  cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
+  if [ -f "${obj_dir}/Kernels_vectorised/${loop}".o ]; then
+    cp "${obj_dir}/Kernels_vectorised/${loop}".o "${run_outdir}"/objects/
+  else
+    cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
+  fi
+
   # Update: run 'objdump' on the system to get assembly:
   objdump_raw_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
   objdump_raw_command+=" > ${run_outdir}/objects/${loop}.o.raw-asm"
