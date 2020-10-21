@@ -1,11 +1,18 @@
 import os
 import pandas as pd
 import numpy as np
-from sets import Set
 import fnmatch
 import argparse
 import re
 from math import floor, log10
+
+import sys
+pyv = sys.version_info[0]
+if pyv == 2:
+    from sets import Set
+elif pyv == 3:
+    # Create alias:
+    Set = set
 
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
@@ -412,9 +419,10 @@ def analyse_object_files():
                     raise
                     # continue
                 loop_tally = count_loop_instructions(asm_loop_filepath)
+                loop_tally2 = {}
                 for i in loop_tally.keys():
-                    loop_tally["insn."+i] = loop_tally[i]
-                    del loop_tally[i]
+                    loop_tally2["insn."+i] = loop_tally[i]
+                loop_tally = loop_tally2
 
                 if k == "compute_flux_edge_crippled":
                     k = "compute_flux_edge"
@@ -422,8 +430,12 @@ def analyse_object_files():
 
                 if loops_tally_df is None:
                     tmp_dict = {}
-                    for k,v in loop_tally.iteritems():
-                        tmp_dict[k] = [v]
+                    if pyv == 2:
+                        for k,v in loop_tally.iteritems():
+                            tmp_dict[k] = [v]
+                    elif pyv == 3:
+                        for k,v in loop_tally.items():
+                            tmp_dict[k] = [v]
                     loops_tally_df = pd.DataFrame.from_dict(tmp_dict)
                 else:
                     for f in Set(loops_tally_df.keys()).difference(Set(loop_tally.keys())):
@@ -432,8 +444,12 @@ def analyse_object_files():
                         loops_tally_df[f] = 0
 
                     tmp_dict = {}
-                    for k,v in loop_tally.iteritems():
-                        tmp_dict[k] = [v]
+                    if pyv == 2:
+                        for k,v in loop_tally.iteritems():
+                            tmp_dict[k] = [v]
+                    elif pyv == 3:
+                        for k,v in loop_tally.items():
+                            tmp_dict[k] = [v]
                     loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
 
             if not loops_tally_df is None:
