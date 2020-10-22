@@ -136,20 +136,26 @@ void compute_step_factor(
 
     // Sync dt:
     double min_dt = step_factors[0];
-    #pragma omp parallel for reduction(min:min_dt)
+    #ifdef OMP
+        #pragma omp parallel for reduction(min:min_dt)
+    #endif
     for (long i=0; i<nel; i++)
     {
         if (step_factors[i] < min_dt) {
             min_dt = step_factors[i];
         }
     }
-    #pragma omp parallel for
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
     for (long i=0; i<nel; i++)
     {
         step_factors[i] = min_dt;
     }
     // Bring forward a division-by-volume performed by time_step():
-    #pragma omp parallel for
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
     for (long i=0; i<nel; i++)
     {
         step_factors[i] /= volumes[i];

@@ -1,9 +1,9 @@
-#ifndef INDIRECT_RW_LOOP_H
-#define INDIRECT_RW_LOOP_H
+#ifndef INDIRECT_RW_VECLOOP_H
+#define INDIRECT_RW_VECLOOP_H
 
 #include "common.h"
 
-void indirect_rw_loop(
+void indirect_rw_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 

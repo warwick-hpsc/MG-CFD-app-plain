@@ -32,6 +32,7 @@ defaults["debug"] = False
 defaults["insn set"] = "Host"
 defaults["base flags"] = "-DTIME"
 defaults["flux flags"] = [""]
+defaults["precise fp"] = True
 defaults["compile only"] = False
 # Job scheduling:
 defaults["unit walltime"] = 0.0
@@ -44,6 +45,9 @@ defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
 defaults["min mesh multi"] = 1
+# Optimisation:
+defaults["simd mode"] = False
+defaults["simd CA scheme"] = ""
 
 def get_key_value(profile, cat, key, ensure_list=False):
     v = None
@@ -185,6 +189,7 @@ if __name__=="__main__":
     else:
         isas = get_key_value(profile, "compile", "insn set", True)
     base_flags = get_key_value(profile, "compile", "base flags", True)
+    precise_fp = get_key_value(profile, "optimisation", "precise fp", True)
 
     if "permutable flags" in profile["compile"]:
         ## Backwards compatibility
@@ -201,6 +206,14 @@ if __name__=="__main__":
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
 
+    simd_modes = get_key_value(profile, "optimisation", "simd mode", True)
+    if True in simd_modes:
+        simd_ca_schemes = get_key_value(profile, "optimisation", "simd CA scheme", True)
+        simd_lens = get_key_value(profile, "optimisation", "simd len", True)
+    else:
+        simd_ca_schemes = None
+        simd_lens = None
+
     iteration_space = {}
     if not compilers is None:
         iteration_space["compiler"] = compilers
@@ -208,10 +221,18 @@ if __name__=="__main__":
         iteration_space["isa"] = isas
     if not base_flags is None:
         iteration_space["base flags"] = base_flags
+    if not precise_fp is None:
+        iteration_space["precise fp"] = precise_fp
     if not flux_flags_permutations is None:
         iteration_space["flux flags"] = flux_flags_permutations
     if not threads is None:
         iteration_space["threads"] = threads
+    if not simd_modes is None:
+        iteration_space["simd mode"] = simd_modes
+    if not simd_ca_schemes is None:
+        iteration_space["simd CA scheme"] = simd_ca_schemes
+    if not simd_lens is None:
+        iteration_space["simd len"] = simd_lens
 
     iterables = itertools.product(*iteration_space.values())
     iterables_labelled = []
@@ -221,9 +242,35 @@ if __name__=="__main__":
         for i in range(len(item)):
           item_dict[iteration_keys[i]] = item[i]
         iterables_labelled.append(item_dict)
+    ## Process incompatible options:
+    iterables_labelled_processed = []
+    for item in iterables_labelled:
+        if not item["simd mode"]:
+            item["simd len"] = 1
+            item["simd CA scheme"] = ""
+        else:
+            isa = item["isa"]
+            simd_len = item["simd len"]
+            if isa.startswith("SSE42"):
+                if simd_len > 2:
+                    item["simd len"] = 2
+            elif isa.startswith("AVX") and not isa == "AVX512":
+                if simd_len > 4:
+                    item["simd len"] = 4
+
+        if item["compiler"] == "intel" and item["precise fp"]:
+            disable_precise_fp = False
+            if item["isa"] == "AVX512" or item["isa"] == "KNL-AVX512":
+                disable_precise_fp = True
+            elif item["isa"] == "Host" and ("avx512cd" in subprocess.check_output(['lscpu'])):
+                disable_precise_fp = True
+            if disable_precise_fp:
+                print("WARNING: Intel compiler segfaults when compiling precise FP with target AVX512, so disabling precise FP")
+                item["precise fp"] = False
+        iterables_labelled_processed.append(item)
     ## Prune duplicates:
     iterables_labelled_pruned = []
-    for item in iterables_labelled:
+    for item in iterables_labelled_processed:
         if not item in iterables_labelled_pruned:
             iterables_labelled_pruned.append(item)
     iterables_labelled = iterables_labelled_pruned
@@ -304,6 +351,22 @@ if __name__=="__main__":
 
             compiler = item.get("compiler")
             isa = item.get("isa")
+            simd = item.get("simd mode")
+            if simd:
+                build_flags += " -DSIMD"
+                build_flags += " -DDBLS_PER_SIMD={0}".format(item.get("simd len"))
+                ca_scheme = item.get("simd CA scheme")
+                if ca_scheme == "manual":
+                    build_flags += " -DMANUAL_SCATTER -DMANUAL_GATHER"
+                elif ca_scheme == "manual scatter":
+                    build_flags += " -DMANUAL_SCATTER"
+                elif ca_scheme == "colour":
+                    build_flags += " -DCOLOURED_CONFLICT_AVOIDANCE"
+                    build_flags += " -DBIN_COLOURED_VECTORS"
+
+            precise_fp = item.get("precise fp")
+            if precise_fp:
+                build_flags += " -DPRECISE_FP"
 
             bin_filename = "euler3d_cpu_double_" + compiler
             bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"

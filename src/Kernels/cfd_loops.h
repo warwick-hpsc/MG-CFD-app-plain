@@ -54,6 +54,7 @@ inline void initialize_variables(
     }
 }
 
+FORCE_INLINE
 inline void compute_flux_contribution(
     double3 momentum, 
     double density_energy, 
@@ -118,6 +119,7 @@ inline void initialize_far_field_conditions()
         ff_flux_contribution_density_energy);
 }
 
+FORCE_INLINE
 inline void compute_velocity(double density, double3 momentum, double3& velocity)
 {
     velocity.x = momentum.x / density;
@@ -125,6 +127,7 @@ inline void compute_velocity(double density, double3 momentum, double3& velocity
     velocity.z = momentum.z / density;
 }
 
+FORCE_INLINE
 inline void compute_velocity_reciprocal(double density_reciprocal, double3 momentum, double3& velocity)
 {
     velocity.x = momentum.x * density_reciprocal;
@@ -132,26 +135,31 @@ inline void compute_velocity_reciprocal(double density_reciprocal, double3 momen
     velocity.z = momentum.z * density_reciprocal;
 }
 
+FORCE_INLINE
 inline double compute_speed_sqd(double3 velocity)
 {
     return velocity.x*velocity.x + velocity.y*velocity.y + velocity.z*velocity.z;
 }
 
+FORCE_INLINE
 inline double compute_pressure(double density, double density_energy, double speed_sqd)
 {
     return (double(GAMMA)-double(1.0))*(density_energy - double(0.5)*density*speed_sqd);
 }
 
+FORCE_INLINE
 inline double compute_speed_of_sound(double density, double pressure)
 {
     return sqrt(double(GAMMA)*pressure/density);
 }
 
+FORCE_INLINE
 inline double compute_speed_of_sound_reciprocal(double density_reciprocal, double pressure)
 {
     return sqrt(double(GAMMA)*pressure*density_reciprocal);
 }
 
+FORCE_INLINE
 inline void update_a(
     long i,
     long a,
@@ -177,6 +185,7 @@ inline void update_a(
     fluxes[mz_idx] += mz_val;
 }
 
+FORCE_INLINE
 inline void update_b(
     long i,
     long b,

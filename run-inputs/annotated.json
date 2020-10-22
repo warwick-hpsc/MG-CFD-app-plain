@@ -23,6 +23,17 @@
         "compile only": true
     },
 
+    "optimisation": {
+        "simd mode comment": "OPTIONAL: Whether to vectorise loops (only if safe to do so). Single value or list.",
+        "simd mode": [true, false],
+
+        "simd CA scheme comment": "OPTIONAL: Specify conflict avoidance scheme for loops with indirect writes. Supported are 'colour' (based on graph colouring), 'manual' (force sequential indirect writes), or '' for none. Single value or list.",
+        "simd CA scheme": "manual",
+
+        "simd len comment": "Specify number of doubles to pack in vector. Single value or list.",
+        "simd len": 4
+    },
+
     "run": {
         "data dirpath comment": "Directory path to folder containing desired input files and input.dat",
         "data dirpath": "./dirpath/to/input/deck",

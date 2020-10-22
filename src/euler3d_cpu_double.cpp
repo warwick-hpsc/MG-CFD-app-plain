@@ -18,10 +18,15 @@
 #include "io_enhanced.h"
 
 // Kernels:
+#include "kernel_wrappers.h"
 #include "flux_loops.h"
 #include "indirect_rw_loop.h"
 #include "cfd_loops.h"
 #include "mg_loops.h"
+
+// Meshing:
+#include "colour.h"
+#include "reorder.h"
 
 // Monitoring:
 #include "papi_funcs.h"
@@ -253,6 +258,89 @@ int main(int argc, char** argv)
         }
     }
 
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+        int* edge_colours[levels];
+        int number_of_colours[levels];
+        printf("Colouring mesh edges:\n");
+        double colour_start_time = omp_get_wtime();
+        for (int i=0; i<levels; i++) {
+            edge_colours[i] = NULL;
+            number_of_colours[i] = 0;
+
+            colour_mesh_strict(
+                edges[i], 
+                number_of_edges[i], 
+                nel[i], 
+                boundary_edge_starts[i], 
+                wall_edge_starts[i], 
+                num_internal_edges[i], 
+                num_boundary_edges[i], 
+                num_wall_edges[i], 
+                &edge_colours[i], 
+                &number_of_colours[i]);
+        }
+        printf("Colouring time = %.2f\n", omp_get_wtime()-colour_start_time);
+    #endif
+
+    #ifdef BIN_COLOURED_VECTORS
+        long internal_serial_section_starts[levels];
+        long boundary_serial_section_starts[levels];
+        long wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoColouredVectorUnits(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #elif defined BIN_COLOURED_CONTIGUOUS
+        long internal_serial_section_starts[levels];
+        long boundary_serial_section_starts[levels];
+        long wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoContiguousColouredBlocks(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #endif
+
     ///////////////////////////////////////////////////////////////////////////
     // Duplicate mesh (for safe thread decomposition):
     ///////////////////////////////////////////////////////////////////////////
@@ -271,6 +359,11 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     nel[i+1],
                     &mg_connectivity[i], 
@@ -286,6 +379,11 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     0,
                     NULL, 
@@ -351,12 +449,32 @@ int main(int argc, char** argv)
         }
     }
 
+    ///////////////////////////////////////////////////////////////////////////
+    // Reshape arrays for better vectorisation:
+    ///////////////////////////////////////////////////////////////////////////
+    long* edge_nodes[levels];
+    double* edge_vectors[levels];
+    for (int l=0; l<levels; l++) {
+        edge_nodes[l] = alloc<long>(number_of_edges[l]*2);
+        edge_vectors[l] = alloc<double>(number_of_edges[l]*NDIM);
+        for (long e=0; e<number_of_edges[l]; e++) {
+            edge_nodes[l][e*2]   = edges[l][e].a;
+            edge_nodes[l][e*2+1] = edges[l][e].b;
+
+            edge_vectors[l][e*NDIM]   = edges[l][e].x;
+            edge_vectors[l][e*NDIM+1] = edges[l][e].y;
+            edge_vectors[l][e*NDIM+2] = edges[l][e].z;
+        }
+    }
+
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double* edge_weights[levels];
         for (int i=0; i<levels; i++) {
             edge_weights[i] = alloc<double>(number_of_edges[i]);
             for (long e=0; e<number_of_edges[i]; e++) {
-                edge_weights[i][e] = sqrt(edges[i][e].x*edges[i][e].x + edges[i][e].y*edges[i][e].y + edges[i][e].z*edges[i][e].z);
+                edge_weights[i][e] = sqrt(  edge_vectors[i][e*NDIM]  *edge_vectors[i][e*NDIM] 
+                                          + edge_vectors[i][e*NDIM+1]*edge_vectors[i][e*NDIM+1] 
+                                          + edge_vectors[i][e*NDIM+2]*edge_vectors[i][e*NDIM+2]);
             }
         }
     #endif
@@ -400,13 +518,17 @@ int main(int argc, char** argv)
                 compute_flux_edge_crippled(
                     internal_edge_starts[level], 
                     num_internal_edges[level],
-                    edges[level], 
+                    edge_nodes[level], 
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                         edge_weights[level],
                     #endif
+                    edge_vectors[level],
                     variables[level], 
                     #ifndef FLUX_FISSION
                         fluxes[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
                     #else
                         edge_variables[level]
                     #endif
@@ -420,13 +542,17 @@ int main(int argc, char** argv)
             compute_flux_edge(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
-                edges[level], 
+                edge_nodes[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
+                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                    , internal_serial_section_starts[level]
+                    #endif
                 #else
                     edge_variables[level]
                 #endif
@@ -491,13 +617,17 @@ int main(int argc, char** argv)
             indirect_rw(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
-                edges[level], 
+                edge_nodes[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
+                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                    , internal_serial_section_starts[level]
+                    #endif
                 #else
                     edge_variables[level]
                 #endif
@@ -701,13 +831,13 @@ int main(int argc, char** argv)
     // Validate solution:
     ////////////////////////////////////
     printf("\n");
+    bool data_check_passed = true;
     if (conf.validate_result) {
         printf("Beginning validation of variables[]\n");
         for (int level=0; level<levels; level++) {
             check_for_invalid_variables(variables[level], nel[level]);
         }
         printf("  NaN check passed\n");
-        bool data_check_passed = true;
         bool res;
         // for (int level=0; level<levels; level++) {
         // Update: only interested in the finest mesh:
@@ -737,8 +867,8 @@ int main(int argc, char** argv)
         }
         if (data_check_passed) {
             printf("PASS: variables[] validated successfully\n");
-        // } else {
-        //     printf("FAIL: variables[] validation failed\n");
+        } else {
+            printf("FAIL: variables[] validation failed\n");
         }
         printf("\n");
     }
@@ -805,5 +935,8 @@ int main(int argc, char** argv)
     delete[] (layers);
     delete[] (mg_connectivity_filename);
 
+    // return 0;
+    if (!data_check_passed)
+        return 1;
     return 0;
 }

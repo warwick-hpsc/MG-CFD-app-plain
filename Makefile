@@ -102,6 +102,7 @@ ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -ftree-vectorize
 
 	GCC_OPT_REPORT_OPTIONS := 
+	GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-missed
 	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
@@ -119,8 +120,10 @@ else ifeq ($(COMPILER),intel)
 	CPP := icpc
 	CFLAGS += -qopenmp
 	CFLAGS += -fmax-errors=1
+	CFLAGS += -vec-threshold0
 
 	INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=all -qopt-report=5
+	# INTEL_OPT_REPORT_OPTIONS := -qopt-report-phase=vec -qopt-report=5
 	CFLAGS += $(INTEL_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
@@ -143,8 +146,16 @@ else ifeq ($(COMPILER),clang)
 	CPP := clang++
 	CFLAGS += -fopenmp
 	CFLAGS += -ferror-limit=1
+	CFLAGS += -finline-hint-functions
 
-	OPT_REPORT_OPTIONS := -Rpass-missed=loop-vec -Rpass-analysis=loop-vec
+	## Loop unroller interferes with vectorizer, disable:
+	OPTIMISATION += -fno-unroll-loops
+
+	OPT_REPORT_OPTIONS := 
+	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec ## Report SIMD failures
+	OPT_REPORT_OPTIONS += -Rpass="loop-(unroll|vec)" ## Report loop transformations
+	#OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vectorize ## Report WHY vectorize failed
+	OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	CFLAGS += $(OPT_REPORT_OPTIONS)
 
 	HOST_EXEC_TARGET = -mcpu=native
@@ -164,12 +175,22 @@ else ifeq ($(COMPILER),cray)
 		CFLAGS += -finline-hint-functions
 	endif
 
+	## Loop unroller interferes with vectorizer, disable:
+	ifeq ($(_cray_wraps_clang),1)
+		OPTIMISATION += -fno-unroll-loops
+	else
+		## Todo: how does non-LLVM Cray expose loop unroller?
+	endif
+
 	WARNINGS := 
 
 	OPT_REPORT_OPTIONS :=
 	ifeq ($(_cray_wraps_clang),1)
 		## Enable Clang optimisation reports:
+		OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec ## Report SIMD failures
 		OPT_REPORT_OPTIONS += -Rpass="loop-(unroll|vec)" ## Report loop transformations
+		#OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vectorize ## Report WHY vectorize failed
+		OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	else
 		## Enable Cray optimisation report:
 		OPT_REPORT_OPTIONS += -hlist=a
@@ -263,6 +284,7 @@ OBJ_DIR_DBG = obj/$(BUILD_FLAGS_COMPRESSED)_debug
 #####################################################
 
 SOURCES = src/euler3d_cpu_double.cpp \
+		  src/kernel_wrappers.cpp \
 		  src/Base/common.cpp \
 		  src/Base/config.cpp \
 		  src/Base/io.cpp \
@@ -272,14 +294,20 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Kernels/mg_loops.cpp \
 		  src/Kernels/indirect_rw_loop.cpp \
 		  src/Kernels/validation.cpp \
+		  src/Kernels_vectorised/flux_vecloops.cpp \
+		  src/Kernels_vectorised/indirect_rw_vecloop.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \
-		  src/Monitoring/loop_stats.cpp
+		  src/Monitoring/loop_stats.cpp \
+		  src/Meshing/reorder.cpp \
+		  src/Meshing/graph.cpp \
+		  src/Meshing/colour.cpp \
+		  src/Meshing/progress.cpp
 
 OBJECTS     := $(patsubst src/%.cpp, $(OBJ_DIR)/%.o,     $(SOURCES))
 OBJECTS_DBG := $(patsubst src/%.cpp, $(OBJ_DIR_DBG)/%.o, $(SOURCES))
 
-INCLUDES += -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Monitoring -Isrc/Meshing
+INCLUDES += -Isrc -Isrc/Base -Isrc/Kernels -Isrc/Kernels_vectorised -Isrc/Monitoring -Isrc/Meshing
 
 #############
 ## TARGETS ##

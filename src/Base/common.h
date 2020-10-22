@@ -16,6 +16,7 @@
 #include "const.h"
 #include "definitions.h"
 #include "globals.h"
+#include "macro_rules.h"
 
 std::string& ltrim(std::string &s);
 std::string& rtrim(std::string &s);

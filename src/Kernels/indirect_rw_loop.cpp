@@ -1,4 +1,5 @@
 #include "indirect_rw_loop.h"
+#include "indirect_rw_kernel.h"
 #include "cfd_loops.h"
 
 #include "papi_funcs.h"
@@ -8,18 +9,22 @@
 // Indirect R/W kernel
 // - performs same data movement as compute_flux_edge() but with minimal arithmetic. 
 //   Measures upper bound on performance achievable by compute_flux_edge()
-void indirect_rw(
+void indirect_rw_loop(
     long first_edge,
     long nedges,
-    const edge_neighbour *restrict edges, 
+    const long *restrict edge_nodes, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        const double *restrict edge_weights, 
+        const double *restrict edge_weights,
     #endif
+    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
     #else
         double *restrict fluxes
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+        , long serial_section_start
+        #endif
     #endif
     )
 {
@@ -43,26 +48,30 @@ void indirect_rw(
     #endif
     record_iters(loop_start, loop_end);
 
-    #ifndef SIMD
-        #pragma omp simd safelen(1)
+    #ifdef __clang__
+        #pragma clang loop vectorize(disable)
     #else
-        #ifdef FLUX_FISSION
-            // SIMD is safe
-            #pragma omp simd simdlen(DBLS_PER_SIMD)
-        #else
-            // Conflict avoidance is required for safe SIMD
-            #if defined __AVX512CD__ && defined __ICC
-                #pragma omp simd safelen(1)
-                // TODO: Insert the following pragma into indirect_rw_kernel.elemfunc.c to 
-                //       enable safe AVX-512-CD SIMD:
-                // #pragma omp ordered simd overlap(...)
-            #endif
-        #endif
+        #pragma omp simd safelen(1)
     #endif
+    #pragma nounroll
     for (long i=loop_start; i<loop_end; i++)
     {
-        #include "indirect_rw_kernel.elemfunc.c"
+        indirect_rw_kernel(
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights[i],
+            #endif
+            edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+            &variables[edge_nodes[i*2]  *NVAR],
+            &variables[edge_nodes[i*2+1]*NVAR],
+            #ifdef FLUX_FISSION
+                &edge_variables[i*NVAR]
+            #else
+                &fluxes[edge_nodes[i*2  ]*NVAR],
+                &fluxes[edge_nodes[i*2+1]*NVAR]
+            #endif
+            );
     }
+
     #ifdef TIME
     stop_timer();
     #endif

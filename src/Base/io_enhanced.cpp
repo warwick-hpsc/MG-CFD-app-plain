@@ -96,6 +96,11 @@ void duplicate_mesh(
     long* num_wedges, 
     long* bedges_start, 
     long* wedges_start,
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        long* internal_serial_section_start,
+        long* boundary_serial_section_start, 
+        long* wall_serial_section_start,
+    #endif
     edge_neighbour** edges,
     long nel_above,
     long** mg_mapping,
@@ -128,40 +133,107 @@ void duplicate_mesh(
     long bedges_start_duplicated = (*bedges_start)*m;
     long wedges_start_duplicated     = (*wedges_start)*m;
 
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        int internal_serial_section_start_duplicated = m*(*internal_serial_section_start);
+
+        int boundary_serial_section_start_duplicated = bedges_start_duplicated + 
+                m*((*boundary_serial_section_start)-(*bedges_start));
+
+        int wall_serial_section_start_duplicated = wedges_start_duplicated + 
+                m*((*wall_serial_section_start)-(*wedges_start));
+    #endif
+
     edge_neighbour* edges_duplicated = alloc<edge_neighbour>(num_edges_duplicated);
     long j=0;
-    for (int i=0; i<m; i++) {
-        const long n = *num_iedges;
-        copy_and_shift_edges(*edges,
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const long n = *internal_serial_section_start;
+            copy_and_shift_edges(*edges,
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const long n = (*num_iedges)-(*internal_serial_section_start);
+            copy_and_shift_edges(*edges+(*internal_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const long n = *num_iedges;
+            copy_and_shift_edges(*edges,
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<bedges_start_duplicated; j++) {
         edges_duplicated[j].a = -5; 
         edges_duplicated[j].b = -5;
     }
-    for (int i=0; i<m; i++) {
-        const long n = *num_bedges;
-        copy_and_shift_edges(*edges+(*bedges_start), 
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const long n = *boundary_serial_section_start-(*bedges_start);
+            copy_and_shift_edges(*edges+(*bedges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const long n = (*bedges_start) + (*num_bedges) - (*boundary_serial_section_start);
+            copy_and_shift_edges(*edges+(*boundary_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const long n = *num_bedges;
+            copy_and_shift_edges(*edges+(*bedges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<wedges_start_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
     }
-    for (int i=0; i<m; i++) {
-        const long n = *num_wedges;
-        copy_and_shift_edges(*edges+(*wedges_start), 
-                             edges_duplicated+j, 
-                             n, 
-                             (*nel)*i);
-        j += n;
-    }
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        for (int i=0; i<m; i++) {
+            const long n = *wall_serial_section_start-(*wedges_start);
+            copy_and_shift_edges(*edges+(*wedges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+        for (int i=0; i<m; i++) {
+            const long n = (*wedges_start) + (*num_wedges) - (*wall_serial_section_start);
+            copy_and_shift_edges(*edges+(*wall_serial_section_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #else
+        for (int i=0; i<m; i++) {
+            const long n = *num_wedges;
+            copy_and_shift_edges(*edges+(*wedges_start), 
+                                 edges_duplicated+j, 
+                                 n, 
+                                 (*nel)*i);
+            j += n;
+        }
+    #endif
     for (; j<num_edges_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
@@ -196,6 +268,12 @@ void duplicate_mesh(
 
     dealloc<edge_neighbour>(*edges);
     *edges = edges_duplicated;
+
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        *internal_serial_section_start = internal_serial_section_start_duplicated;
+        *boundary_serial_section_start = boundary_serial_section_start_duplicated;
+        *wall_serial_section_start     = wall_serial_section_start_duplicated;
+    #endif
 
     log("Exiting inflate_mesh()");
 }
@@ -338,7 +416,7 @@ bool read_grid_from_bin(
         return false;
     }
     else if (*mg_size != 0) {
-        unsigned long mg_size_u = (unsigned long)mg_size;
+        unsigned long mg_size_u = (unsigned long)(*mg_size);
         *mg_connectivity = alloc<long>(mg_size_u);
         if (fread(*mg_connectivity, sizeof(long), *mg_size, fp) != mg_size_u) {
             log("Corruption detected in '%s'", data_file_name);
@@ -963,11 +1041,37 @@ void prepare_csv_identification(
         data_line << "UNKNOWN," ;
     #endif
 
+    if (write_header) header << "Precise FP,";
+    #ifdef PRECISE_FP
+        data_line << "Y,";
+    #else
+        data_line << "N,";
+    #endif
+
     if (write_header) header << "SIMD," ;
     #ifdef SIMD
         data_line << "Y,";
     #else
         data_line << "N,";
+    #endif
+
+    if (write_header) header << "SIMD conflict avoidance strategy," ;
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+        #ifdef BIN_COLOURED_VECTORS
+            data_line << "ColouredEdgeVectors,";
+        #elif defined BIN_COLOURED_CONTIGUOUS
+            data_line << "ColouredEdgesContiguous,";
+        #else
+            data_line << "None,";
+        #endif
+    #elif (defined MANUAL_GATHER) && (defined MANUAL_SCATTER)
+        data_line << "ManualGatherScatter,";
+    #elif defined MANUAL_GATHER
+        data_line << "ManualGather,";
+    #elif defined MANUAL_SCATTER
+        data_line << "ManualScatter,";
+    #else
+        data_line << "None,";
     #endif
 
     if (write_header) header << "SIMD len," ;

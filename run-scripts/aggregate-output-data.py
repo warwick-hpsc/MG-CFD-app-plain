@@ -39,6 +39,8 @@ compile_info = {}
 kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "indirect_rw"]
 
 essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
+essential_colnames += ["SIMD failed"]
+essential_colnames += ["SIMD conflict avoidance strategy"]
 
 def grep(text, filepath):
     found = False
@@ -154,7 +156,7 @@ def get_output_run_config(output_dirpath):
     return job_id_df
 
 def calc_ins_per_iter(output_dirpath, kernel):
-    if kernel == "compute_flux_edge" or kernel == "compute_flux_edge_crippled":
+    if "compute_flux_edge" in kernel:
         timer = "flux0"
     elif kernel == "indirect_rw":
         timer = "indirect_rw0"
@@ -168,15 +170,11 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
-        simd_possible = False
-        if "FLUX_FISSION" in iters.loc[0,"Flux options"]:
-            simd_possible = True
-        elif "SIMD conflict avoidance strategy" in iters.columns.values and iters.loc[0,"SIMD conflict avoidance strategy"] != "" and iters.loc[0,"SIMD conflict avoidance strategy"] != "None":
-            simd_possible = True
-        if simd_possible:
-            simd_len = iters.loc[0,"SIMD len"]
-        else:
+        simd_failed = did_simd_fail(output_dirpath)
+        if simd_failed:
             simd_len = 1
+        else:
+            simd_len = iters.loc[0,"SIMD len"]
 
         papi = clean_pd_read_csv(papi_filepath)
         if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
@@ -196,32 +194,165 @@ def calc_ins_per_iter(output_dirpath, kernel):
             num_insn = papi_and_iters.loc[0, timer]
 
             num_iters = papi_and_iters.loc[0, timer+"_iters"]
-            # 'num_iters' is counting non-vectorised iterations. If code 
-            # was vectorised then fewer loop iterations will have been 
-            # performed. Make that adjustment:
-            num_iters /= simd_len
+            if num_iters == 0:
+                ins_per_iter = 0.0
+            else:
+                num_iters = float(num_iters)
+                # 'num_iters' is counting non-vectorised iterations. If code 
+                # was vectorised then fewer loop iterations will have been 
+                # performed. Make that adjustment:
+                num_iters /= float(simd_len)
 
-            # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
+                # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
 
-            ins_per_iter = float(num_insn) / float(num_iters)
+                ins_per_iter = float(num_insn) / float(num_iters)
 
     return ins_per_iter
 
-def infer_compiler(output_dirpath):
-    times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if not os.path.isfile(times_filepath):
-        return "UNKNOWN"
-    else:
-        times = pd.read_csv(times_filepath)
-        return times.loc[0, "CC"]
+def infer_field(output_dirpath, field):
+    value = None
 
-def infer_simd_len(output_dirpath):
     times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if not os.path.isfile(times_filepath):
-        return 1
-    else:
+    if os.path.isfile(times_filepath):
         times = pd.read_csv(times_filepath)
-        return times.loc[0, "SIMD len"]
+        if field in times.columns.values:
+            return times.loc[0, field]
+
+    if field == "Precise FP":
+        ## Infer this specific field from compiler stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            ## Must use old logic for deducing how this was compiled:
+            ##   FP was precise for all runs except for AVX512 compiled with Intel, as 
+            ##   Intel would segfault.
+            if infer_field(output_dirpath, "CC")=="intel" and "AVX512" in infer_field(output_dirpath, "Instruction set"):
+                value = "N"
+            else:
+                value = "Y"
+        if grep("precise-fp", log_filepath):
+            value = "Y"
+        else:
+            value = "N"
+
+    elif field == "CC":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("COMPILER=", log_filepath):
+            if grep("COMPILER=clang", log_filepath):
+                value = "clang"
+            elif grep("COMPILER=gnu", log_filepath):
+                value = "gnu"
+            elif grep("COMPILER=intel", log_filepath):
+                value = "intel"
+
+    elif field == "SIMD":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("-DSIMD-", log_filepath):
+            value = True
+        else:
+            value = False
+
+    elif field == "SIMD len":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if not grep("-DSIMD-", log_filepath):
+            value = 1
+        else:
+            if grep("DBLS_PER_SIMD=2-", log_filepath):
+                value = 2
+            elif grep("DBLS_PER_SIMD=4-", log_filepath):
+                value = 4
+            elif grep("DBLS_PER_SIMD=8-", log_filepath):
+                value = 8
+            elif grep("DBLS_PER_SIMD=1-", log_filepath):
+                value = 1
+
+    elif field == "SIMD conflict avoidance strategy":
+        ## Infer this specific field from make stdout:
+        log_filepath = os.path.join(output_dirpath, "submit.log")
+        if not os.path.isfile(log_filepath):
+            raise Exception("Cannot infer field '{0}'".format(field))
+        if grep("-DMANUAL_GATHER-", log_filepath) and grep("-DMANUAL_SCATTER-", log_filepath):
+            value = "ManualGatherScatter"
+        elif grep("-DMANUAL_GATHER-", log_filepath):
+            value = "ManualGather"
+        elif grep("-DMANUAL_SCATTER-", log_filepath):
+            value = "ManualScatter"
+        elif grep("-DCOLOURED_CONFLICT_AVOIDANCE-", log_filepath):
+            if grep("-DBIN_COLOURED_VECTORS-", log_filepath):
+                value = "ColouredEdgeVectors"
+            elif grep("-DBIN_COLOURED_CONTIGUOUS-", log_filepath):
+                value = "ColouredEdgesContiguous"
+            else:
+                value = "None"
+        else:
+            value = "None"
+
+    else:
+        times_filepath = os.path.join(output_dirpath, "Times.csv")
+        if os.path.isfile(times_filepath):
+            times = pd.read_csv(times_filepath)
+            if not field in times.columns.values:
+                raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
+            value = times.loc[0, field]
+
+    if value is None:
+        raise Exception("Cannot infer field '{0}'".format(field))
+    
+    return value
+
+def did_simd_fail(output_dirpath, compiler=None):
+    failed = False
+    log_filepath =  os.path.join(output_dirpath, "flux_vecloops.o.log")
+
+    if compiler is None:
+        compiler = infer_field(output_dirpath, "CC")
+
+    if compiler == "clang":
+        f = open(log_filepath, "r")
+        simd_fail_found = False
+        simd_success_found = False
+        flux_loop_simd_fail = False
+        # for line in f:
+        for i,line in enumerate(f):
+            if "loop not vectorized" in line:
+                simd_fail_found = True
+                simd_success_found = False
+                ## Source code snippet should be on next line, confirming which loop
+                continue
+            if "vectorized loop" in line:
+                simd_success_found = True
+                simd_fail_found = False
+                ## Source code snippet should be on next line, confirming which loop
+                continue
+
+            if "for (long i=flux_loop_start" in line:
+                if simd_fail_found:
+                    flux_loop_simd_fail = True
+                    break
+                if simd_success_found:
+                    break
+            simd_fail_found = False
+            simd_success_found = False
+
+        if flux_loop_simd_fail:
+            failed = True
+
+    elif compiler == "gnu":
+        f = open(log_filepath, "r")
+        for line in f:
+            if re.match("src/Kernels/flux_kernel.elemfunc.c.*not vectorized", line):
+                failed = True
+                break
+
+    return failed
 
 def analyse_object_files():
     print("Analysing object files")
@@ -235,13 +366,13 @@ def analyse_object_files():
                 continue
 
             ic_filepath = os.path.join(output_dirpath, "instruction-counts.csv")
-            if os.path.isfile(ic_filepath):
-                continue
             ic_cat_filepath = os.path.join(output_dirpath, "instruction-counts-categorised.csv")
+            if os.path.isfile(ic_filepath) and os.path.isfile(ic_cat_filepath):
+                continue
 
             # print("Processing: " + output_dirpath)
 
-            kernel_to_object = {}
+            loop_to_object = {}
 
             run_filename_candidates = [x+".batch" for x in ["slurm", "pbs", "moab", "lsf"]]
             run_filename_candidates.append("run.sh")
@@ -251,32 +382,61 @@ def analyse_object_files():
                     break
             if run_filename == "":
                 raise IOError("Cannot find a run script for run: " + output_dirpath)
-            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
-                kernel_to_object["compute_flux_edge_crippled"] = "flux_loops.o"
-            else:
-                kernel_to_object["compute_flux_edge"] = "flux_loops.o"
-            kernel_to_object["indirect_rw"] = "indirect_rw_loop.o"
 
-            compile_info["compiler"] = infer_compiler(output_dirpath)
-            compile_info["SIMD len"] = infer_simd_len(output_dirpath)
+            compile_info["compiler"] = infer_field(output_dirpath, "CC")
+            compile_info["SIMD len"] = infer_field(output_dirpath, "SIMD len")
+            simd = infer_field(output_dirpath, "SIMD")
+            if simd == "N":
+                compile_info["SIMD len"] = 1
+            simd_failed = did_simd_fail(output_dirpath, compile_info["compiler"])
+            compile_info["SIMD failed"] = simd_failed
+            avx512cd_required = compile_info["compiler"] == "intel" and \
+                                simd == "Y" and \
+                                infer_field(output_dirpath, "Instruction set") == "AVX512" and \
+                                infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
+            compile_info["SIMD CA scheme"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy")
+            compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
+            compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
+
+            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
+                compute_flux_edge_loop_name = "compute_flux_edge_crippled"
+            else:
+                compute_flux_edge_loop_name = "compute_flux_edge"
+            if simd:
+                loop_to_object[compute_flux_edge_loop_name+"_vecloop"] = "flux_vecloops.o"
+                loop_to_object["indirect_rw_vecloop"] = "indirect_rw_vecloop.o"
+            else:
+                loop_to_object[compute_flux_edge_loop_name+"_loop"] = "flux_loops.o"
+                loop_to_object["indirect_rw_loop"] = "indirect_rw_loop.o"
+
+            if "manual" in compile_info["SIMD CA scheme"].lower():
+                if compile_info["compiler"] == "clang":
+                    compile_info["manual CA block width"] = (compile_info["SIMD len"]*3)+2
+                else:
+                    compile_info["manual CA block width"] = compile_info["SIMD len"]
 
             loops_tally_df = None
-            for k in kernel_to_object.keys():
+            for k in loop_to_object.keys():
+                if "compute_flux_edge" in k:
+                    k_pretty = "compute_flux_edge"
+                elif "indirect_rw" in k:
+                    k_pretty = "indirect_rw"
+
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
-                obj_filepath = os.path.join(output_dirpath, "objects", kernel_to_object[k])
+                obj_filepath = os.path.join(output_dirpath, "objects", loop_to_object[k])
                 try:
-                    loop, asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k)
+                    asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
                 except:
-                    continue
+                    raise
+                    # continue
                 loop_tally = count_loop_instructions(asm_loop_filepath)
+                loop_tally2 = {}
                 for i in loop_tally.keys():
-                    loop_tally["insn."+i] = loop_tally[i]
-                    del loop_tally[i]
+                    loop_tally2["insn."+i] = loop_tally[i]
+                loop_tally = loop_tally2
 
-                if k == "compute_flux_edge_crippled":
-                    k = "compute_flux_edge"
-                loop_tally["kernel"] = k
+                loop_tally["kernel"] = k_pretty
 
                 if loops_tally_df is None:
                     tmp_dict = {}
@@ -304,18 +464,32 @@ def analyse_object_files():
 
             if not loops_tally_df is None:
                 if "insn.LOAD_SPILLS" in loops_tally_df.columns.values:
-                    ## The 'indirect rw' loop does not actually have any register spilling, so 
-                    ## any that were identified by 'assembly-loop-extractor' are false positives. 
-                    ## Assume that the same number of false positives are identified in the 'flux' kernel, 
-                    ## so remove those:
-                    claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
-                    loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
+                    if "indirect_rw" in loops_tally_df["kernel"]:
+                        ## The 'indirect rw' loop does not actually have any register spilling, so 
+                        ## any that were identified by 'assembly-loop-extractor' are false positives. 
+                        ## Assume that the same number of false positives are identified in the 'flux' kernel, 
+                        ## so remove those:
+                        claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
+                        loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
 
                 job_id_df = get_output_run_config(output_dirpath)
                 df = job_id_df.join(loops_tally_df)
                 df.to_csv(ic_filepath, index=False)
 
-                f = categorise_aggregated_instructions_tally(ic_filepath)
+                target_is_aarch64 = False
+                if simd:
+                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
+                else:
+                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
+                for line in open(raw_asm_filepath):
+                  if "aarch64" in line:
+                    target_is_aarch64 = True
+                    break
+
+                if target_is_aarch64:
+                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_aarch64=True)
+                else:
+                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_intel64=True)
                 f.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
@@ -331,6 +505,13 @@ def collate_csvs():
                 for filename in fnmatch.filter(filenames, cat+'.csv'):
                     df_filepath = os.path.join(root, filename)
                     df = clean_pd_read_csv(df_filepath)
+
+                    simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
+                    df["SIMD failed"] = simd_failed
+
+                    # Now require 'Precise FP' column:
+                    if not "Precise FP" in df.columns.values:
+                        df["Precise FP"] = infer_field(root, "Precise FP")
 
                     if df_agg is None:
                         df_agg = df
@@ -397,11 +578,16 @@ def aggregate():
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
 
+        job_id_colnames = sorted(job_id_colnames)
+        data_colnames = sorted(data_colnames)
+        df = df[job_id_colnames + data_colnames]
+
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
         df_agg = df.groupby(get_job_id_colnames(df))
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
+        df_mean = df_mean[job_id_colnames + data_colnames]
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_mean.to_csv(out_filepath, index=False)
 
@@ -430,7 +616,12 @@ def aggregate():
                 df = df.drop("ThreadNum", axis=1)
             job_id_colnames = get_job_id_colnames(df)
             data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
-            df_agg = df.groupby(get_job_id_colnames(df))
+
+            job_id_colnames = sorted(job_id_colnames)
+            data_colnames = sorted(data_colnames)
+            df = df[job_id_colnames + data_colnames]
+
+            df_agg = df.groupby(job_id_colnames)
 
             df_mean = df_agg.mean().reset_index()
             out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
@@ -446,6 +637,10 @@ def aggregate():
         data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
 
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+
+        job_id_colnames = sorted(job_id_colnames)
+        data_colnames = sorted(data_colnames)
+        df = df[job_id_colnames + data_colnames]
 
         df_agg = df.groupby(get_job_id_colnames(df))
 
@@ -522,9 +717,20 @@ def count_fp_ins():
         "[v]?div[sp][sd]", "[v]?sqrt[sp][sd]", 
         "vrcp14[sp]d", "vrcp28[sp]d", 
         "vrsqrt14[sp]d", "vrsqrt28[sp]d", 
-        "[v]?mul[sp][sd]"
+        "[v]?mul[sp][sd]", "vgetexpsd", "vgetmantsd", "vscalefsd"
     ]
     intel_fp_fma_insns = ["vf[n]?madd[0-9]*[sp][sd]", "vf[n]?msub[0-9]*[sp][sd]"]
+
+    aarch64_fp_insns = [
+        "[v]?fadd", "[v]?fsub", 
+        "[v]?fdiv", "[v]?fsqrt", 
+        "[v]?fmul",
+        "vfneg"
+    ]
+    aarch64_fp_fma_insn = [
+        "f[n]?madd", "f[n]?msub", "vfml[as]"
+    ]
+
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
     insn_df = safe_pd_filter(insn_df, "kernel", "compute_flux_edge")
     insn_df["FLOPs/iter"] = 0
@@ -546,11 +752,26 @@ def count_fp_ins():
                         insn_df["FP ins/iter"] +=   insn_df[colname]
                         fp_detected = True
                         break
+            if not fp_detected:
+                for f in aarch64_fp_insns:
+                    if re.match(f, insn):
+                        insn_df["FLOPs/iter"]  += insn_df[colname]
+                        insn_df["FP ins/iter"] += insn_df[colname]
+                        fp_detected = True
+                        break
+            if not fp_detected:
+                for f in aarch64_fp_fma_insn:
+                    if re.match(f, insn):
+                        insn_df["FLOPs/iter"]  += 2*insn_df[colname]
+                        insn_df["FP ins/iter"] +=   insn_df[colname]
+                        fp_detected = True
+                        break
 
             insn_df = insn_df.drop(colname, axis=1)
 
     if "SIMD len" in insn_df.columns.values:
-        insn_df["FLOPs/iter"] *= insn_df["SIMD len"]
+        simd_mask = np.invert(insn_df["SIMD failed"])
+        insn_df.loc[simd_mask, "FLOPs/iter"] *= insn_df.loc[simd_mask, "SIMD len"]
 
     return insn_df
 
@@ -589,8 +810,9 @@ def combine_all():
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
             ## counts the number of serial iterations.
+            simd_mask = np.invert(iters_df["SIMD failed"])
             for dc in data_colnames:
-                iters_df[dc] /= iters_df["SIMD len"]
+                iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
 
         fp_counts = count_fp_ins()
         if not fp_counts is None:

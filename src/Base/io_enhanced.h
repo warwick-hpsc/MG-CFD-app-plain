@@ -23,6 +23,11 @@ void duplicate_mesh(
     long* num_wall_edges, 
     long* boundary_edges_start, 
     long* wall_edges_start,
+    #if defined BIN_COLOURED_VECTORS || defined BIN_COLOURED_CONTIGUOUS
+        long* internal_serial_section_start,
+        long* boundary_serial_section_start, 
+        long* wall_serial_section_start,
+    #endif
     edge_neighbour** edges,
     long nel_above,
     long** mg_mapping,
