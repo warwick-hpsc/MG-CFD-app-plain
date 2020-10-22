@@ -34,6 +34,7 @@ defaults["compile only"] = False
 defaults["unit walltime"] = 0.0
 defaults["budget code"] = ""
 defaults["partition"] = ""
+defaults["single batch"] = False
 # MG-CFD execution:
 defaults["num threads"] = 1
 defaults["num repeats"] = 1
@@ -72,6 +73,15 @@ def py_sed(filepath, from_rgx, to_rgx, delete_if_null=False):
                         f.write(re.sub(from_rgx, str(to_rgx), line))
             else:
                 f.write(line)
+
+def py_grep(filepath, str):
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    for line in lines:
+        if line.find(str) != -1:
+            return True
+
+    return False
 
 def delete_folder_contents(dirpath):
     print("Deleting contents of folder: " + dirpath)
@@ -160,6 +170,7 @@ if __name__=="__main__":
     job_queue = get_key_value(profile, "setup", "partition")
     budget_code = get_key_value(profile, "setup", "budget code")
     js = get_key_value(profile, "setup", "job scheduler")
+    single_batch = get_key_value(profile, "setup", "single batch") 
 
     compilers = get_key_value(profile, "compile", "compiler", True)
     cpp_wrapper = get_key_value(profile, "compile", "cpp wrapper")
@@ -215,16 +226,9 @@ if __name__=="__main__":
 
     num_jobs = len(iterables_labelled) * num_repeats
 
-    ## Init the master job submission script:
-    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
-    submit_all_file = open(submit_all_filepath, "w")
-    submit_all_file.write("#!/bin/bash\n")
-    submit_all_file.write("set -e\n")
-    submit_all_file.write("set -u\n")
-    submit_all_file.write("\n")
-    submit_all_file.write("# {0}:\n".format(js))
-    submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
-    submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
+        f.write("PAPI_TOT_INS\n")
+        f.write("PAPI_TOT_CYC\n")
 
     if js != "":
         js_filename = js_to_filename[js]
@@ -234,10 +238,47 @@ if __name__=="__main__":
             raise Exception("Cannot find provided 'batch header filepath': '{0}'".format(src_js_filepath))
     else:
         src_js_filepath = None
+    if (src_js_filepath is None) and (js != ""):
+        ## Use bundled scheduler options
+        src_js_filepath = os.path.join(template_dirpath, js_filename)
 
-    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
-        f.write("PAPI_TOT_INS\n")
-        f.write("PAPI_TOT_CYC\n")
+    if js == "":
+        single_batch = False
+
+    if (not src_js_filepath is None) and py_grep(src_js_filepath, "<COMPILER>") and len(compilers) > 1:
+        raise Exception("Single batch is incompatible with multiple compilers")
+
+    ## Init the master job submission script:
+    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
+    submit_all_file = open(submit_all_filepath, "w")
+    submit_all_file.write("#!/bin/bash\n")
+    if single_batch:
+        run_all_filepath = os.path.join(jobs_dir, "run_all.sh")
+        run_all_file = open(run_all_filepath, "w")
+        with open(src_js_filepath, "r") as f_in:
+            for line in f_in.readlines():
+                run_all_file.write(line)
+        run_all_file.write("submit_cmd=\"\"")
+        run_all_file.write("\n")
+        run_all_file.write("set -e\n")
+        run_all_file.write("set -u\n")
+        run_all_file.write("\n")
+
+        submit_all_file.write("\n")
+        submit_all_file.write("{0} {1}".format(js_to_submit_cmd[js], run_all_filepath))
+
+        estimated_total_runtime_secs = 0.0
+        nt_max = 1
+        ## No longer need to know which job scheduler:
+        js = ""
+        run_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+    else:
+        submit_all_file.write("set -e\n")
+        submit_all_file.write("set -u\n")
+        submit_all_file.write("\n")
+        submit_all_file.write("# {0}:\n".format(js))
+        submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
+        submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
 
     n = 0
     for repeat in range(num_repeats):
@@ -277,14 +318,11 @@ if __name__=="__main__":
             shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
 
             ## Instantiate job scheduling header:
-            if (src_js_filepath is None) and (js != ""):
-                ## Use bundled scheduler options
-                src_js_filepath = os.path.join(template_dirpath, js_filename)
             if not src_js_filepath is None:
                 out_js_filepath = os.path.join(job_dir, js_filename)
                 shutil.copyfile(src_js_filepath, out_js_filepath)
 
-            ## Combine into a batch submission script:
+            ## Combine into a batch run script:
             if js == "":
                 batch_filename = "run.sh"
             else:
@@ -325,6 +363,8 @@ if __name__=="__main__":
                 while (mesh_multi % nt) > 0:
                     mesh_multi += 1
             py_sed(batch_filepath, "<MESH_MULTI>", mesh_multi)
+            if single_batch:
+                nt_max = max(nt_max, nt)
 
             ## - Compilation:
             py_sed(batch_filepath, "<COMPILER>", compiler)
@@ -338,24 +378,30 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
 
             ## - Walltime estimation:
-            if mgcfd_unit_runtime_secs == 0.0:
-                est_runtime_hours = 0
-                est_runtime_minutes = 10
+            if single_batch:
+                if mgcfd_unit_runtime_secs == 0.0:
+                    estimated_total_runtime_secs += 60.0 * 10
+                else:
+                    estimated_total_runtime_secs += float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
             else:
-                est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
-                est_runtime_secs *= 1.2 ## Allow for estimation error
-                est_runtime_secs += 20  ## Add time for file load
-                est_runtime_secs += 60
-                est_runtime_secs = int(round(est_runtime_secs))
-                est_runtime_hours = est_runtime_secs/60/60
-                est_runtime_secs -= est_runtime_hours*60*60
-                est_runtime_minutes = est_runtime_secs/60
-                est_runtime_secs -= est_runtime_minutes*60
-                if est_runtime_secs > 0:
-                    est_runtime_minutes += 1
-                    est_runtime_secs = 0
-            py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
-            py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
+                if mgcfd_unit_runtime_secs == 0.0:
+                    est_runtime_hours = 0
+                    est_runtime_minutes = 10
+                else:
+                    est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
+                    est_runtime_secs *= 1.2 ## Allow for estimation error
+                    est_runtime_secs += 20  ## Add time for file load
+                    est_runtime_secs += 60
+                    est_runtime_secs = int(round(est_runtime_secs))
+                    est_runtime_hours = est_runtime_secs/60/60
+                    est_runtime_secs -= est_runtime_hours*60*60
+                    est_runtime_minutes = est_runtime_secs/60
+                    est_runtime_secs -= est_runtime_minutes*60
+                    if est_runtime_secs > 0:
+                        est_runtime_minutes += 1
+                        est_runtime_secs = 0
+                py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
+                py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
             ## Make batch script executable:
             os.chmod(batch_filepath, 0755)
@@ -375,10 +421,14 @@ if __name__=="__main__":
             py_sed(submit_tmp_filepath, "<BATCH_FILENAME>", batch_filename)
             py_sed(submit_tmp_filepath, "<BIN_FILEPATH>",   bin_filepath)
             py_sed(submit_tmp_filepath, "<COMPILE_ONLY>", str(compile_only).lower())
-            submit_all_file.write("\n\n")
+            if not single_batch:
+                submit_all_file.write("\n\n")
             with open(submit_tmp_filepath, 'r') as f:
                 for line in f:
-                    submit_all_file.write(line)
+                    if single_batch:
+                        run_all_file.write(line)
+                    else:
+                        submit_all_file.write(line)
             # Now close (and delete) submit_tmp file
             submit_tmp.close()
             if os.path.isfile(submit_tmp_filepath):
@@ -390,6 +440,32 @@ if __name__=="__main__":
     submit_all_file.close()
     st = os.stat(submit_all_filepath)
     os.chmod(submit_all_filepath, st.st_mode | stat.S_IEXEC)
+    if single_batch:
+        run_all_file.close()
+        st = os.stat(run_all_filepath)
+        os.chmod(run_all_filepath, st.st_mode | stat.S_IEXEC)
+
+        ## Fill in scheduling fields:
+        est_runtime_secs = estimated_total_runtime_secs
+        est_runtime_secs *= 1.2 ## Allow for estimation error
+        est_runtime_secs += 20  ## Add time for file load
+        est_runtime_secs += 60
+        est_runtime_secs = int(round(est_runtime_secs))
+        est_runtime_hours = est_runtime_secs/60/60
+        est_runtime_secs -= est_runtime_hours*60*60
+        est_runtime_minutes = est_runtime_secs/60
+        est_runtime_secs -= est_runtime_minutes*60
+        if est_runtime_secs > 0:
+            est_runtime_minutes += 1
+            est_runtime_secs = 0
+        py_sed(run_all_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
+        py_sed(run_all_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
+
+        py_sed(run_all_filepath, "<RUN ID>", 1)
+        py_sed(run_all_filepath, "<NUM_THREADS>", nt_max)
+        py_sed(run_all_filepath, "<COMPILER>", compilers[0])
+        py_sed(run_all_filepath, "<PARTITION>", job_queue)
+        py_sed(run_all_filepath, "<BUDGET CODE>", budget_code, True)
 
     ## Create a little script for listing jobs that failed during execution:
     error_scan_filepath = os.path.join(jobs_dir, "list_errored_jobs.sh")

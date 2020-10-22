@@ -57,6 +57,9 @@
         "partition": "",
 
         "budget code comment": "Specify which project code to use",
-        "budget code": ""
+        "budget code": "",
+
+        "single batch comment": "OPTIONAL. Request whether to execute all MG-CFD runs in a single batch job",
+        "single batch": false
     }
 }

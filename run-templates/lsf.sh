@@ -15,4 +15,4 @@
 ##       are exported by default. However I have not confirmed this.
 ##       This feature is necessary, so fingers crossed!
 
-RUN_CMD="mpirun -n 1"
+export RUN_CMD="mpirun -n 1"
