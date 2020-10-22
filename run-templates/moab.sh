@@ -13,4 +13,4 @@
 
 #MSUB -V
 
-RUN_CMD="srun --cpus-per-task=<NUM_THREADS>"
+export RUN_CMD="srun --cpus-per-task=<NUM_THREADS>"

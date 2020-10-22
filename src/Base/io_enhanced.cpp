@@ -90,12 +90,12 @@ void duplicate_mesh(
     long* nel,
     double** volumes,
     double3** coords,
-    long* number_of_edges,
-    long* num_internal_edges, 
-    long* num_boundary_edges, 
-    long* num_wall_edges, 
-    long* boundary_edges_start, 
-    long* wall_edges_start,
+    long* num_edges,
+    long* num_iedges, 
+    long* num_bedges, 
+    long* num_wedges, 
+    long* bedges_start, 
+    long* wedges_start,
     edge_neighbour** edges,
     long nel_above,
     long** mg_mapping,
@@ -119,50 +119,50 @@ void duplicate_mesh(
         }
     }
 
-    long number_of_edges_duplicated = m*(*number_of_edges);
+    long num_edges_duplicated = m*(*num_edges);
 
-    long num_internal_edges_duplicated = m*(*num_internal_edges);
-    long num_boundary_edges_duplicated = m*(*num_boundary_edges);
-    long num_wall_edges_duplicated     = m*(*num_wall_edges);
+    long num_iedges_duplicated = m*(*num_iedges);
+    long num_bedges_duplicated = m*(*num_bedges);
+    long num_wedges_duplicated     = m*(*num_wedges);
 
-    long boundary_edges_start_duplicated = (*boundary_edges_start)*m;
-    long wall_edges_start_duplicated     = (*wall_edges_start)*m;
+    long bedges_start_duplicated = (*bedges_start)*m;
+    long wedges_start_duplicated     = (*wedges_start)*m;
 
-    edge_neighbour* edges_duplicated = alloc<edge_neighbour>(number_of_edges_duplicated);
+    edge_neighbour* edges_duplicated = alloc<edge_neighbour>(num_edges_duplicated);
     long j=0;
     for (int i=0; i<m; i++) {
-        const long n = *num_internal_edges;
+        const long n = *num_iedges;
         copy_and_shift_edges(*edges,
                              edges_duplicated+j, 
                              n, 
                              (*nel)*i);
         j += n;
     }
-    for (; j<boundary_edges_start_duplicated; j++) {
+    for (; j<bedges_start_duplicated; j++) {
         edges_duplicated[j].a = -5; 
         edges_duplicated[j].b = -5;
     }
     for (int i=0; i<m; i++) {
-        const long n = *num_boundary_edges;
-        copy_and_shift_edges(*edges+(*boundary_edges_start), 
+        const long n = *num_bedges;
+        copy_and_shift_edges(*edges+(*bedges_start), 
                              edges_duplicated+j, 
                              n, 
                              (*nel)*i);
         j += n;
     }
-    for (; j<wall_edges_start_duplicated; j++) {
+    for (; j<wedges_start_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
     }
     for (int i=0; i<m; i++) {
-        const long n = *num_wall_edges;
-        copy_and_shift_edges(*edges+(*wall_edges_start), 
+        const long n = *num_wedges;
+        copy_and_shift_edges(*edges+(*wedges_start), 
                              edges_duplicated+j, 
                              n, 
                              (*nel)*i);
         j += n;
     }
-    for (; j<number_of_edges_duplicated; j++) {
+    for (; j<num_edges_duplicated; j++) {
         edges_duplicated[j].a = -5;
         edges_duplicated[j].b = -5;
     }
@@ -187,12 +187,12 @@ void duplicate_mesh(
     dealloc<double3>(*coords);
     *coords = coords_duplicated;
 
-    *number_of_edges = number_of_edges_duplicated;
-    *num_internal_edges = num_internal_edges_duplicated;
-    *num_boundary_edges = num_boundary_edges_duplicated;
-    *num_wall_edges     = num_wall_edges_duplicated;
-    *boundary_edges_start = boundary_edges_start_duplicated;
-    *wall_edges_start     = wall_edges_start_duplicated;
+    *num_edges = num_edges_duplicated;
+    *num_iedges = num_iedges_duplicated;
+    *num_bedges = num_bedges_duplicated;
+    *num_wedges     = num_wedges_duplicated;
+    *bedges_start = bedges_start_duplicated;
+    *wedges_start     = wedges_start_duplicated;
 
     dealloc<edge_neighbour>(*edges);
     *edges = edges_duplicated;
@@ -204,20 +204,20 @@ bool read_grid_from_bin(
     const char* data_file_name, 
     long* nel, 
     double** volumes, 
-    long* number_of_edges, 
+    long* num_edges, 
     #ifdef E_SOA
         long* edges_soa_step, 
     #endif
-    long* num_internal_edges, 
-    long* num_boundary_edges, 
-    long* num_wall_edges, 
-    long* internal_edges_start, 
-    long* boundary_edges_start, 
-    long* wall_edges_start, 
+    long* num_iedges, 
+    long* num_bedges, 
+    long* num_wedges, 
+    long* iedges_start, 
+    long* bedges_start, 
+    long* wedges_start, 
     edge_neighbour** edges, 
     double3** coords, 
     long** mg_connectivity, 
-    long* mg_connectivity_size)
+    long* mg_size)
 {
     log("read_grid_from_bin() called");
     log("Attempting to open '%s'", data_file_name);
@@ -227,64 +227,124 @@ bool read_grid_from_bin(
         return false;
     }
 
-    fread(nel, sizeof(long), 1, fp);
-    fread(number_of_edges, sizeof(long), 1, fp);
-    fread(num_internal_edges, sizeof(long), 1, fp);
-    fread(num_boundary_edges, sizeof(long), 1, fp);
-    fread(num_wall_edges, sizeof(long), 1, fp);
-    fread(internal_edges_start, sizeof(long), 1, fp);
-    fread(boundary_edges_start, sizeof(long), 1, fp);
-    fread(wall_edges_start, sizeof(long), 1, fp);
-
-    // Check that the above variables were loaded correctly. Any 
-    // inconsistency is indicative of the bin file having been 
-    // created on a different architecture that encodes differently 
-    // and so cannot be loaded here:
-    if (*nel < 0 || *number_of_edges < 0 || *num_internal_edges < 0 ||
-        *num_boundary_edges < 0 || *num_wall_edges < 0 ||
-        *internal_edges_start < 0 || *boundary_edges_start < 0 || 
-        *wall_edges_start < 0 || 
-        *num_internal_edges + *num_boundary_edges + *num_wall_edges > *number_of_edges || 
-        *internal_edges_start > *number_of_edges || 
-        *boundary_edges_start > *number_of_edges || 
-        *wall_edges_start > *number_of_edges) {
+    if (fread(nel, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(num_edges, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(num_iedges, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(num_bedges, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(num_wedges, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(iedges_start, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(bedges_start, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if (fread(wedges_start, sizeof(long), 1, fp) != 1) {
         log("Corruption detected in '%s'", data_file_name);
         fclose(fp);
         return false;
     }
 
-    *volumes = alloc<double>(*nel);
-    fread(*volumes, sizeof(double), *nel, fp);
+    if ((*nel) < 0) {
+        log("Corruption detected in '%s'", data_file_name);
+        return false;
+    }
+    unsigned long nel_u = (unsigned long)(*nel);
 
-    *edges = alloc<edge_neighbour>(*number_of_edges);
-    fread(*edges, sizeof(edge_neighbour), *number_of_edges, fp);
+    // Check that the above variables were loaded correctly. Any 
+    // inconsistency is indicative of the bin file having been 
+    // created on a different architecture that encodes differently 
+    // and so cannot be loaded here:
+    if (*nel < 0 || *num_edges < 0 || *num_iedges < 0 ||
+        *num_bedges < 0 || *num_wedges < 0 ||
+        *iedges_start < 0 || *bedges_start < 0 || 
+        *wedges_start < 0 || 
+        *num_iedges + *num_bedges + *num_wedges > *num_edges || 
+        *iedges_start > *num_edges || 
+        *bedges_start > *num_edges || 
+        *wedges_start > *num_edges) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    unsigned long num_edges_u = (unsigned long)(*num_edges);
+
+    *volumes = alloc<double>(nel_u);
+    if (fread(*volumes, sizeof(double), *nel, fp) != nel_u) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+
+    *edges = alloc<edge_neighbour>(*num_edges);
+    if (fread(*edges, sizeof(edge_neighbour), *num_edges, fp) != num_edges_u) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
 
     #ifdef LEGACY_ORDERING
         std::sort(*edges, 
-                  (*edges)+(*num_internal_edges), 
+                  (*edges)+(*num_iedges), 
                   compare_two_edges);
-        std::sort(*edges+(*num_internal_edges), 
-                  (*edges)+(*num_internal_edges)+(*num_boundary_edges), 
+        std::sort(*edges+(*num_iedges), 
+                  (*edges)+(*num_iedges)+(*num_bedges), 
                   compare_two_edges);
-        std::sort(*edges+(*num_internal_edges)+(*num_boundary_edges), 
-                  (*edges)+(*num_internal_edges)+(*num_boundary_edges)+(*num_wall_edges), 
+        std::sort(*edges+(*num_iedges)+(*num_bedges), 
+                  (*edges)+(*num_iedges)+(*num_bedges)+(*num_wedges), 
                   compare_two_edges);
     #endif
 
-    *coords = alloc<double3>(*nel);
-    fread(*coords, sizeof(double3), *nel , fp);
+    *coords = alloc<double3>(nel_u);
+    if (fread(*coords, sizeof(double3), *nel , fp) != nel_u) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
 
-    fread(mg_connectivity_size, sizeof(long), 1, fp);
-    if ((*mg_connectivity_size) < 0) {
-        *mg_connectivity_size = 0;
+    if (fread(mg_size, sizeof(long), 1, fp) != 1) {
+        log("Corruption detected in '%s'", data_file_name);
+        fclose(fp);
+        return false;
+    }
+    if ((*mg_size) < 0) {
+        *mg_size = 0;
         *mg_connectivity = NULL;
         log("'%s' cannot be read\n", data_file_name);
         fclose(fp);
         return false;
     }
-    else if (*mg_connectivity_size != 0) {
-        *mg_connectivity = alloc<long>(*mg_connectivity_size);
-        fread(*mg_connectivity, sizeof(long), *mg_connectivity_size, fp);
+    else if (*mg_size != 0) {
+        unsigned long mg_size_u = (unsigned long)mg_size;
+        *mg_connectivity = alloc<long>(mg_size_u);
+        if (fread(*mg_connectivity, sizeof(long), *mg_size, fp) != mg_size_u) {
+            log("Corruption detected in '%s'", data_file_name);
+            fclose(fp);
+            return false;
+        }
     } else {
         *mg_connectivity = NULL;
     }
@@ -298,17 +358,17 @@ bool write_grid_to_bin(
     const char* data_file_name, 
     long nel, 
     const double *restrict volumes, 
-    long number_of_edges, 
-    long num_internal_edges, 
-    long num_boundary_edges, 
-    long num_wall_edges, 
-    long internal_edges_start, 
-    long boundary_edges_start, 
-    long wall_edges_start, 
+    long num_edges, 
+    long num_iedges, 
+    long num_bedges, 
+    long num_wedges, 
+    long iedges_start, 
+    long bedges_start, 
+    long wedges_start, 
     const edge_neighbour* edges, 
     const double3* coords, 
     const long* mg_connectivity, 
-    long mg_connectivity_size)
+    long mg_size)
 {
     log("write_grid_to_bin() called");
 
@@ -322,21 +382,21 @@ bool write_grid_to_bin(
     }
 
     fwrite(&nel, sizeof(long), 1, fp);
-    fwrite(&number_of_edges, sizeof(long), 1, fp);
-    fwrite(&num_internal_edges, sizeof(long), 1, fp);
-    fwrite(&num_boundary_edges, sizeof(long), 1, fp);
-    fwrite(&num_wall_edges, sizeof(long), 1, fp);
-    fwrite(&internal_edges_start, sizeof(long), 1, fp);
-    fwrite(&boundary_edges_start, sizeof(long), 1, fp);
-    fwrite(&wall_edges_start, sizeof(long), 1, fp);
+    fwrite(&num_edges, sizeof(long), 1, fp);
+    fwrite(&num_iedges, sizeof(long), 1, fp);
+    fwrite(&num_bedges, sizeof(long), 1, fp);
+    fwrite(&num_wedges, sizeof(long), 1, fp);
+    fwrite(&iedges_start, sizeof(long), 1, fp);
+    fwrite(&bedges_start, sizeof(long), 1, fp);
+    fwrite(&wedges_start, sizeof(long), 1, fp);
 
     fwrite(volumes, sizeof(double), nel, fp);
-    fwrite(edges, sizeof(edge_neighbour), number_of_edges, fp);
+    fwrite(edges, sizeof(edge_neighbour), num_edges, fp);
     fwrite(coords, sizeof(double3), nel, fp);
 
-    fwrite(&mg_connectivity_size, sizeof(long), 1, fp);
-    if (mg_connectivity_size > 0) {
-        fwrite(mg_connectivity, sizeof(long), mg_connectivity_size, fp);
+    fwrite(&mg_size, sizeof(long), 1, fp);
+    if (mg_size > 0) {
+        fwrite(mg_connectivity, sizeof(long), mg_size, fp);
     }
 
     fclose(fp);
@@ -611,12 +671,12 @@ void dump_step_factors(
 
 void dump_edge_fluxes(
     const edge* edge_variables,
-    long num_internal_edges, 
-    long num_boundary_edges, 
-    long num_wall_edges, 
-    long internal_edges_start, 
-    long boundary_edges_start, 
-    long wall_edges_start, 
+    long num_iedges, 
+    long num_bedges, 
+    long num_wedges, 
+    long iedges_start, 
+    long bedges_start, 
+    long wedges_start, 
     int level)
 {
     log("dump_edge_fluxes() called");
@@ -637,13 +697,13 @@ void dump_edge_fluxes(
             fprintf(stderr, "ERROR: Failed to open file for writing: '%s'\n", mx_filepath.c_str());
             exit(EXIT_FAILURE);
         }
-        for(long i=internal_edges_start; i<internal_edges_start+num_internal_edges; i++) {
+        for(long i=iedges_start; i<iedges_start+num_iedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMX].a, edge_variables[i*NVAR + VAR_MOMENTUMX].b);
         }
-        for(long i=boundary_edges_start; i<boundary_edges_start+num_boundary_edges; i++) {
+        for(long i=bedges_start; i<bedges_start+num_bedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMX].a, edge_variables[i*NVAR + VAR_MOMENTUMX].b);
         }
-        for(long i=wall_edges_start; i<wall_edges_start+num_wall_edges; i++) {
+        for(long i=wedges_start; i<wedges_start+num_wedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMX].a, edge_variables[i*NVAR + VAR_MOMENTUMX].b);
         }
         fclose(file);
@@ -656,13 +716,13 @@ void dump_edge_fluxes(
             fprintf(stderr, "ERROR: Failed to open file for writing: '%s'\n", my_filepath.c_str());
             exit(EXIT_FAILURE);
         }
-        for(long i=internal_edges_start; i<internal_edges_start+num_internal_edges; i++) {
+        for(long i=iedges_start; i<iedges_start+num_iedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMY].a, edge_variables[i*NVAR + VAR_MOMENTUMY].b);
         }
-        for(long i=boundary_edges_start; i<boundary_edges_start+num_boundary_edges; i++) {
+        for(long i=bedges_start; i<bedges_start+num_bedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMY].a, edge_variables[i*NVAR + VAR_MOMENTUMY].b);
         }
-        for(long i=wall_edges_start; i<wall_edges_start+num_wall_edges; i++) {
+        for(long i=wedges_start; i<wedges_start+num_wedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMY].a, edge_variables[i*NVAR + VAR_MOMENTUMY].b);
         }
         fclose(file);
@@ -675,13 +735,13 @@ void dump_edge_fluxes(
             fprintf(stderr, "ERROR: Failed to open file for writing: '%s'\n", mz_filepath.c_str());
             exit(EXIT_FAILURE);
         }
-        for(long i=internal_edges_start; i<internal_edges_start+num_internal_edges; i++) {
+        for(long i=iedges_start; i<iedges_start+num_iedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMZ].a, edge_variables[i*NVAR + VAR_MOMENTUMZ].b);
         }
-        for(long i=boundary_edges_start; i<boundary_edges_start+num_boundary_edges; i++) {
+        for(long i=bedges_start; i<bedges_start+num_bedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMZ].a, edge_variables[i*NVAR + VAR_MOMENTUMZ].b);
         }
-        for(long i=wall_edges_start; i<wall_edges_start+num_wall_edges; i++) {
+        for(long i=wedges_start; i<wedges_start+num_wedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_MOMENTUMZ].a, edge_variables[i*NVAR + VAR_MOMENTUMZ].b);
         }
         fclose(file);
@@ -694,13 +754,13 @@ void dump_edge_fluxes(
             fprintf(stderr, "ERROR: Failed to open file for writing: '%s'\n", density_filepath.c_str());
             exit(EXIT_FAILURE);
         }
-        for(long i=internal_edges_start; i<internal_edges_start+num_internal_edges; i++) {
+        for(long i=iedges_start; i<iedges_start+num_iedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY].a, edge_variables[i*NVAR + VAR_DENSITY].b);
         }
-        for(long i=boundary_edges_start; i<boundary_edges_start+num_boundary_edges; i++) {
+        for(long i=bedges_start; i<bedges_start+num_bedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY].a, edge_variables[i*NVAR + VAR_DENSITY].b);
         }
-        for(long i=wall_edges_start; i<wall_edges_start+num_wall_edges; i++) {
+        for(long i=wedges_start; i<wedges_start+num_wedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY].a, edge_variables[i*NVAR + VAR_DENSITY].b);
         }
         fclose(file);
@@ -713,13 +773,13 @@ void dump_edge_fluxes(
             fprintf(stderr, "ERROR: Failed to open file for writing: '%s'\n", density_energy_filepath.c_str());
             exit(EXIT_FAILURE);
         }
-        for(long i=internal_edges_start; i<internal_edges_start+num_internal_edges; i++) {
+        for(long i=iedges_start; i<iedges_start+num_iedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY_ENERGY].a, edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b);
         }
-        for(long i=boundary_edges_start; i<boundary_edges_start+num_boundary_edges; i++) {
+        for(long i=bedges_start; i<bedges_start+num_bedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY_ENERGY].a, edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b);
         }
-        for(long i=wall_edges_start; i<wall_edges_start+num_wall_edges; i++) {
+        for(long i=wedges_start; i<wedges_start+num_wedges; i++) {
             fprintf(file, "%.17e %.17e\n", edge_variables[i*NVAR + VAR_DENSITY_ENERGY].a, edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b);
         }
         fclose(file);
