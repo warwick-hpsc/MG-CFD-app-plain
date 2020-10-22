@@ -1,4 +1,4 @@
-if [ ! -f <RUN_DIRPATH>/Times.csv ]; then
+if [ ! -f <RUN_DIRPATH>/job-is-complete.txt ]; then
   basedir=`pwd`
   cd <RUN_DIRPATH>
 

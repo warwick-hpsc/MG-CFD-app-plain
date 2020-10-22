@@ -16,8 +16,8 @@ std::vector<std::vector<double> > compute_flux_edge_kernel_times;
 std::vector<std::vector<double> > update_kernel_times;
 std::vector<std::vector<double> > indirect_rw_kernel_times;
 std::vector<std::vector<double> > time_step_kernel_times;
-std::vector<std::vector<double> > up_kernel_times;
-std::vector<std::vector<double> > down_kernel_times;
+std::vector<std::vector<double> > restrict_kernel_times;
+std::vector<std::vector<double> > prolong_kernel_times;
 
 std::vector<double> start_times;
 
@@ -38,8 +38,8 @@ void init_timers()
     update_kernel_times.resize(num_threads);
     indirect_rw_kernel_times.resize(num_threads);
     time_step_kernel_times.resize(num_threads);
-    up_kernel_times.resize(num_threads);
-    down_kernel_times.resize(num_threads);
+    restrict_kernel_times.resize(num_threads);
+    prolong_kernel_times.resize(num_threads);
     start_times.resize(num_threads);
 
     for (int t=0; t<num_threads; t++) {
@@ -48,8 +48,8 @@ void init_timers()
         update_kernel_times.at(t).resize(levels, 0.0f);
         indirect_rw_kernel_times.at(t).resize(levels, 0.0f);
         time_step_kernel_times.at(t).resize(levels, 0.0f);
-        up_kernel_times.at(t).resize(levels, 0.0f);
-        down_kernel_times.at(t).resize(levels, 0.0f);
+        restrict_kernel_times.at(t).resize(levels, 0.0f);
+        prolong_kernel_times.at(t).resize(levels, 0.0f);
 
         start_times.at(t) = 0.0f;
     }
@@ -95,11 +95,11 @@ void stop_timer()
     else if (current_kernel == TIME_STEP) {
         time_step_kernel_times[tid][level] += duration;
     }
-    else if (current_kernel == UP) {
-        up_kernel_times[tid][level] += duration;
+    else if (current_kernel == RESTRICT) {
+        restrict_kernel_times[tid][level] += duration;
     }
-    else if (current_kernel == DOWN) {
-        down_kernel_times[tid][level] += duration;
+    else if (current_kernel == PROLONG) {
+        prolong_kernel_times[tid][level] += duration;
     }
 }
 
@@ -141,15 +141,14 @@ void dump_timers_to_file(int size, double total_time)
             header << "update" << l << "," ;
             header << "compute_step" << l << "," ;
             header << "time_step" << l << "," ;
-            header << "up" << l << "," ;
-            header << "down" << l << "," ;
+            header << "restrict" << l << "," ;
+            header << "prolong" << l << "," ;
             header << "indirect_rw" << l << "," ;
         }
         header << "Total," ;
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -160,7 +159,7 @@ void dump_timers_to_file(int size, double total_time)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
 
     std::ostringstream data_line;
@@ -173,8 +172,8 @@ void dump_timers_to_file(int size, double total_time)
         data_line << update_kernel_times[tid][l] << "," ;
         data_line << compute_step_kernel_times[tid][l] << "," ;
         data_line << time_step_kernel_times[tid][l] << "," ;
-        data_line << up_kernel_times[tid][l] << "," ;
-        data_line << down_kernel_times[tid][l] << "," ;
+        data_line << restrict_kernel_times[tid][l] << "," ;
+        data_line << prolong_kernel_times[tid][l] << "," ;
         data_line << indirect_rw_kernel_times[tid][l] << "," ;
     }
 

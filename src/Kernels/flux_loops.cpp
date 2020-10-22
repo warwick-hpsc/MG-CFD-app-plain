@@ -8,8 +8,8 @@
 #include <omp.h>
 
 void compute_boundary_flux_edge(
-    int first_edge,
-    int nedges, 
+    long first_edge,
+    long nedges, 
     const edge_neighbour *restrict edges, 
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -22,15 +22,15 @@ void compute_boundary_flux_edge(
     log("Computing boundary flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
         {
             openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_boundary_kernel.elemfunc.c"
     }
@@ -42,8 +42,8 @@ void compute_boundary_flux_edge(
 }
 
 void compute_wall_flux_edge(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -56,15 +56,15 @@ void compute_wall_flux_edge(
     log("Computing wall flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
         {
             openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_wall_kernel.elemfunc.c"
     }
@@ -76,8 +76,8 @@ void compute_wall_flux_edge(
 }
 
 void compute_flux_edge(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
@@ -93,8 +93,8 @@ void compute_flux_edge(
     log("Computing internal flux");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -130,7 +130,7 @@ void compute_flux_edge(
             #endif
         #endif
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_kernel.elemfunc.c"
     }
@@ -153,8 +153,8 @@ void compute_flux_edge(
 }
 
 void compute_flux_edge_crippled(
-    int first_edge,
-    int nedges,
+    long first_edge,
+    long nedges,
     const edge_neighbour *restrict edges, 
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
@@ -170,8 +170,8 @@ void compute_flux_edge_crippled(
     log("Computing internal flux crippled");
     current_kernel = COMPUTE_FLUX_EDGE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -203,7 +203,7 @@ void compute_flux_edge_crippled(
             #endif
         #endif
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #include "flux_kernel_crippled.elemfunc.c"
     }

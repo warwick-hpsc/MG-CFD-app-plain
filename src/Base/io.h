@@ -5,21 +5,21 @@
 
 void read_grid(
     const char* data_file_name, 
-    int* nel, 
+    long* nel, 
     double** volumes, 
-    int* number_of_edges, 
-    int* num_internal_edges, 
-    int* num_boundary_edges, 
-    int* num_wall_edges, 
-    int* internal_edges_start, 
-    int* boundary_edges_start, 
-    int* wall_edges_start, 
+    long* number_of_edges, 
+    long* num_internal_edges, 
+    long* num_boundary_edges, 
+    long* num_wall_edges, 
+    long* internal_edges_start, 
+    long* boundary_edges_start, 
+    long* wall_edges_start, 
     edge_neighbour** edges, 
     double3** coords);
 
 void dump(
     const double *restrict variables, 
-    int nel, int level);
+    long nel, int level);
 
 #endif
 

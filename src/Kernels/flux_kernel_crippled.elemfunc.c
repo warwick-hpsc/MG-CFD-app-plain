@@ -1,8 +1,8 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
-const int a = edges[i].a;
-const int b = edges[i].b;
+const long a = edges[i].a;
+const long b = edges[i].b;
 
 double ex = edges[i].x;
 double ey = edges[i].y;
@@ -14,11 +14,11 @@ double ewt = sqrt(ex*ex + ey*ey + ez*ez);
 ////////////////////////////////////
 double p_b, pe_b;
 double3 momentum_b;
-const int p_b_idx  = b*NVAR + VAR_DENSITY;
-const int mx_b_idx = b*NVAR + VAR_MOMENTUMX;
-const int my_b_idx = b*NVAR + VAR_MOMENTUMY;
-const int mz_b_idx = b*NVAR + VAR_MOMENTUMZ;
-const int pe_b_idx = b*NVAR + VAR_DENSITY_ENERGY;
+const long p_b_idx  = b*NVAR + VAR_DENSITY;
+const long mx_b_idx = b*NVAR + VAR_MOMENTUMX;
+const long my_b_idx = b*NVAR + VAR_MOMENTUMY;
+const long mz_b_idx = b*NVAR + VAR_MOMENTUMZ;
+const long pe_b_idx = b*NVAR + VAR_DENSITY_ENERGY;
 p_b          = variables[ p_b_idx];
 momentum_b.x = variables[mx_b_idx];
 momentum_b.y = variables[my_b_idx];
@@ -61,11 +61,11 @@ flux_contribution_i_density_energy_b.z = velocity_b.z*de_p;
 ////////////////////////////////////
 double p_a, pe_a;
 double3 momentum_a;
-const int p_a_idx  = a*NVAR + VAR_DENSITY;
-const int mx_a_idx = a*NVAR + VAR_MOMENTUMX;
-const int my_a_idx = a*NVAR + VAR_MOMENTUMY;
-const int mz_a_idx = a*NVAR + VAR_MOMENTUMZ;
-const int pe_a_idx = a*NVAR + VAR_DENSITY_ENERGY;
+const long p_a_idx  = a*NVAR + VAR_DENSITY;
+const long mx_a_idx = a*NVAR + VAR_MOMENTUMX;
+const long my_a_idx = a*NVAR + VAR_MOMENTUMY;
+const long mz_a_idx = a*NVAR + VAR_MOMENTUMZ;
+const long pe_a_idx = a*NVAR + VAR_DENSITY_ENERGY;
 p_a          = variables[ p_a_idx];
 momentum_a.x = variables[mx_a_idx];
 momentum_a.y = variables[my_a_idx];
@@ -105,8 +105,6 @@ flux_contribution_i_density_energy_a.y = velocity_a.y*de_p;
 flux_contribution_i_density_energy_a.z = velocity_a.z*de_p;
 
 double factor_a = -ewt*(speed_a + speed_b + speed_of_sound_a + speed_of_sound_b);
-
-double factor_b = factor_a;
 
 double factor_x = ex;
 double factor_y = ey;
@@ -153,11 +151,11 @@ double mz_b_val = -mz_a_val;
     edge_variables[i*NVAR + VAR_MOMENTUMZ     ].b = mz_b_val;
     edge_variables[i*NVAR + VAR_DENSITY_ENERGY].b = pe_b_val;
 #else
-    const int  p_a_flx_idx = a*NVAR + VAR_DENSITY;
-    const int mx_a_flx_idx = a*NVAR + VAR_MOMENTUMX;
-    const int my_a_flx_idx = a*NVAR + VAR_MOMENTUMY;
-    const int mz_a_flx_idx = a*NVAR + VAR_MOMENTUMZ;
-    const int pe_a_flx_idx = a*NVAR + VAR_DENSITY_ENERGY;
+    const long  p_a_flx_idx = a*NVAR + VAR_DENSITY;
+    const long mx_a_flx_idx = a*NVAR + VAR_MOMENTUMX;
+    const long my_a_flx_idx = a*NVAR + VAR_MOMENTUMY;
+    const long mz_a_flx_idx = a*NVAR + VAR_MOMENTUMZ;
+    const long pe_a_flx_idx = a*NVAR + VAR_DENSITY_ENERGY;
 
     fluxes[p_a_flx_idx]  += p_a_val;
     fluxes[mx_a_flx_idx] += mx_a_val;
@@ -165,11 +163,11 @@ double mz_b_val = -mz_a_val;
     fluxes[mz_a_flx_idx] += mz_a_val;
     fluxes[pe_a_flx_idx] += pe_a_val;
 
-    const int  p_b_flx_idx = b*NVAR + VAR_DENSITY;
-    const int mx_b_flx_idx = b*NVAR + VAR_MOMENTUMX;
-    const int my_b_flx_idx = b*NVAR + VAR_MOMENTUMY;
-    const int mz_b_flx_idx = b*NVAR + VAR_MOMENTUMZ;
-    const int pe_b_flx_idx = b*NVAR + VAR_DENSITY_ENERGY;
+    const long  p_b_flx_idx = b*NVAR + VAR_DENSITY;
+    const long mx_b_flx_idx = b*NVAR + VAR_MOMENTUMX;
+    const long my_b_flx_idx = b*NVAR + VAR_MOMENTUMY;
+    const long mz_b_flx_idx = b*NVAR + VAR_MOMENTUMZ;
+    const long pe_b_flx_idx = b*NVAR + VAR_DENSITY_ENERGY;
     
     fluxes[p_b_flx_idx]  += p_b_val;
     fluxes[mx_b_flx_idx] += mx_b_val;
