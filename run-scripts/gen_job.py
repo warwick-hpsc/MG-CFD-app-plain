@@ -4,6 +4,9 @@ import itertools
 import math
 from tempfile import NamedTemporaryFile
 
+import sys
+pyv = sys.version_info[0]
+
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 template_dirpath = os.path.join(os.path.dirname(script_dirpath), "run-templates")
 app_dirpath = os.path.dirname(script_dirpath)
@@ -130,7 +133,7 @@ def powerset(iterable):
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
 
 def concat_compile_flags(flags):
-    if isinstance(flags, str) or isinstance(flags, unicode):
+    if isinstance(flags, str) or (pyv==2 and isinstance(flags, unicode)):
         flags = flags.split(' ')
 
     s = ""
@@ -212,10 +215,11 @@ if __name__=="__main__":
 
     iterables = itertools.product(*iteration_space.values())
     iterables_labelled = []
+    iteration_keys = list(iteration_space.keys())
     for item in iterables:
         item_dict = {}
-        for i in xrange(len(item)):
-          item_dict[iteration_space.keys()[i]] = item[i]
+        for i in range(len(item)):
+          item_dict[iteration_keys[i]] = item[i]
         iterables_labelled.append(item_dict)
     ## Prune duplicates:
     iterables_labelled_pruned = []
@@ -393,18 +397,24 @@ if __name__=="__main__":
                     est_runtime_secs += 20  ## Add time for file load
                     est_runtime_secs += 60
                     est_runtime_secs = int(round(est_runtime_secs))
-                    est_runtime_hours = est_runtime_secs/60/60
-                    est_runtime_secs -= est_runtime_hours*60*60
-                    est_runtime_minutes = est_runtime_secs/60
-                    est_runtime_secs -= est_runtime_minutes*60
+                    if pyv == 3:
+                        est_runtime_hours = est_runtime_secs//60//60
+                        est_runtime_secs -= est_runtime_hours*60*60
+                        est_runtime_minutes = est_runtime_secs//60
+                        est_runtime_secs -= est_runtime_minutes*60
+                    else:
+                        est_runtime_hours = est_runtime_secs/60/60
+                        est_runtime_secs -= est_runtime_hours*60*60
+                        est_runtime_minutes = est_runtime_secs/60
+                        est_runtime_secs -= est_runtime_minutes*60
                     if est_runtime_secs > 0:
                         est_runtime_minutes += 1
                         est_runtime_secs = 0
                 py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
                 py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
-            ## Make batch script executable:
-            os.chmod(batch_filepath, 0755)
+            ## Make batch script executable (chmod 755):
+            os.chmod(batch_filepath, stat.S_IRWXU | stat.S_IRGRP|stat.S_IXGRP | stat.S_IROTH|stat.S_IXOTH)
 
             ## Add an entry to submit_all.sh:
             # Copy template 'submit.sh' to a temp file:
@@ -451,10 +461,16 @@ if __name__=="__main__":
         est_runtime_secs += 20  ## Add time for file load
         est_runtime_secs += 60
         est_runtime_secs = int(round(est_runtime_secs))
-        est_runtime_hours = est_runtime_secs/60/60
-        est_runtime_secs -= est_runtime_hours*60*60
-        est_runtime_minutes = est_runtime_secs/60
-        est_runtime_secs -= est_runtime_minutes*60
+        if pyv == 3:
+            est_runtime_hours = est_runtime_secs/60/60
+            est_runtime_secs -= est_runtime_hours*60*60
+            est_runtime_minutes = est_runtime_secs/60
+            est_runtime_secs -= est_runtime_minutes*60
+        else:
+            est_runtime_hours = est_runtime_secs/60/60
+            est_runtime_secs -= est_runtime_hours*60*60
+            est_runtime_minutes = est_runtime_secs/60
+            est_runtime_secs -= est_runtime_minutes*60
         if est_runtime_secs > 0:
             est_runtime_minutes += 1
             est_runtime_secs = 0
