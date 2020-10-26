@@ -17,10 +17,10 @@ std::vector<std::vector<int> > thread_events;
 std::vector<std::vector<long_long> > compute_step_kernel_event_counts;
 std::vector<std::vector<long_long> > compute_flux_edge_kernel_event_counts;
 std::vector<std::vector<long_long> > update_kernel_event_counts;
-std::vector<std::vector<long_long> > indirect_rw_kernel_event_counts;
 std::vector<std::vector<long_long> > time_step_kernel_event_counts;
 std::vector<std::vector<long_long> > restrict_kernel_event_counts;
 std::vector<std::vector<long_long> > prolong_kernel_event_counts;
+std::vector<std::vector<long_long> > unstructured_stream_kernel_event_counts;
 
 std::vector<long_long*> temp_count_stores;
 
@@ -45,10 +45,10 @@ void init_papi()
     compute_step_kernel_event_counts.resize(num_threads);
     compute_flux_edge_kernel_event_counts.resize(num_threads);
     update_kernel_event_counts.resize(num_threads);
-    indirect_rw_kernel_event_counts.resize(num_threads);
     time_step_kernel_event_counts.resize(num_threads);
     restrict_kernel_event_counts.resize(num_threads);
     prolong_kernel_event_counts.resize(num_threads);
+    unstructured_stream_kernel_event_counts.resize(num_threads);
 
     temp_count_stores.resize(num_threads);
 
@@ -213,10 +213,10 @@ void load_papi_events()
         compute_step_kernel_event_counts.at(tid).resize(n*levels);
         compute_flux_edge_kernel_event_counts.at(tid).resize(n*levels);
         update_kernel_event_counts.at(tid).resize(n*levels);
-        indirect_rw_kernel_event_counts.at(tid).resize(n*levels);
         time_step_kernel_event_counts.at(tid).resize(n*levels);
         restrict_kernel_event_counts.at(tid).resize(n*levels);
         prolong_kernel_event_counts.at(tid).resize(n*levels);
+        unstructured_stream_kernel_event_counts.at(tid).resize(n*levels);
 
         temp_count_stores.at(tid) = alloc<long_long>(n*levels);
 
@@ -300,11 +300,6 @@ void stop_papi()
             update_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
-    else if (current_kernel == INDIRECT_RW) {
-        for (int e=0; e<num_events; e++) {
-            indirect_rw_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
     else if (current_kernel == TIME_STEP) {
         for (int e=0; e<num_events; e++) {
             time_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
@@ -318,6 +313,11 @@ void stop_papi()
     else if (current_kernel == PROLONG) {
         for (int e=0; e<num_events; e++) {
             prolong_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
+        }
+    }
+    else if (current_kernel == UNSTRUCTURED_STREAM) {
+        for (int e=0; e<num_events; e++) {
+            unstructured_stream_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
 }
@@ -364,7 +364,7 @@ void dump_papi_counters_to_file(int size)
             header << "time_step" << l << "," ;
             header << "restrict" << l << "," ;
             header << "prolong" << l << "," ;
-            header << "indirect_rw" << l << "," ;
+            header << "unstructured_stream" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
@@ -408,7 +408,7 @@ void dump_papi_counters_to_file(int size)
             event_data_line << time_step_kernel_event_counts[tid][idx] << ',';
             event_data_line << restrict_kernel_event_counts[tid][idx] << ',';
             event_data_line << prolong_kernel_event_counts[tid][idx] << ',';
-            event_data_line << indirect_rw_kernel_event_counts[tid][idx] << ',';
+            event_data_line << unstructured_stream_kernel_event_counts[tid][idx] << ',';
         }
         
         outfile << event_data_line.str() << std::endl;

@@ -153,6 +153,7 @@ int main(int argc, char** argv)
     double* old_variables[levels];
     double* residuals[levels];
     double* fluxes[levels];
+    double* fluxes_dummy[levels];
     double* step_factors[levels];
     double3* coords[levels];
     // Multigrid connectivity stuff:
@@ -236,14 +237,22 @@ int main(int argc, char** argv)
         // Create intermediary arrays
         variables[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, variables[i]);
+
         residuals[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, residuals[i]);
+
         old_variables[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, old_variables[i]);
+
         fluxes[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, fluxes[i]);
+
+        fluxes_dummy[i] = alloc<double>(nel[i]*NVAR);
+        zero_array(nel[i]*NVAR, fluxes_dummy[i]);
+
         step_factors[i] = alloc<double>(nel[i]);
         zero_array(nel[i], step_factors[i]);
+        
         #ifndef FLUX_FISSION
             edge_variables[i] = NULL;
         #else
@@ -391,15 +400,23 @@ int main(int argc, char** argv)
             dealloc<double>(variables[i]);
             variables[i] = alloc<double>((nel[i])*NVAR);
             zero_array(nel[i]*NVAR, variables[i]);
+
             dealloc<double>(residuals[i]);
             residuals[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, residuals[i]);
+
             dealloc<double>(old_variables[i]);
             old_variables[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, old_variables[i]);
+
             dealloc<double>(fluxes[i]);
             fluxes[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, fluxes[i]);
+
+            dealloc<double>(fluxes_dummy[i]);
+            fluxes_dummy[i] = alloc<double>(nel[i]*NVAR);
+            zero_array(nel[i]*NVAR, fluxes_dummy[i]);
+            
             dealloc<double>(step_factors[i]);
             step_factors[i] = alloc<double>(nel[i]);
             zero_array(nel[i], step_factors[i]);
@@ -512,31 +529,6 @@ int main(int argc, char** argv)
 
         for(int j=0; j<RK; j++)
         {
-            #ifdef FLUX_CRIPPLE
-                compute_flux_edge_crippled(
-                    internal_edge_starts[level], 
-                    num_internal_edges[level],
-                    edge_nodes[level], 
-                    edge_vectors[level],
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[level],
-                    #endif
-                    variables[level], 
-                    #ifndef FLUX_FISSION
-                        fluxes[level]
-                        #ifdef COLOURED_CONFLICT_AVOIDANCE
-                        , internal_serial_section_starts[level]
-                        #endif
-                    #else
-                        edge_variables[level]
-                    #endif
-                    );
-                #ifndef FLUX_FISSION
-                    // Revert writes made by 'flux cripple':
-                    zero_fluxes(nel[level], fluxes[level]);
-                #endif
-            #endif
-
             compute_flux_edge(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
@@ -612,25 +604,48 @@ int main(int argc, char** argv)
 
             check_for_invalid_variables(variables[level], nel[level]);
 
-            indirect_rw(
-                internal_edge_starts[level], 
-                num_internal_edges[level],
-                edge_nodes[level],
-                edge_vectors[level],
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[level],
-                #endif
-                variables[level], 
-                #ifndef FLUX_FISSION
-                    fluxes[level]
-                    #ifdef COLOURED_CONFLICT_AVOIDANCE
-                    , internal_serial_section_starts[level]
+            // Synthetic kernels that provide calibration data for MG-CFD performance model:
+            if (conf.perform_uns_compute) {
+                unstructured_compute(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level], 
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
                     #endif
-                #else
-                    edge_variables[level]
-                #endif
-                );
-            zero_fluxes(nel[level], fluxes[level]);
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes_dummy[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
+
+            if (conf.measure_mem_bound) {
+                unstructured_stream(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level],
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
+                    #endif
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
         }
 
         residual(nel[level], old_variables[level], variables[level], residuals[level]);

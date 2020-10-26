@@ -962,13 +962,13 @@ void prepare_csv_identification(
     if (write_header) header << "MG cycles,";
     data_line << conf.num_cycles << "," ;
 
-    if (write_header) header << "Flux variant,";
-    #ifdef FLUX_CRIPPLE
-        data_line << "FluxCripple" ;
-    #else
-        data_line << "Normal" ;
-    #endif
-    data_line << "," ;
+    // if (write_header) header << "Flux variant,";
+    // #ifdef FLUX_CRIPPLE
+    //     data_line << "FluxCripple" ;
+    // #else
+    //     data_line << "Normal" ;
+    // #endif
+    // data_line << "," ;
 
     if (write_header) header << "Flux options,";
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS

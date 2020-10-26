@@ -1,11 +1,11 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
-#ifndef INDIRECT_RW_KERNEL_H
-#define INDIRECT_RW_KERNEL_H
+#ifndef UNSTRUCTURED_STREAM_KERNEL_H
+#define UNSTRUCTURED_STREAM_KERNEL_H
 
 FORCE_INLINE
-inline void indirect_rw_kernel(
+inline void unstructured_stream_kernel(
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double ewt,
     #endif

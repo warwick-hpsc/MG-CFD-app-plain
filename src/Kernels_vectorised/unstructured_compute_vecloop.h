@@ -1,9 +1,9 @@
-#ifndef UNSTRUCTURED_STREAM_LOOP_H
-#define UNSTRUCTURED_STREAM_LOOP_H
+#ifndef UNSTRUCTURED_VECLOOP_H
+#define UNSTRUCTURED_VECLOOP_H
 
 #include "common.h"
 
-void unstructured_stream_loop(
+void unstructured_compute_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -16,7 +16,9 @@ void unstructured_stream_loop(
         edge *restrict edge_variables
     #else
         double *restrict fluxes
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+        , long serial_section_start
+        #endif
     #endif
     );
-
 #endif

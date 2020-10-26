@@ -1,10 +1,13 @@
 #include "kernel_wrappers.h"
 
-#include "flux_vecloops.h"
 #include "flux_loops.h"
+#include "flux_vecloops.h"
 
-#include "indirect_rw_loop.h"
-#include "indirect_rw_vecloop.h"
+#include "unstructured_compute_loop.h"
+#include "unstructured_compute_vecloop.h"
+
+#include "unstructured_stream_loop.h"
+#include "unstructured_stream_vecloop.h"
 
 void compute_flux_edge(
     long first_edge,
@@ -113,8 +116,7 @@ void compute_wall_flux_edge(
         );
 }
 
-#ifdef FLUX_CRIPPLE
-void compute_flux_edge_crippled(
+void unstructured_compute(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -134,7 +136,7 @@ void compute_flux_edge_crippled(
     )
 {
     #ifdef SIMD
-        compute_flux_edge_crippled_vecloop(
+        unstructured_compute_vecloop(
             first_edge,
             nedges,
             edge_nodes, 
@@ -153,7 +155,7 @@ void compute_flux_edge_crippled(
             #endif
             );
     #else
-        compute_flux_edge_crippled_loop(
+        unstructured_compute_loop(
             first_edge,
             nedges,
             edge_nodes, 
@@ -170,10 +172,8 @@ void compute_flux_edge_crippled(
             );
     #endif
 }
-#endif
 
-
-void indirect_rw(
+void unstructured_stream(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -193,7 +193,7 @@ void indirect_rw(
     )
 {
     #ifdef SIMD
-        indirect_rw_vecloop(
+        unstructured_stream_vecloop(
             first_edge,
             nedges,
             edge_nodes, 
@@ -212,7 +212,7 @@ void indirect_rw(
             #endif
             );
     #else
-        indirect_rw_loop(
+        unstructured_stream_loop(
             first_edge,
             nedges,
             edge_nodes, 

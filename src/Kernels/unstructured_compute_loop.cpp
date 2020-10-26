@@ -1,21 +1,19 @@
-#include "unstructured_stream_loop.h"
-#include "unstructured_stream_kernel.h"
-
+#include "unstructured_compute_loop.h"
 #include "cfd_loops.h"
+
+#include "unstructured_compute_kernel.h"
 
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"
 
-// Performs same data movement as compute_flux_edge() but with minimal arithmetic. 
-// Thus measures memory-bound of compute_flux_edge().
-void unstructured_stream_loop(
+void unstructured_compute_loop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
     const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        const double *restrict edge_weights,
+        const double *restrict edge_weights, 
     #endif
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -25,16 +23,16 @@ void unstructured_stream_loop(
     #endif
     )
 {
-    log("Performing unstructured_stream_loop()");
-    current_kernel = UNSTRUCTURED_STREAM;
+    log("Computing unstructured_compute_loop()");
+    current_kernel = UNSTRUCTURED_COMPUTE;
 
-    long loop_start = first_edge;
-    long loop_end = loop_start + nedges;
+    long flux_loop_start = first_edge;
+    long loop_end = flux_loop_start + nedges;
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-        #pragma omp parallel firstprivate(loop_start, loop_end)
+        #pragma omp parallel firstprivate(flux_loop_start, loop_end)
         {
-            openmp_distribute_loop_iterations(&loop_start, &loop_end);
+            openmp_distribute_loop_iterations(&flux_loop_start, &loop_end);
     #endif
 
     #ifdef PAPI
@@ -43,17 +41,12 @@ void unstructured_stream_loop(
     #ifdef TIME
     start_timer();
     #endif
-    record_iters(loop_start, loop_end);
+    record_iters(flux_loop_start, loop_end);
 
-    #ifdef __clang__
-        #pragma clang loop vectorize(disable)
-    #else
-        #pragma omp simd safelen(1)
-    #endif
-    #pragma nounroll
-    for (long i=loop_start; i<loop_end; i++)
+    #pragma omp simd safelen(1)
+    for (long i=flux_loop_start; i<loop_end; i++)
     {
-        unstructured_stream_kernel(
+        unstructured_compute_kernel(
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights[i],
             #endif
@@ -79,6 +72,4 @@ void unstructured_stream_loop(
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
         }
     #endif
-
-    log("unstructured_stream_loop() complete");
 }

@@ -1,9 +1,9 @@
-#ifndef INDIRECT_RW_VECLOOP_H
-#define INDIRECT_RW_VECLOOP_H
+#ifndef UNSTRUCTURED_STREAM_VECLOOP_H
+#define UNSTRUCTURED_STREAM_VECLOOP_H
 
 #include "common.h"
 
-void indirect_rw_vecloop(
+void unstructured_stream_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 

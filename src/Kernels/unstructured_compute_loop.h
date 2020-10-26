@@ -1,9 +1,9 @@
-#ifndef UNSTRUCTURED_STREAM_LOOP_H
-#define UNSTRUCTURED_STREAM_LOOP_H
+#ifndef UNSTRUCTURED_LOOP_H
+#define UNSTRUCTURED_LOOP_H
 
 #include "common.h"
 
-void unstructured_stream_loop(
+void unstructured_compute_loop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -18,5 +18,4 @@ void unstructured_stream_loop(
         double *restrict fluxes
     #endif
     );
-
 #endif

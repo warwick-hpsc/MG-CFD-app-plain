@@ -5,16 +5,21 @@
 
 _app_dirpath="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../ && pwd)"
 ## User: set data_dirpath:
-# _data_dirpath=
+_data_dirpath="$HOME"/Datasets/Live/M6_wing/rodinia.regenerated
 
 _blank="-"
 
-_flux_options=("$_blank" "FLUX_CRIPPLE" "FLUX_PRECOMPUTE_EDGE_WEIGHTS")
-_simd=("$_blank" "SIMD")
-_simd_options=("$_blank" "COLOUR" "MANUAL" "MANUAL_GATHER" "MANUAL_SCATTER")
-_misc_options=("$_blank" "TIME" "PAPI" "OMP" "OMP_SCATTERS")
+# _flux_options=("$_blank" "FLUX_PRECOMPUTE_EDGE_WEIGHTS")
+# _simd=("$_blank" "SIMD")
+# _simd_options=("$_blank" "COLOUR" "MANUAL" "MANUAL_GATHER" "MANUAL_SCATTER")
+# _misc_options=("$_blank" "TIME" "PAPI" "OMP" "OMP_SCATTERS")
 
-_compile() (
+_flux_options=("$_blank" "FLUX_PRECOMPUTE_EDGE_WEIGHTS")
+_simd=("$_blank" "SIMD")
+_simd_options=("$_blank" "COLOUR" "MANUAL")
+_misc_options=("$_blank" "TIME" "PAPI" "OMP_SCATTERS")
+
+_compile_then_validate() (
 	set -e
 	set -u
 
@@ -71,7 +76,7 @@ _compile() (
 							exit 1
 						fi
 
-						"$_app_dirpath"/bin/"$bin_filename" -d "$_data_dirpath" -i input.dat -g 5 -v -p papi.conf
+						# "$_app_dirpath"/bin/"$bin_filename" -d "$_data_dirpath" -i input.dat -g 5 -v -p papi.conf
 						# gdb --args "$_app_dirpath"/bin/"$bin_filename" -d "$_data_dirpath" -i input.dat -g 5 -v -p papi.conf
 
 					done
@@ -81,7 +86,7 @@ _compile() (
 	done
 )
 
-_validate_binaries() (
+_validate_all_binaries() (
 	set -e
 
 	cd "$_data_dirpath"
@@ -91,6 +96,6 @@ _validate_binaries() (
 	done
 )
 
-_compile
+_compile_then_validate
 
-# _validate_binaries
+# _validate_all_binaries

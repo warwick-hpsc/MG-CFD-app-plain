@@ -9,10 +9,10 @@ int iters_monitoring_state;
 std::vector<std::vector<long> > compute_step_kernel_niters;
 std::vector<std::vector<long> > compute_flux_edge_kernel_niters;
 std::vector<std::vector<long> > update_kernel_niters;
-std::vector<std::vector<long> > indirect_rw_kernel_niters;
 std::vector<std::vector<long> > time_step_kernel_niters;
 std::vector<std::vector<long> > restrict_kernel_niters;
 std::vector<std::vector<long> > prolong_kernel_niters;
+std::vector<std::vector<long> > unstructured_stream_kernel_niters;
 
 void init_iters()
 {
@@ -29,19 +29,19 @@ void init_iters()
     compute_step_kernel_niters.resize(num_threads);
     compute_flux_edge_kernel_niters.resize(num_threads);
     update_kernel_niters.resize(num_threads);
-    indirect_rw_kernel_niters.resize(num_threads);
     time_step_kernel_niters.resize(num_threads);
     restrict_kernel_niters.resize(num_threads);
     prolong_kernel_niters.resize(num_threads);
+    unstructured_stream_kernel_niters.resize(num_threads);
 
     for (int t=0; t<num_threads; t++) {
         compute_step_kernel_niters.at(t).resize(levels, 0);
         compute_flux_edge_kernel_niters.at(t).resize(levels, 0);
         update_kernel_niters.at(t).resize(levels, 0);
-        indirect_rw_kernel_niters.at(t).resize(levels, 0);
         time_step_kernel_niters.at(t).resize(levels, 0);
         restrict_kernel_niters.at(t).resize(levels, 0);
         prolong_kernel_niters.at(t).resize(levels, 0);
+        unstructured_stream_kernel_niters.at(t).resize(levels, 0);
     }
 }
 
@@ -66,9 +66,6 @@ void record_iters(long loop_start, long loop_end)
     else if (current_kernel == UPDATE) {
         update_kernel_niters[tid][level] += niters;
     }
-    else if (current_kernel == INDIRECT_RW) {
-        indirect_rw_kernel_niters[tid][level] += niters;
-    }
     else if (current_kernel == TIME_STEP) {
         time_step_kernel_niters[tid][level] += niters;
     }
@@ -77,6 +74,9 @@ void record_iters(long loop_start, long loop_end)
     }
     else if (current_kernel == PROLONG) {
         prolong_kernel_niters[tid][level] += niters;
+    }
+    else if (current_kernel == UNSTRUCTURED_STREAM) {
+        unstructured_stream_kernel_niters[tid][level] += niters;
     }
 }
 
@@ -120,7 +120,7 @@ void dump_loop_stats_to_file(int size)
             header << "time_step" << l << "," ;
             header << "restrict" << l << "," ;
             header << "prolong" << l << "," ;
-            header << "indirect_rw" << l << "," ;
+            header << "unstructured_stream" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
@@ -150,7 +150,7 @@ void dump_loop_stats_to_file(int size)
         data_line << time_step_kernel_niters[tid][l] << "," ;
         data_line << restrict_kernel_niters[tid][l] << "," ;
         data_line << prolong_kernel_niters[tid][l] << "," ;
-        data_line << indirect_rw_kernel_niters[tid][l] << "," ;
+        data_line << unstructured_stream_kernel_niters[tid][l] << "," ;
     }
 
     outfile << data_line.str() << std::endl;

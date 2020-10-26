@@ -2,12 +2,12 @@
 // This code is from the AIAA-2009-4001 paper
 
 /*
-inline void compute_flux_edge_kernel_crippled(
-    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+inline void unstructured_compute_veckernel(
+    #if defined MANUAL_GATHER || defined MANUAL_SCATTER
         int simd_idx,
     #endif
 
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
             const double simd_edge_weights[DBLS_PER_SIMD],
         #endif
@@ -23,7 +23,7 @@ inline void compute_flux_edge_kernel_crippled(
         const double *restrict variables_b, 
     #endif
 
-    #if defined SIMD && defined MANUAL_SCATTER
+    #ifdef MANUAL_SCATTER
         double simd_fluxes_a[][DBLS_PER_SIMD],
         double simd_fluxes_b[][DBLS_PER_SIMD]
     #elif defined FLUX_FISSION
@@ -37,16 +37,16 @@ inline void compute_flux_edge_kernel_crippled(
 
     const long a = edge_nodes[i*2];
     const long b = edge_nodes[i*2+1];
-    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+    #if defined MANUAL_GATHER || defined MANUAL_SCATTER
         const int simd_idx = i - flux_loop_start;
     #endif
 
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         double ex = simd_edge_vectors[0][simd_idx];
         double ey = simd_edge_vectors[1][simd_idx];
         double ez = simd_edge_vectors[2][simd_idx];
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-            double ewt = simd_edge_weights[0][simd_idx];
+            double ewt = simd_edge_weights[simd_idx];
         #else
             double ewt = sqrt(ex*ex + ey*ey + ez*ez);
         #endif
@@ -69,7 +69,7 @@ inline void compute_flux_edge_kernel_crippled(
     const long my_b_idx = b*NVAR + VAR_MOMENTUMY;
     const long mz_b_idx = b*NVAR + VAR_MOMENTUMZ;
     const long pe_b_idx = b*NVAR + VAR_DENSITY_ENERGY;
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         p_b          = simd_variables_b[VAR_DENSITY]       [simd_idx];
         momentum_b.x = simd_variables_b[VAR_MOMENTUMX]     [simd_idx];
         momentum_b.y = simd_variables_b[VAR_MOMENTUMY]     [simd_idx];
@@ -124,7 +124,7 @@ inline void compute_flux_edge_kernel_crippled(
     const long my_a_idx = a*NVAR + VAR_MOMENTUMY;
     const long mz_a_idx = a*NVAR + VAR_MOMENTUMZ;
     const long pe_a_idx = a*NVAR + VAR_DENSITY_ENERGY;
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         p_a          = simd_variables_a[VAR_DENSITY]       [simd_idx];
         momentum_a.x = simd_variables_a[VAR_MOMENTUMX]     [simd_idx];
         momentum_a.y = simd_variables_a[VAR_MOMENTUMY]     [simd_idx];
@@ -272,7 +272,7 @@ inline void compute_flux_edge_kernel_crippled(
                 fluxes[pe_b_flx_idx] += pe_b_val;
             }
         #else
-            #if defined SIMD && defined MANUAL_SCATTER
+            #ifdef MANUAL_SCATTER
                 simd_fluxes_a[VAR_DENSITY]  [simd_idx]      = p_a_val;
                 simd_fluxes_a[VAR_MOMENTUMX][simd_idx]      = mx_a_val;
                 simd_fluxes_a[VAR_MOMENTUMY][simd_idx]      = my_a_val;

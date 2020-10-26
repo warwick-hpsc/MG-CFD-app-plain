@@ -47,8 +47,7 @@ void compute_wall_flux_edge(
     #endif
     );
 
-#ifdef FLUX_CRIPPLE
-void compute_flux_edge_crippled(
+void unstructured_compute(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -66,9 +65,8 @@ void compute_flux_edge_crippled(
         #endif
     #endif
     );
-#endif
 
-void indirect_rw(
+void unstructured_stream(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
