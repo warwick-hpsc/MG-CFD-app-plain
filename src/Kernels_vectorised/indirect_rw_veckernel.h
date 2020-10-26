@@ -13,7 +13,6 @@ inline void indirect_rw_veckernel(
     #if defined SIMD && defined MANUAL_GATHER
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
             const double simd_edge_weights[DBLS_PER_SIMD],
-        #else
         #endif
         const double simd_edge_vectors[][DBLS_PER_SIMD],
         const double simd_variables_a[][DBLS_PER_SIMD],
@@ -43,7 +42,7 @@ inline void indirect_rw_veckernel(
         double ey = simd_edge_vectors[1][simd_idx];
         double ez = simd_edge_vectors[2][simd_idx];
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-            double ewt = edge_weights[simd_idx];
+            double ewt = simd_edge_weights[simd_idx];
         #else
             double ewt = sqrt(ex*ex + ey*ey + ez*ez);
         #endif

@@ -7,10 +7,10 @@ void compute_flux_edge_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -27,10 +27,10 @@ void compute_flux_edge_crippled_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables

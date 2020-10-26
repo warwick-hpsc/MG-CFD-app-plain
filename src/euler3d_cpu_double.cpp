@@ -19,8 +19,6 @@
 
 // Kernels:
 #include "kernel_wrappers.h"
-#include "flux_loops.h"
-#include "indirect_rw_loop.h"
 #include "cfd_loops.h"
 #include "mg_loops.h"
 
@@ -519,10 +517,10 @@ int main(int argc, char** argv)
                     internal_edge_starts[level], 
                     num_internal_edges[level],
                     edge_nodes[level], 
+                    edge_vectors[level],
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                         edge_weights[level],
                     #endif
-                    edge_vectors[level],
                     variables[level], 
                     #ifndef FLUX_FISSION
                         fluxes[level]
@@ -543,10 +541,10 @@ int main(int argc, char** argv)
                 internal_edge_starts[level], 
                 num_internal_edges[level],
                 edge_nodes[level],
+                edge_vectors[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
-                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
@@ -618,10 +616,10 @@ int main(int argc, char** argv)
                 internal_edge_starts[level], 
                 num_internal_edges[level],
                 edge_nodes[level],
+                edge_vectors[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
-                edge_vectors[level],
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]

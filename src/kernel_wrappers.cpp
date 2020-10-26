@@ -10,10 +10,10 @@ void compute_flux_edge(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -30,10 +30,10 @@ void compute_flux_edge(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables
@@ -49,10 +49,10 @@ void compute_flux_edge(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables
@@ -118,10 +118,10 @@ void compute_flux_edge_crippled(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -138,10 +138,10 @@ void compute_flux_edge_crippled(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables
@@ -157,10 +157,10 @@ void compute_flux_edge_crippled(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables
@@ -177,10 +177,10 @@ void indirect_rw(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -197,10 +197,10 @@ void indirect_rw(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables
@@ -216,10 +216,10 @@ void indirect_rw(
             first_edge,
             nedges,
             edge_nodes, 
+            edge_vectors,
             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                 edge_weights,
             #endif
-            edge_vectors,
             variables, 
             #ifdef FLUX_FISSION
                 edge_variables

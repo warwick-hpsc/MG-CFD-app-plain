@@ -2,8 +2,10 @@
 #include "cfd_loops.h"
 
 #include "flux_veckernel.h"
+#include "flux_kernel.h"
 #ifdef FLUX_CRIPPLE
-    #include "flux_veckernel_crippled.h"
+    #include "flux_crippled_veckernel.h"
+    #include "flux_crippled_kernel.h"
 #endif
 
 #include "papi_funcs.h"
@@ -14,10 +16,10 @@ void compute_flux_edge_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
     #endif
-    const double *restrict edge_vectors,
     const double *restrict variables, 
     #ifdef FLUX_FISSION
         edge *restrict edge_variables
@@ -148,15 +150,15 @@ void compute_flux_edge_vecloop(
     #endif
     for (long i=flux_loop_start; i<loop_end; i++)
     {
-        // #if defined USE_AVX512CD
-        //     // For Intel AVX-512-CD auto-vectorizer to act, I need to 
-        //     // directly include the kernel source here rather than 
-        //     // call an inlined kernel function.
-        //     #include "flux_kernel.elemfunc.c"
-        // #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
-        //     // Inlining call makes GNU vector log easier to parse
-        //     #include "flux_kernel.elemfunc.c"
-        // #else
+        #if defined USE_AVX512CD
+            // For Intel AVX-512-CD auto-vectorizer to act, I need to 
+            // directly include the kernel source here rather than 
+            // call an inlined kernel function.
+            #include "flux_veckernel.elemfunc.c"
+        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
+            // Inlining call makes GNU vector log easier to parse
+            #include "flux_veckernel.elemfunc.c"
+        #else
             compute_flux_edge_veckernel(
                 #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
                     i-flux_loop_start,
@@ -188,7 +190,7 @@ void compute_flux_edge_vecloop(
                     &fluxes[edge_nodes[i*2+1]*NVAR]
                 #endif
                 );
-        // #endif
+        #endif
     }
 
     #if defined SIMD && defined MANUAL_SCATTER && (!defined FLUX_FISSION)
@@ -215,65 +217,21 @@ void compute_flux_edge_vecloop(
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             long remainder_loop_start = serial_section_start;
             loop_end = first_edge + nedges;
-            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-                // All remainder edges are separate from the SIMD-able edges, so 
-                // a workload distribution is required.
-                openmp_distribute_loop_iterations(&remainder_loop_start, &loop_end);
-            #endif
         #elif defined MANUAL_SCATTER
             long remainder_loop_start = v_end;
             loop_end = loop_end_orig;
-            for (long i=remainder_loop_start; i<loop_end; i++) {
-                const int simd_idx = i-remainder_loop_start;
-                for (int x=0; x<NVAR; x++) {
-                    simd_fluxes_a[x][simd_idx] = 0.0;
-                    simd_fluxes_b[x][simd_idx] = 0.0;
-                    #ifdef MANUAL_GATHER
-                        simd_variables_a[x][simd_idx] = variables[edge_nodes[i*2  ]*NVAR+x];
-                        simd_variables_b[x][simd_idx] = variables[edge_nodes[i*2+1]*NVAR+x];
-                    #endif
-                }
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    simd_ewt[simd_idx] = edge_weights[i];
-                #endif
-                simd_edge_vectors[0][simd_idx] = edge_vectors[i*NDIM];
-                simd_edge_vectors[1][simd_idx] = edge_vectors[i*NDIM+1];
-                simd_edge_vectors[2][simd_idx] = edge_vectors[i*NDIM+2];
-            }
-            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-                // Each thread already has its own remainders to process, no need to 
-                // distribute workload
-            #endif
         #endif
-
         #pragma omp simd safelen(1)
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
-            compute_flux_edge_veckernel(
-                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
-                    i-remainder_loop_start,
+            compute_flux_edge_kernel(
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    edge_weights[i],
                 #endif
-
-                #if defined SIMD && defined MANUAL_GATHER
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        simd_ewt,
-                    #endif
-                    simd_edge_vectors,
-                    simd_variables_a, 
-                    simd_variables_b,
-                #else
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[i],
-                    #endif
-                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                    &variables[edge_nodes[i*2  ]*NVAR],
-                    &variables[edge_nodes[i*2+1]*NVAR],
-                #endif
-
-                #if defined SIMD && defined MANUAL_SCATTER
-                    simd_fluxes_a, 
-                    simd_fluxes_b
-                #elif defined FLUX_FISSION
+                edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                &variables[edge_nodes[i*2]  *NVAR],
+                &variables[edge_nodes[i*2+1]*NVAR],
+                #ifdef FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
                     &fluxes[edge_nodes[i*2  ]*NVAR],
@@ -281,15 +239,6 @@ void compute_flux_edge_vecloop(
                 #endif
                 );
         }
-        #ifdef MANUAL_SCATTER
-            // Write out fluxes:
-            for (long i=remainder_loop_start; i<loop_end; i++) {
-                for (int x=0; x<NVAR; x++) {
-                    fluxes[edge_nodes[i*2  ]*NVAR+x] += simd_fluxes_a[x][i-remainder_loop_start];
-                    fluxes[edge_nodes[i*2+1]*NVAR+x] += simd_fluxes_b[x][i-remainder_loop_start];
-                }
-            }
-        #endif
     #endif
 
     #ifdef FLUX_CRIPPLE
@@ -315,10 +264,9 @@ void compute_flux_edge_crippled_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         const double *restrict edge_weights,
-    #else
-        const double *restrict edge_vectors,
     #endif
     const double *restrict variables, 
     #ifdef FLUX_FISSION
@@ -443,47 +391,47 @@ void compute_flux_edge_crippled_vecloop(
     #endif
     for (long i=flux_loop_start; i<loop_end; i++)
     {
-        #if defined USE_AVX512CD
+        // #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
-            #include "flux_kernel_crippled.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
-            // Inlining call makes GNU vector log easier to parse
-            #include "flux_kernel_crippled.elemfunc.c"
-        #else
-            compute_flux_edge_crippled_veckernel(
-                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
-                    i-flux_loop_start,
-                #endif
+            #include "flux_crippled_veckernel.elemfunc.c"
+        // #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
+        //     // Inlining call makes GNU vector log easier to parse
+        //     #include "flux_crippled_veckernel.elemfunc.c"
+        // #else
+        //     compute_flux_edge_crippled_veckernel(
+        //         #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+        //             i-flux_loop_start,
+        //         #endif
 
-                #if defined SIMD && defined MANUAL_GATHER
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        simd_ewt,
-                    #endif
-                    simd_edge_vectors,
-                    simd_variables_a, 
-                    simd_variables_b,
-                #else
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[i],
-                    #endif
-                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                    &variables[edge_nodes[i*2]  *NVAR],
-                    &variables[edge_nodes[i*2+1]*NVAR],
-                #endif
+        //         #if defined SIMD && defined MANUAL_GATHER
+        //             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+        //                 simd_ewt,
+        //             #endif
+        //             simd_edge_vectors,
+        //             simd_variables_a, 
+        //             simd_variables_b,
+        //         #else
+        //             #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+        //                 edge_weights[i],
+        //             #endif
+        //             edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+        //             &variables[edge_nodes[i*2]  *NVAR],
+        //             &variables[edge_nodes[i*2+1]*NVAR],
+        //         #endif
 
-                #if defined SIMD && defined MANUAL_SCATTER
-                    simd_fluxes_a, 
-                    simd_fluxes_b
-                #elif defined FLUX_FISSION
-                    &edge_variables[i*NVAR]
-                #else
-                    &fluxes[edge_nodes[i*2  ]*NVAR],
-                    &fluxes[edge_nodes[i*2+1]*NVAR]
-                #endif
-                );
-        #endif
+        //         #if defined SIMD && defined MANUAL_SCATTER
+        //             simd_fluxes_a, 
+        //             simd_fluxes_b
+        //         #elif defined FLUX_FISSION
+        //             &edge_variables[i*NVAR]
+        //         #else
+        //             &fluxes[edge_nodes[i*2  ]*NVAR],
+        //             &fluxes[edge_nodes[i*2+1]*NVAR]
+        //         #endif
+        //         );
+        // #endif
     }
 
     #if defined SIMD && defined MANUAL_SCATTER && (!defined FLUX_FISSION)
@@ -506,69 +454,26 @@ void compute_flux_edge_crippled_vecloop(
     #endif
 
     #if defined SIMD && (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_SCATTER) && (!defined FLUX_FISSION)
-        // Compute fluxes of 'remainder' edges without SIMD:
+        // // Compute fluxes of 'remainder' edges without SIMD:
         #ifdef COLOURED_CONFLICT_AVOIDANCE
             long remainder_loop_start = serial_section_start;
             loop_end = first_edge + nedges;
-            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-                // All remainder edges are separate from the SIMD-able edges, so 
-                // a workload distribution is required.
-                openmp_distribute_loop_iterations(&remainder_loop_start, &loop_end);
-            #endif
         #elif defined MANUAL_SCATTER
             long remainder_loop_start = v_end;
             loop_end = loop_end_orig;
-            for (long i=remainder_loop_start; i<loop_end; i++) {
-                const int simd_idx = i-remainder_loop_start;
-                for (int x=0; x<NVAR; x++) {
-                    simd_fluxes_a[x][simd_idx] = 0.0;
-                    simd_fluxes_b[x][simd_idx] = 0.0;
-                    #ifdef MANUAL_GATHER
-                        simd_variables_a[x][simd_idx] = variables[edge_nodes[i*2  ]*NVAR+x];
-                        simd_variables_b[x][simd_idx] = variables[edge_nodes[i*2+1]*NVAR+x];
-                    #endif
-                }
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    simd_ewt[simd_idx] = edge_weights[i];
-                #endif
-                simd_edge_vectors[0][simd_idx] = edge_vectors[i*NDIM];
-                simd_edge_vectors[1][simd_idx] = edge_vectors[i*NDIM+1];
-                simd_edge_vectors[2][simd_idx] = edge_vectors[i*NDIM+2];
-            }
-            #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-                // Each thread already has its own remainders to process, no need to 
-                // distribute workload
-            #endif
         #endif
 
         #pragma omp simd safelen(1)
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
-            compute_flux_edge_crippled_veckernel(
-                #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
-                    i-remainder_loop_start,
+            compute_flux_edge_kernel_crippled(
+                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                    edge_weights[i],
                 #endif
-
-                #if defined SIMD && defined MANUAL_GATHER
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        simd_ewt,
-                    #endif
-                    simd_edge_vectors,
-                    simd_variables_a, 
-                    simd_variables_b,
-                #else
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[i],
-                    #endif
-                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                    &variables[edge_nodes[i*2  ]*NVAR],
-                    &variables[edge_nodes[i*2+1]*NVAR],
-                #endif
-
-                #if defined SIMD && defined MANUAL_SCATTER
-                    simd_fluxes_a, 
-                    simd_fluxes_b
-                #elif defined FLUX_FISSION
+                edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
+                &variables[edge_nodes[i*2]  *NVAR],
+                &variables[edge_nodes[i*2+1]*NVAR],
+                #ifdef FLUX_FISSION
                     &edge_variables[i*NVAR]
                 #else
                     &fluxes[edge_nodes[i*2  ]*NVAR],
@@ -576,15 +481,6 @@ void compute_flux_edge_crippled_vecloop(
                 #endif
                 );
         }
-        #ifdef MANUAL_SCATTER
-            // Write out fluxes:
-            for (long i=remainder_loop_start; i<loop_end; i++) {
-                for (int x=0; x<NVAR; x++) {
-                    fluxes[edge_nodes[i*2  ]*NVAR+x] += simd_fluxes_a[x][i-remainder_loop_start];
-                    fluxes[edge_nodes[i*2+1]*NVAR+x] += simd_fluxes_b[x][i-remainder_loop_start];
-                }
-            }
-        #endif
     #endif
 
     #ifdef TIME

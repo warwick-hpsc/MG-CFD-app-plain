@@ -17,10 +17,10 @@ void compute_boundary_flux_edge_kernel(
     double p_b, pe_b, pressure_b;
     double3 velocity_b, momentum_b;
     p_b          = variables_b[VAR_DENSITY];
-    pe_b         = variables_b[VAR_MOMENTUMX];
-    momentum_b.x = variables_b[VAR_MOMENTUMY];
-    momentum_b.y = variables_b[VAR_MOMENTUMZ];
-    momentum_b.z = variables_b[VAR_DENSITY_ENERGY];
+    pe_b         = variables_b[VAR_DENSITY_ENERGY];
+    momentum_b.x = variables_b[VAR_MOMENTUMX];
+    momentum_b.y = variables_b[VAR_MOMENTUMY];
+    momentum_b.z = variables_b[VAR_MOMENTUMZ];
 
     compute_velocity(p_b, momentum_b, velocity_b);
 

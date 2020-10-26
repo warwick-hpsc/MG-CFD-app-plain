@@ -2,7 +2,7 @@
 // This code is from the AIAA-2009-4001 paper
 
 /*
-inline void compute_flux_edge_kernel(
+inline void compute_flux_edge_veckernel(
     #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
         int simd_idx,
     #endif

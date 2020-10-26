@@ -21,10 +21,10 @@ void compute_wall_flux_edge_kernel(
         flux_contribution_i_momentum_z_b,
         flux_contribution_i_density_energy_b;
     p_b          = variables_b[VAR_DENSITY];
-    pe_b         = variables_b[VAR_MOMENTUMX];
-    momentum_b.x = variables_b[VAR_MOMENTUMY];
-    momentum_b.y = variables_b[VAR_MOMENTUMZ];
-    momentum_b.z = variables_b[VAR_DENSITY_ENERGY];
+    pe_b         = variables_b[VAR_DENSITY_ENERGY];
+    momentum_b.x = variables_b[VAR_MOMENTUMX];
+    momentum_b.y = variables_b[VAR_MOMENTUMY];
+    momentum_b.z = variables_b[VAR_MOMENTUMZ];
 
     #ifdef FLUX_REUSE_DIV
         compute_velocity_reciprocal(((double)1.0)/p_b, momentum_b, velocity_b);
