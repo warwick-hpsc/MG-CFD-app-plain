@@ -36,6 +36,8 @@ typedef struct {
 	int num_cycles;
 	int omp_num_threads;
 
+	bool renumber_mesh;
+
 	bool validate_result;
 
 	bool measure_mem_bound;

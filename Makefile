@@ -304,6 +304,7 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Meshing/reorder.cpp \
 		  src/Meshing/graph.cpp \
 		  src/Meshing/colour.cpp \
+		  src/Meshing/reduce_bw.cpp \
 		  src/Meshing/progress.cpp
 
 OBJECTS     := $(patsubst src/%.cpp, $(OBJ_DIR)/%.o,     $(SOURCES))

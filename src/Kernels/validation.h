@@ -30,6 +30,7 @@ void check_for_invalid_variables(
 void identify_differences(
     const double* test_values,
     const double* master_values, 
-    long n);
+    long n, 
+    const long* peritab);
 
 #endif

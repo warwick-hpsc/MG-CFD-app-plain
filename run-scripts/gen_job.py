@@ -50,6 +50,7 @@ defaults["min mesh multi"] = 1
 # Optimisation:
 defaults["simd mode"] = False
 defaults["simd CA scheme"] = ""
+defaults["renumber"] = False
 
 def get_key_value(profile, cat, key, ensure_list=False):
     v = None
@@ -198,6 +199,7 @@ if __name__=="__main__":
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
     validate = get_key_value(profile, "run", "validate result")
+    renumber_modes = get_key_value(profile, "optimisation", "renumber", True)
     measure_mem_bound = get_key_value(profile, "run", "measure mem bound")
     run_synthetic_compute = get_key_value(profile, "run", "run synthetic compute")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
@@ -224,6 +226,8 @@ if __name__=="__main__":
         iteration_space["flux flags"] = flux_flags_permutations
     if not threads is None:
         iteration_space["threads"] = threads
+    if not renumber_modes is None:
+        iteration_space["renumber"] = renumber_modes
     if not simd_modes is None:
         iteration_space["simd mode"] = simd_modes
     if not simd_ca_schemes is None:
@@ -346,6 +350,8 @@ if __name__=="__main__":
             if flux_flags != "":
                 build_flags += " " + flux_flags
 
+            renumber = item.get("renumber")
+
             compiler = item.get("compiler")
             isa = item.get("isa")
             simd = item.get("simd mode")
@@ -440,6 +446,7 @@ if __name__=="__main__":
             ## - Execution:
             py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
+            py_sed(batch_filepath, "<RENUMBER>", str(renumber).lower())
             py_sed(batch_filepath, "<MEASURE_MEM_BOUND>", str(measure_mem_bound).lower())
             py_sed(batch_filepath, "<RUN_SYNTHETIC_COMPUTE>", str(run_synthetic_compute).lower())
 

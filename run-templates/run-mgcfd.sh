@@ -50,6 +50,7 @@ _t=<NUM_THREADS>
 _m=<MESH_MULTI>
 mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
+renumber=<RENUMBER>
 measure_mem_bound=<MEASURE_MEM_BOUND>
 run_synthetic_compute=<RUN_SYNTHETIC_COMPUTE>
 
@@ -156,6 +157,9 @@ exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o $
 if $validate_result ; then
   exec_command+=" -v"
 fi
+if $renumber ; then
+  exec_command+=" -r"
+fi
 if $measure_mem_bound ; then
   exec_command+=" -b"
 fi
@@ -186,6 +190,10 @@ else
     export OMP_PROC_BIND=spread
   fi
 fi
+if $renumber ; then
+  exec_command+=" -r"
+fi
+echo "EXECUTING $bin_filepath"
 export OMP_NUM_THREADS=$_t
 cd "${data_dirpath}"
 echo ""

@@ -34,6 +34,11 @@
         "simd len": 4
     },
 
+    "optimisation": {
+        "renumber comment": "OPTIONAL: whether to renumber mesh nodes. Single value or list.",
+        "renumber": [false, true]
+    },
+
     "run": {
         "data dirpath comment": "Directory path to folder containing desired input files and input.dat",
         "data dirpath": "./dirpath/to/input/deck",

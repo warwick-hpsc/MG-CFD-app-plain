@@ -156,6 +156,19 @@ inline int compare_two_edges(edge_neighbour e1, edge_neighbour e2) {
     if (e1.z > e2.z) return false;
     return false;
 }
+inline int compare_two_internal_edges_amajor(const void * a, const void * b) {
+    edge_neighbour e1 = (*(edge_neighbour*)a);
+    edge_neighbour e2 = (*(edge_neighbour*)b);
+    return (e1.a==e2.a) ? e1.b - e2.b : e1.a - e2.a;
+}
+inline int compare_two_internal_edges_bmajor(const void * a, const void * b) {
+    edge_neighbour e1 = (*(edge_neighbour*)a);
+    edge_neighbour e2 = (*(edge_neighbour*)b);
+    return (e1.b==e2.b) ? e1.a - e2.a : e1.b - e2.b;
+}
+inline int compare_two_noninternal_edges(const void * a, const void * b) {
+    return (*(edge_neighbour*)a).b - (*(edge_neighbour*)b).b;
+}
 
 template <typename T>
 void permute_array_range(T *restrict array, long *restrict mapping, long map_offset, long map_size)

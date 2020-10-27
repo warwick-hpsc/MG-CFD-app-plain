@@ -53,4 +53,3 @@ long** identify_edgewise_neighbours(
 	long edges_end_idx);
 
 #endif
-

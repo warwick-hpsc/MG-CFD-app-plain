@@ -39,6 +39,7 @@ struct option long_opts[] = {
     { "mesh-duplicate-count", required_argument, NULL, 'm' },
     { "num-cycles",           required_argument, NULL, 'g' },
     { "validate-result",      no_argument,       NULL, 'v' },
+    { "renumber",             no_argument,       NULL, 'r' },
 
     { "measure-mem-bound",    no_argument,       NULL, 'b' },
     { "perform-uns-compute",  no_argument,       NULL, 'u' },
@@ -48,7 +49,7 @@ struct option long_opts[] = {
     { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
     {NULL, 0, NULL, 0} 
 };
-#define GETOPTS "hc:i:d:p:o:m:g:vbu"
+#define GETOPTS "hc:i:d:p:o:m:g:vrbu"
 
 void set_config_defaults() {
     conf.config_filepath = (char*)malloc(sizeof(char));
@@ -65,6 +66,8 @@ void set_config_defaults() {
     conf.mesh_duplicate_count = 1;
 
     conf.num_cycles = 25;
+
+    conf.renumber_mesh = false;
 
     conf.validate_result = false;
 
@@ -262,6 +265,8 @@ bool parse_arguments(int argc, char** argv) {
             case 'u':
                 conf.perform_uns_compute = true;
                 break;
+            case 'r':
+                conf.renumber_mesh = true;
             case '\0':
                 break;
             default:
@@ -311,6 +316,7 @@ void print_help(void)
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
     fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
+    fprintf(stderr, "  -r, --renumber                   Renumber mesh nodes using RCM\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "SYNTHETIC KERNELS\n");
     fprintf(stderr, "  -b, --measure-mem-bound\n");
