@@ -21,6 +21,7 @@ std::vector<std::vector<long_long> > time_step_kernel_event_counts;
 std::vector<std::vector<long_long> > restrict_kernel_event_counts;
 std::vector<std::vector<long_long> > prolong_kernel_event_counts;
 std::vector<std::vector<long_long> > unstructured_stream_kernel_event_counts;
+std::vector<std::vector<long_long> > unstructured_compute_kernel_event_counts;
 
 std::vector<long_long*> temp_count_stores;
 
@@ -49,6 +50,7 @@ void init_papi()
     restrict_kernel_event_counts.resize(num_threads);
     prolong_kernel_event_counts.resize(num_threads);
     unstructured_stream_kernel_event_counts.resize(num_threads);
+    unstructured_compute_kernel_event_counts.resize(num_threads);
 
     temp_count_stores.resize(num_threads);
 
@@ -217,6 +219,7 @@ void load_papi_events()
         restrict_kernel_event_counts.at(tid).resize(n*levels);
         prolong_kernel_event_counts.at(tid).resize(n*levels);
         unstructured_stream_kernel_event_counts.at(tid).resize(n*levels);
+        unstructured_compute_kernel_event_counts.at(tid).resize(n*levels);
 
         temp_count_stores.at(tid) = alloc<long_long>(n*levels);
 
@@ -320,6 +323,11 @@ void stop_papi()
             unstructured_stream_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
         }
     }
+    else if (current_kernel == UNSTRUCTURED_COMPUTE) {
+        for (int e=0; e<num_events; e++) {
+            unstructured_compute_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
+        }
+    }
 }
 
 
@@ -365,6 +373,7 @@ void dump_papi_counters_to_file(int size)
             header << "restrict" << l << "," ;
             header << "prolong" << l << "," ;
             header << "unstructured_stream" << l << "," ;
+            header << "unstructured_compute" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
@@ -409,6 +418,7 @@ void dump_papi_counters_to_file(int size)
             event_data_line << restrict_kernel_event_counts[tid][idx] << ',';
             event_data_line << prolong_kernel_event_counts[tid][idx] << ',';
             event_data_line << unstructured_stream_kernel_event_counts[tid][idx] << ',';
+            event_data_line << unstructured_compute_kernel_event_counts[tid][idx] << ',';
         }
         
         outfile << event_data_line.str() << std::endl;

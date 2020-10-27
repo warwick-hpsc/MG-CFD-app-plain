@@ -44,6 +44,8 @@ defaults["num threads"] = 1
 defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
+defaults["measure mem bound"] = False
+defaults["run synthetic compute"] = False
 defaults["min mesh multi"] = 1
 # Optimisation:
 defaults["simd mode"] = False
@@ -203,6 +205,8 @@ if __name__=="__main__":
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
     validate = get_key_value(profile, "run", "validate result")
+    measure_mem_bound = get_key_value(profile, "run", "measure mem bound")
+    run_synthetic_compute = get_key_value(profile, "run", "run synthetic compute")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
 
@@ -443,6 +447,8 @@ if __name__=="__main__":
             ## - Execution:
             py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
+            py_sed(batch_filepath, "<MEASURE_MEM_BOUND>", str(measure_mem_bound).lower())
+            py_sed(batch_filepath, "<RUN_SYNTHETIC_COMPUTE>", str(run_synthetic_compute).lower())
 
             ## - Walltime estimation:
             if single_batch:

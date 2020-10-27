@@ -13,6 +13,7 @@ std::vector<std::vector<long> > time_step_kernel_niters;
 std::vector<std::vector<long> > restrict_kernel_niters;
 std::vector<std::vector<long> > prolong_kernel_niters;
 std::vector<std::vector<long> > unstructured_stream_kernel_niters;
+std::vector<std::vector<long> > unstructured_compute_kernel_niters;
 
 void init_iters()
 {
@@ -33,6 +34,7 @@ void init_iters()
     restrict_kernel_niters.resize(num_threads);
     prolong_kernel_niters.resize(num_threads);
     unstructured_stream_kernel_niters.resize(num_threads);
+    unstructured_compute_kernel_niters.resize(num_threads);
 
     for (int t=0; t<num_threads; t++) {
         compute_step_kernel_niters.at(t).resize(levels, 0);
@@ -42,6 +44,7 @@ void init_iters()
         restrict_kernel_niters.at(t).resize(levels, 0);
         prolong_kernel_niters.at(t).resize(levels, 0);
         unstructured_stream_kernel_niters.at(t).resize(levels, 0);
+        unstructured_compute_kernel_niters.at(t).resize(levels, 0);
     }
 }
 
@@ -77,6 +80,9 @@ void record_iters(long loop_start, long loop_end)
     }
     else if (current_kernel == UNSTRUCTURED_STREAM) {
         unstructured_stream_kernel_niters[tid][level] += niters;
+    }
+    else if (current_kernel == UNSTRUCTURED_COMPUTE) {
+        unstructured_compute_kernel_niters[tid][level] += niters;
     }
 }
 
@@ -121,6 +127,7 @@ void dump_loop_stats_to_file(int size)
             header << "restrict" << l << "," ;
             header << "prolong" << l << "," ;
             header << "unstructured_stream" << l << "," ;
+            header << "unstructured_compute" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
@@ -151,6 +158,7 @@ void dump_loop_stats_to_file(int size)
         data_line << restrict_kernel_niters[tid][l] << "," ;
         data_line << prolong_kernel_niters[tid][l] << "," ;
         data_line << unstructured_stream_kernel_niters[tid][l] << "," ;
+        data_line << unstructured_compute_kernel_niters[tid][l] << "," ;
     }
 
     outfile << data_line.str() << std::endl;

@@ -62,17 +62,13 @@ void compute_flux_edge_vecloop(
         }
     #endif
 
-    #ifdef FLUX_CRIPPLE
-        iters_monitoring_state = 0;
-    #else
-        #ifdef PAPI
-        start_papi();
-        #endif
-        #ifdef TIME
-        start_timer();
-        #endif
-        record_iters(flux_loop_start, loop_end);
+    #ifdef PAPI
+    start_papi();
     #endif
+    #ifdef TIME
+    start_timer();
+    #endif
+    record_iters(flux_loop_start, loop_end);
 
     #ifdef FLUX_FISSION
         // SIMD is safe
@@ -229,15 +225,11 @@ void compute_flux_edge_vecloop(
         }
     #endif
 
-    #ifdef FLUX_CRIPPLE
-        iters_monitoring_state = 1;
-    #else
-        #ifdef TIME
-        stop_timer();
-        #endif
-        #ifdef PAPI
-        stop_papi();
-        #endif
+    #ifdef TIME
+    stop_timer();
+    #endif
+    #ifdef PAPI
+    stop_papi();
     #endif
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)

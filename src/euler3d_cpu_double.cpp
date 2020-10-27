@@ -637,7 +637,7 @@ int main(int argc, char** argv)
                     #endif
                     variables[level], 
                     #ifndef FLUX_FISSION
-                        fluxes[level]
+                        fluxes_dummy[level]
                         #ifdef COLOURED_CONFLICT_AVOIDANCE
                         , internal_serial_section_starts[level]
                         #endif

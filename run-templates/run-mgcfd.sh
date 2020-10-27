@@ -50,7 +50,8 @@ _t=<NUM_THREADS>
 _m=<MESH_MULTI>
 mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
-
+measure_mem_bound=<MEASURE_MEM_BOUND>
+run_synthetic_compute=<RUN_SYNTHETIC_COMPUTE>
 
 ## Exit early if output csv files already exist.
 if [ -f "${run_outdir}/Times.csv" ]; then
@@ -96,19 +97,15 @@ elif [ ! -f "$bin_filepath" ]; then
   exit 1
 fi
 
-# Grab compile log:
-if [ -f "$objs_dirpath"/Kernels/flux_loops.o.log ]; then
-  cp "$objs_dirpath"/Kernels/flux_loops.o.log "$run_outdir"/
-fi
-if [ -f "$objs_dirpath"/Kernels_vectorised/flux_vecloops.o.log ]; then
-  cp "$objs_dirpath"/Kernels_vectorised/flux_vecloops.o.log "$run_outdir"/
-fi
-if [ -f "$objs_dirpath"/Kernels/indirect_rw_loop.o.log ]; then
-  cp "$objs_dirpath"/Kernels/indirect_rw_loop.o.log "$run_outdir"/
-fi
-if [ -f "$objs_dirpath"/Kernels_vectorised/indirect_rw_vecloop.o.log ]; then
-  cp "$objs_dirpath"/Kernels_vectorised/indirect_rw_vecloop.o.log "$run_outdir"/
-fi
+# Grab compile logs:
+for loop in flux_loops flux_vecloops unstructured_stream_loop unstructured_stream_vecloop ; do
+  if [ -f "$objs_dirpath"/Kernels/"$loop".o.log ]; then
+    cp "$objs_dirpath"/Kernels/"$loop".o.log "$run_outdir"/
+  fi
+  if [ -f "$objs_dirpath"/Kernels_vectorised/"$loop".o.log ]; then
+    cp "$objs_dirpath"/Kernels_vectorised/"$loop".o.log "$run_outdir"/
+  fi
+done
 
 # Grab object files:
 if [ ! -d "${run_outdir}/objects" ]; then
@@ -117,7 +114,7 @@ fi
 obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
-for loop in flux_loops flux_vecloops indirect_rw_loop indirect_rw_vecloop ; do
+for loop in flux_loops flux_vecloops unstructured_stream_loop unstructured_stream_vecloop ; do
   # Grab any optimisation reports:
   for ext in lst optrpt ; do
     if [ -f "${obj_dir}/Kernels/${loop}.${ext}" ]; then
@@ -158,6 +155,12 @@ fi
 exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o ${run_outdir}/ -g $mg_cycles"
 if $validate_result ; then
   exec_command+=" -v"
+fi
+if $measure_mem_bound ; then
+  exec_command+=" -b"
+fi
+if $run_synthetic_compute ; then
+  exec_command+=" -u"
 fi
 
 if [ "$compiler" = "intel" ]; then

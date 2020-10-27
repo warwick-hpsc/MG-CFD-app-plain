@@ -17,7 +17,8 @@
         "num repeats": 3,
         "mg cycles": 5,
         "unit walltime": 1.0,
-        "min mesh multi": 2
+        "min mesh multi": 2,
+        "measure mem bound": true
     },
 
     "setup": {
