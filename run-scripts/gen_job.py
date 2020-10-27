@@ -103,27 +103,20 @@ def delete_folder_contents(dirpath):
 
 def prune_flux_flags_permutations(flux_flags_permutations):
     flux_flags_permutations_pruned = []
-    for p in flux_flags_permutations:
-        flux_cripple_option_present = False
+    for perm in flux_flags_permutations:
         other_flux_options_present = False
-        for i in p:
-            if "FLUX_CRIPPLE" in i:
-                flux_cripple_option_present = True
-            elif "FLUX_" in i:
+        for i in perm:
+            if "FLUX_" in i:
                 other_flux_options_present = True
-        if flux_cripple_option_present and other_flux_options_present:
-            ## Discard this permutation, as the FLUX_CRIPPLE option should be
-            ## applied without other flux options.
-            pass
-        else:
-            p_clean = []
-            for i in p:
-                if i == "" and ("" in p_clean or other_flux_options_present or flux_cripple_option_present):
-                    continue
-                else:
-                    p_clean.append(i)
-            if len(p_clean) > 0:
-                flux_flags_permutations_pruned.append(p_clean)
+                break
+        perm_clean = []
+        for i in perm:
+            if i == "" and (i in perm_clean or other_flux_options_present):
+                continue
+            else:
+                perm_clean.append(i)
+        if len(perm_clean) > 0:
+            flux_flags_permutations_pruned.append(perm_clean)
 
     # Remove duplicates:
     flux_flags_permutations_pruned.sort()
