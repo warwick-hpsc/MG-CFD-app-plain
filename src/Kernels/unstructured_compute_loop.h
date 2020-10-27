@@ -1,9 +1,9 @@
-#ifndef INDIRECT_RW_VECLOOP_H
-#define INDIRECT_RW_VECLOOP_H
+#ifndef UNSTRUCTURED_LOOP_H
+#define UNSTRUCTURED_LOOP_H
 
 #include "common.h"
 
-void indirect_rw_vecloop(
+void unstructured_compute_loop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -16,10 +16,6 @@ void indirect_rw_vecloop(
         edge *restrict edge_variables
     #else
         double *restrict fluxes
-        #ifdef COLOURED_CONFLICT_AVOIDANCE
-        , long serial_section_start
-        #endif
     #endif
     );
-
 #endif

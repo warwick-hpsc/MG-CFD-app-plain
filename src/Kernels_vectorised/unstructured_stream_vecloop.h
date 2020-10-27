@@ -1,9 +1,9 @@
-#ifndef FLUX_VECLOOP_H
-#define FLUX_VECLOOP_H
+#ifndef UNSTRUCTURED_STREAM_VECLOOP_H
+#define UNSTRUCTURED_STREAM_VECLOOP_H
 
 #include "common.h"
 
-void compute_flux_edge_vecloop(
+void unstructured_stream_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -21,4 +21,5 @@ void compute_flux_edge_vecloop(
         #endif
     #endif
     );
+
 #endif

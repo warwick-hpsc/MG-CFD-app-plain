@@ -44,6 +44,8 @@ defaults["num threads"] = 1
 defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
+defaults["measure mem bound"] = False
+defaults["run synthetic compute"] = False
 defaults["min mesh multi"] = 1
 # Optimisation:
 defaults["simd mode"] = False
@@ -101,27 +103,20 @@ def delete_folder_contents(dirpath):
 
 def prune_flux_flags_permutations(flux_flags_permutations):
     flux_flags_permutations_pruned = []
-    for p in flux_flags_permutations:
-        flux_cripple_option_present = False
+    for perm in flux_flags_permutations:
         other_flux_options_present = False
-        for i in p:
-            if "FLUX_CRIPPLE" in i:
-                flux_cripple_option_present = True
-            elif "FLUX_" in i:
+        for i in perm:
+            if "FLUX_" in i:
                 other_flux_options_present = True
-        if flux_cripple_option_present and other_flux_options_present:
-            ## Discard this permutation, as the FLUX_CRIPPLE option should be
-            ## applied without other flux options.
-            pass
-        else:
-            p_clean = []
-            for i in p:
-                if i == "" and ("" in p_clean or other_flux_options_present or flux_cripple_option_present):
-                    continue
-                else:
-                    p_clean.append(i)
-            if len(p_clean) > 0:
-                flux_flags_permutations_pruned.append(p_clean)
+                break
+        perm_clean = []
+        for i in perm:
+            if i == "" and (i in perm_clean or other_flux_options_present):
+                continue
+            else:
+                perm_clean.append(i)
+        if len(perm_clean) > 0:
+            flux_flags_permutations_pruned.append(perm_clean)
 
     # Remove duplicates:
     flux_flags_permutations_pruned.sort()
@@ -203,6 +198,8 @@ if __name__=="__main__":
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
     validate = get_key_value(profile, "run", "validate result")
+    measure_mem_bound = get_key_value(profile, "run", "measure mem bound")
+    run_synthetic_compute = get_key_value(profile, "run", "run synthetic compute")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
 
@@ -443,6 +440,8 @@ if __name__=="__main__":
             ## - Execution:
             py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
+            py_sed(batch_filepath, "<MEASURE_MEM_BOUND>", str(measure_mem_bound).lower())
+            py_sed(batch_filepath, "<RUN_SYNTHETIC_COMPUTE>", str(run_synthetic_compute).lower())
 
             ## - Walltime estimation:
             if single_batch:

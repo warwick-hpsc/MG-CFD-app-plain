@@ -284,18 +284,20 @@ OBJ_DIR_DBG = obj/$(BUILD_FLAGS_COMPRESSED)_debug
 #####################################################
 
 SOURCES = src/euler3d_cpu_double.cpp \
-		  src/kernel_wrappers.cpp \
 		  src/Base/common.cpp \
 		  src/Base/config.cpp \
 		  src/Base/io.cpp \
 		  src/Base/io_enhanced.cpp \
+		  src/kernel_wrappers.cpp \
 		  src/Kernels/flux_loops.cpp \
 		  src/Kernels/cfd_loops.cpp \
 		  src/Kernels/mg_loops.cpp \
-		  src/Kernels/indirect_rw_loop.cpp \
-		  src/Kernels/validation.cpp \
+		  src/Kernels/unstructured_stream_loop.cpp \
+		  src/Kernels/unstructured_compute_loop.cpp \
 		  src/Kernels_vectorised/flux_vecloops.cpp \
-		  src/Kernels_vectorised/indirect_rw_vecloop.cpp \
+		  src/Kernels_vectorised/unstructured_stream_vecloop.cpp \
+		  src/Kernels_vectorised/unstructured_compute_vecloop.cpp \
+		  src/Kernels/validation.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \
 		  src/Monitoring/loop_stats.cpp \

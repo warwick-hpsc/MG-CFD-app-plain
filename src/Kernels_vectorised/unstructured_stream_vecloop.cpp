@@ -1,14 +1,15 @@
-#include "flux_vecloops.h"
+#include "unstructured_stream_vecloop.h"
+#include "unstructured_stream_veckernel.h"
+#include "unstructured_stream_kernel.h"
 #include "cfd_loops.h"
-
-#include "flux_veckernel.h"
-#include "flux_kernel.h"
 
 #include "papi_funcs.h"
 #include "timer.h"
 #include "loop_stats.h"
 
-void compute_flux_edge_vecloop(
+// Performs same data movement as compute_flux_edge() but with minimal arithmetic. 
+// Thus measures memory-bound of compute_flux_edge().
+void unstructured_stream_vecloop(
     long first_edge,
     long nedges,
     const long *restrict edge_nodes, 
@@ -27,20 +28,20 @@ void compute_flux_edge_vecloop(
     #endif
     )
 {
-    log("Computing internal flux");
-    current_kernel = COMPUTE_FLUX_EDGE;
+    log("Performing unstructured_stream_vecloop()");
+    current_kernel = UNSTRUCTURED_STREAM;
 
-    long flux_loop_start = first_edge;
-    long loop_end = flux_loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined COLOURED_CONFLICT_AVOIDANCE && (!defined FLUX_FISSION)
         loop_end = serial_section_start;
     #endif
 
     #if defined OMP && (defined FLUX_FISSION || defined OMP_SCATTERS)
-        #pragma omp parallel firstprivate(flux_loop_start, loop_end)
+        #pragma omp parallel firstprivate(loop_start, loop_end)
         {
-            openmp_distribute_loop_iterations(&flux_loop_start, &loop_end);
+            openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
 
     #if defined MANUAL_SCATTER
@@ -51,7 +52,6 @@ void compute_flux_edge_vecloop(
             double simd_variables_b[NVAR][DBLS_PER_SIMD];
         #endif
         double simd_edge_vectors[NDIM][DBLS_PER_SIMD];
-        // double simd_ewt[1][DBLS_PER_SIMD];
         double simd_ewt[DBLS_PER_SIMD];
 
         for (int n=0; n<DBLS_PER_SIMD; n++) {
@@ -68,11 +68,16 @@ void compute_flux_edge_vecloop(
     #ifdef TIME
     start_timer();
     #endif
-    record_iters(flux_loop_start, loop_end);
+    record_iters(loop_start, loop_end);
 
     #ifdef FLUX_FISSION
         // SIMD is safe
-        #pragma omp simd simdlen(DBLS_PER_SIMD)
+        #ifdef __clang__
+            #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+        #else
+            #pragma omp simd simdlen(DBLS_PER_SIMD)
+        #endif
+        #pragma nounroll
     #else
         // Conflict avoidance is required for safe SIMD
         #if defined COLOURED_CONFLICT_AVOIDANCE
@@ -83,8 +88,8 @@ void compute_flux_edge_vecloop(
             #endif
         #elif defined MANUAL_SCATTER
             const long loop_end_orig = loop_end;
-            long v_start = flux_loop_start;
-            long v_end = flux_loop_start + ((loop_end-flux_loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+            long v_start = loop_start;
+            long v_end = loop_start + ((loop_end-loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
             for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                 #ifdef MANUAL_GATHER
                     #ifdef __clang__
@@ -102,12 +107,10 @@ void compute_flux_edge_vecloop(
                         #pragma omp simd simdlen(DBLS_PER_SIMD)
                     #endif
                     for (int n=0; n<DBLS_PER_SIMD; n++) {
-                        const int a = edge_nodes[(v+n)*2];
-                        const int b = edge_nodes[(v+n)*2+1];
                         #pragma unroll
                         for (int x=0; x<NVAR; x++) {
-                            simd_variables_a[x][n] = variables[a*NVAR+x];
-                            simd_variables_b[x][n] = variables[b*NVAR+x];
+                            simd_variables_a[x][n] = variables[edge_nodes[(v+n)*2]  *NVAR+x];
+                            simd_variables_b[x][n] = variables[edge_nodes[(v+n)*2+1]*NVAR+x];
                         }
 
                         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
@@ -118,10 +121,14 @@ void compute_flux_edge_vecloop(
                         simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                     }
                 #endif
-                flux_loop_start = v;
+                loop_start = v;
                 loop_end = v+DBLS_PER_SIMD;
 
-                #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #ifdef __clang__
+                    #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+                #else
+                    #pragma omp simd simdlen(DBLS_PER_SIMD)
+                #endif
 
         #elif defined USE_AVX512CD
             // Always prefer using OMP pragma to vectorise, gives better performance 
@@ -130,25 +137,26 @@ void compute_flux_edge_vecloop(
 
         #else
             #pragma omp simd safelen(1)
+            #pragma nounroll
         #endif
     #endif
-    for (long i=flux_loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
         #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
-            #include "flux_veckernel.elemfunc.c"
+            #include "unstructured_stream_veckernel.elemfunc.c"
         #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
             // Inlining call makes GNU vector log easier to parse
-            #include "flux_veckernel.elemfunc.c"
+            #include "unstructured_stream_veckernel.elemfunc.c"
         #else
-            compute_flux_edge_veckernel(
+            unstructured_stream_veckernel(
                 #if defined MANUAL_GATHER || defined MANUAL_SCATTER
-                    i-flux_loop_start,
+                    i-loop_start,
                 #endif
 
-                #ifdef MANUAL_GATHER
+                #if defined MANUAL_GATHER
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                         simd_ewt,
                     #endif
@@ -164,7 +172,7 @@ void compute_flux_edge_vecloop(
                     &variables[edge_nodes[i*2+1]*NVAR],
                 #endif
 
-                #ifdef MANUAL_SCATTER
+                #if defined MANUAL_SCATTER
                     simd_fluxes_a, 
                     simd_fluxes_b
                 #elif defined FLUX_FISSION
@@ -208,7 +216,7 @@ void compute_flux_edge_vecloop(
         #pragma omp simd safelen(1)
         for (long i=remainder_loop_start; i<loop_end; i++)
         {
-            compute_flux_edge_kernel(
+            unstructured_stream_kernel(
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[i],
                 #endif
@@ -236,5 +244,5 @@ void compute_flux_edge_vecloop(
         }
     #endif
 
-    log("Internal flux compute complete");
+    log("unstructured_stream_vecloop() complete");
 }

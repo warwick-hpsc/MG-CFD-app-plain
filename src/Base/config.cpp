@@ -39,12 +39,16 @@ struct option long_opts[] = {
     { "mesh-duplicate-count", required_argument, NULL, 'm' },
     { "num-cycles",           required_argument, NULL, 'g' },
     { "validate-result",      no_argument,       NULL, 'v' },
+
+    { "measure-mem-bound",    no_argument,       NULL, 'b' },
+    { "perform-uns-compute",  no_argument,       NULL, 'u' },
+
     { "output-variables",     no_argument,       (int*)&conf.output_variables,    1 },
     { "output-fluxes",        no_argument,       (int*)&conf.output_fluxes,       1 },
     { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
     {NULL, 0, NULL, 0} 
 };
-#define GETOPTS "hc:i:d:p:o:m:g:v"
+#define GETOPTS "hc:i:d:p:o:m:g:vbu"
 
 void set_config_defaults() {
     conf.config_filepath = (char*)malloc(sizeof(char));
@@ -63,6 +67,9 @@ void set_config_defaults() {
     conf.num_cycles = 25;
 
     conf.validate_result = false;
+
+    conf.measure_mem_bound = false;
+    conf.perform_uns_compute = false;
 
     #ifdef OMP
     conf.omp_num_threads = omp_get_max_threads();
@@ -248,6 +255,13 @@ bool parse_arguments(int argc, char** argv) {
                 break;
             case 'v':
                 conf.validate_result = true;
+                break;
+            case 'b':
+                conf.measure_mem_bound = true;
+                break;
+            case 'u':
+                conf.perform_uns_compute = true;
+                break;
             case '\0':
                 break;
             default:
@@ -297,6 +311,14 @@ void print_help(void)
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
     fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "SYNTHETIC KERNELS\n");
+    fprintf(stderr, "  -b, --measure-mem-bound\n");
+    fprintf(stderr, "        run synthetic kernel 'unstructured_stream' to measure\n");
+    fprintf(stderr, "        memory bound of 'compute_flux_edge' kernel\n");
+    fprintf(stderr, "  -u, --perform-uns-compute\n");
+    fprintf(stderr, "        run synthetic kernel 'unstructured_compute' which has \n");
+    fprintf(stderr, "        approximately 50%% of flops in 'compute_flux_edge' kernel\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "DEBUGGING ARGUMENTS\n");
     fprintf(stderr, "  --output-variables               Write Euler equation variable values to file\n");

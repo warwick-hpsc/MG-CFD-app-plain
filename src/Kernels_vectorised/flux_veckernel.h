@@ -1,13 +1,16 @@
 // Copyright 2009, Andrew Corrigan, acorriga@gmu.edu
 // This code is from the AIAA-2009-4001 paper
 
+#ifndef FLUX_VECKERNEL_H
+#define FLUX_VECKERNEL_H
+
 FORCE_INLINE
 inline void compute_flux_edge_veckernel(
-    #if defined SIMD && (defined MANUAL_GATHER || defined MANUAL_SCATTER)
+    #if defined MANUAL_GATHER || defined MANUAL_SCATTER
         int simd_idx,
     #endif
 
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
             const double simd_edge_weights[DBLS_PER_SIMD],
         #endif
@@ -23,7 +26,7 @@ inline void compute_flux_edge_veckernel(
         const double *restrict variables_b, 
     #endif
 
-    #if defined SIMD && defined MANUAL_SCATTER
+    #ifdef MANUAL_SCATTER
         double simd_fluxes_a[][DBLS_PER_SIMD],
         double simd_fluxes_b[][DBLS_PER_SIMD]
     #elif defined FLUX_FISSION
@@ -34,7 +37,7 @@ inline void compute_flux_edge_veckernel(
     #endif
     )
 {
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         double ex = simd_edge_vectors[0][simd_idx];
         double ey = simd_edge_vectors[1][simd_idx];
         double ez = simd_edge_vectors[2][simd_idx];
@@ -59,7 +62,7 @@ inline void compute_flux_edge_veckernel(
     const int my_b_idx = VAR_MOMENTUMY;
     const int mz_b_idx = VAR_MOMENTUMZ;
     const int pe_b_idx = VAR_DENSITY_ENERGY;
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         p_b          = simd_variables_b[ p_b_idx][simd_idx];
         momentum_b.x = simd_variables_b[mx_b_idx][simd_idx];
         momentum_b.y = simd_variables_b[my_b_idx][simd_idx];
@@ -116,7 +119,7 @@ inline void compute_flux_edge_veckernel(
     const int my_a_idx = VAR_MOMENTUMY;
     const int mz_a_idx = VAR_MOMENTUMZ;
     const int pe_a_idx = VAR_DENSITY_ENERGY;
-    #if defined SIMD && defined MANUAL_GATHER
+    #ifdef MANUAL_GATHER
         p_a          = simd_variables_a[ p_a_idx][simd_idx];
         momentum_a.x = simd_variables_a[mx_a_idx][simd_idx];
         momentum_a.y = simd_variables_a[my_a_idx][simd_idx];
@@ -241,7 +244,7 @@ inline void compute_flux_edge_veckernel(
         edge_variables[VAR_MOMENTUMZ     ].b = mz_b_val;
         edge_variables[VAR_DENSITY_ENERGY].b = pe_b_val;
     #else
-        #if defined SIMD && defined MANUAL_SCATTER
+        #ifdef MANUAL_SCATTER
             simd_fluxes_a[VAR_DENSITY]  [simd_idx]      = p_a_val;
             simd_fluxes_a[VAR_MOMENTUMX][simd_idx]      = mx_a_val;
             simd_fluxes_a[VAR_MOMENTUMY][simd_idx]      = my_a_val;
@@ -268,3 +271,5 @@ inline void compute_flux_edge_veckernel(
         #endif
     #endif
 }
+
+#endif

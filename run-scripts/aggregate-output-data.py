@@ -36,7 +36,7 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "indirect_rw"]
+kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "unstructured_stream", "unstructured_compute"]
 
 essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
 essential_colnames += ["SIMD failed"]
@@ -158,8 +158,10 @@ def get_output_run_config(output_dirpath):
 def calc_ins_per_iter(output_dirpath, kernel):
     if "compute_flux_edge" in kernel:
         timer = "flux0"
-    elif kernel == "indirect_rw":
-        timer = "indirect_rw0"
+    elif kernel == "unstructured_stream":
+        timer = "unstructured_stream0"
+    elif kernel == "unstructured_compute":
+        timer = "unstructured_compute0"
     else:
         return -1
 
@@ -398,16 +400,14 @@ def analyse_object_files():
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
 
-            if grep("-DFLUX_CRIPPLE", os.path.join(output_dirpath, run_filename)):
-                compute_flux_edge_loop_name = "compute_flux_edge_crippled"
-            else:
-                compute_flux_edge_loop_name = "compute_flux_edge"
             if simd:
-                loop_to_object[compute_flux_edge_loop_name+"_vecloop"] = "flux_vecloops.o"
-                loop_to_object["indirect_rw_vecloop"] = "indirect_rw_vecloop.o"
+                loop_to_object["compute_flux_edge_vecloop"] = "flux_vecloops.o"
+                loop_to_object["unstructured_stream_vecloop"] = "unstructured_stream_vecloop.o"
+                loop_to_object["unstructured_compute_vecloop"] = "unstructured_compute_vecloop.o"
             else:
-                loop_to_object[compute_flux_edge_loop_name+"_loop"] = "flux_loops.o"
-                loop_to_object["indirect_rw_loop"] = "indirect_rw_loop.o"
+                loop_to_object["compute_flux_edge_loop"] = "flux_loops.o"
+                loop_to_object["unstructured_stream_loop"] = "unstructured_stream_loop.o"
+                loop_to_object["unstructured_compute_loop"] = "unstructured_compute_loop.o"
 
             if "manual" in compile_info["SIMD CA scheme"].lower():
                 if compile_info["compiler"] == "clang":
@@ -419,8 +419,10 @@ def analyse_object_files():
             for k in loop_to_object.keys():
                 if "compute_flux_edge" in k:
                     k_pretty = "compute_flux_edge"
-                elif "indirect_rw" in k:
-                    k_pretty = "indirect_rw"
+                elif "unstructured_stream" in k:
+                    k_pretty = "unstructured_stream"
+                elif "unstructured_compute" in k:
+                    k_pretty = "unstructured_compute"
 
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
@@ -464,13 +466,13 @@ def analyse_object_files():
 
             if not loops_tally_df is None:
                 if "insn.LOAD_SPILLS" in loops_tally_df.columns.values:
-                    if "indirect_rw" in loops_tally_df["kernel"]:
-                        ## The 'indirect rw' loop does not actually have any register spilling, so 
+                    if "unstructured_stream" in loops_tally_df["kernel"]:
+                        ## This loop does not actually have any register spilling, so 
                         ## any that were identified by 'assembly-loop-extractor' are false positives. 
                         ## Assume that the same number of false positives are identified in the 'flux' kernel, 
                         ## so remove those:
-                        claimed_indirect_rw_spills = loops_tally_df[loops_tally_df["kernel"]=="indirect_rw"].loc[0,"insn.LOAD_SPILLS"]
-                        loops_tally_df["insn.LOAD_SPILLS"] -= claimed_indirect_rw_spills
+                        claimed_unstructured_stream_spills = loops_tally_df[loops_tally_df["kernel"]=="unstructured_stream"].loc[0,"insn.LOAD_SPILLS"]
+                        loops_tally_df["insn.LOAD_SPILLS"] -= claimed_unstructured_stream_spills
 
                 job_id_df = get_output_run_config(output_dirpath)
                 df = job_id_df.join(loops_tally_df)
