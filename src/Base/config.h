@@ -41,6 +41,7 @@ typedef struct {
 	bool validate_result;
 
 	bool measure_mem_bound;
+	bool measure_compute_bound;
 	bool perform_uns_compute;
 
 	bool output_variables;

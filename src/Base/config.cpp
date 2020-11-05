@@ -42,6 +42,7 @@ struct option long_opts[] = {
     { "renumber",             no_argument,       NULL, 'r' },
 
     { "measure-mem-bound",    no_argument,       NULL, 'b' },
+    {"measure-compute-bound", no_argument,       NULL, 'f' },
     { "perform-uns-compute",  no_argument,       NULL, 'u' },
 
     { "output-variables",     no_argument,       (int*)&conf.output_variables,    1 },
@@ -49,7 +50,7 @@ struct option long_opts[] = {
     { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
     {NULL, 0, NULL, 0} 
 };
-#define GETOPTS "hc:i:d:p:o:m:g:vrbu"
+#define GETOPTS "hc:i:d:p:o:m:g:vrbfu"
 
 void set_config_defaults() {
     conf.config_filepath = (char*)malloc(sizeof(char));
@@ -72,6 +73,7 @@ void set_config_defaults() {
     conf.validate_result = false;
 
     conf.measure_mem_bound = false;
+    conf.measure_compute_bound = false;
     conf.perform_uns_compute = false;
 
     #ifdef OMP
@@ -262,6 +264,9 @@ bool parse_arguments(int argc, char** argv) {
             case 'b':
                 conf.measure_mem_bound = true;
                 break;
+            case 'f':
+                conf.measure_compute_bound = true;
+                break;
             case 'u':
                 conf.perform_uns_compute = true;
                 break;
@@ -322,6 +327,9 @@ void print_help(void)
     fprintf(stderr, "  -b, --measure-mem-bound\n");
     fprintf(stderr, "        run synthetic kernel 'unstructured_stream' to measure\n");
     fprintf(stderr, "        memory bound of 'compute_flux_edge' kernel\n");
+    fprintf(stderr, "  -f, --measure-compute-bound\n");
+    fprintf(stderr, "        run synthetic kernel 'compute_stream' to measure\n");
+    fprintf(stderr, "        compute bound of 'compute_flux_edge' kernel\n");
     fprintf(stderr, "  -u, --perform-uns-compute\n");
     fprintf(stderr, "        run synthetic kernel 'unstructured_compute' which has \n");
     fprintf(stderr, "        approximately 50%% of flops in 'compute_flux_edge' kernel\n");

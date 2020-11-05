@@ -9,6 +9,8 @@
 #include "unstructured_stream_loop.h"
 #include "unstructured_stream_vecloop.h"
 
+#include "compute_stream_loop.h"
+
 void compute_flux_edge(
     long first_edge,
     long nedges,
@@ -228,4 +230,61 @@ void unstructured_stream(
             #endif
             );
     #endif
+}
+
+void compute_stream(
+    long first_edge,
+    long nedges,
+    const long *restrict edge_nodes, 
+    const double *restrict edge_vectors,
+    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+        const double *restrict edge_weights,
+    #endif
+    const double *restrict variables, 
+    #ifdef FLUX_FISSION
+        edge *restrict edge_variables
+    #else
+        double *restrict fluxes
+        #ifdef COLOURED_CONFLICT_AVOIDANCE
+        , long serial_section_start
+        #endif
+    #endif
+    )
+{
+    // #ifdef SIMD
+    //     compute_stream_vecloop(
+    //         first_edge,
+    //         nedges,
+    //         edge_nodes, 
+    //         edge_vectors,
+    //         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+    //             edge_weights,
+    //         #endif
+    //         variables, 
+    //         #ifdef FLUX_FISSION
+    //             edge_variables
+    //         #else
+    //             fluxes
+    //             #ifdef COLOURED_CONFLICT_AVOIDANCE
+    //             , serial_section_start
+    //             #endif
+    //         #endif
+    //         );
+    // #else
+        compute_stream_loop(
+            first_edge,
+            nedges,
+            edge_nodes, 
+            edge_vectors,
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights,
+            #endif
+            variables, 
+            #ifdef FLUX_FISSION
+                edge_variables
+            #else
+                fluxes
+            #endif
+            );
+    // #endif
 }

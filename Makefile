@@ -153,7 +153,8 @@ else ifeq ($(COMPILER),clang)
 
 	OPT_REPORT_OPTIONS := 
 	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec ## Report SIMD failures
-	OPT_REPORT_OPTIONS += -Rpass="loop-(unroll|vec)" ## Report loop transformations
+	# OPT_REPORT_OPTIONS += -Rpass="loop-(unroll|vec)" ## Report loop transformations
+	OPT_REPORT_OPTIONS += -Rpass=".*"
 	#OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vectorize ## Report WHY vectorize failed
 	OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	CFLAGS += $(OPT_REPORT_OPTIONS)
@@ -294,6 +295,7 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Kernels/mg_loops.cpp \
 		  src/Kernels/unstructured_stream_loop.cpp \
 		  src/Kernels/unstructured_compute_loop.cpp \
+		  src/Kernels/compute_stream_loop.cpp \
 		  src/Kernels_vectorised/flux_vecloops.cpp \
 		  src/Kernels_vectorised/unstructured_stream_vecloop.cpp \
 		  src/Kernels_vectorised/unstructured_compute_vecloop.cpp \
