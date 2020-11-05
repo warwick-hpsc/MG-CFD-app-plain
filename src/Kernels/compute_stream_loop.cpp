@@ -59,7 +59,7 @@ void compute_stream_loop(
         // Loop over same handful of edges, which should remain in L1 cache:
         // Each edge reads/writes 23 doubles, x8 edges = 1.44 KB
         // const long idx = i%batch;
-        for (long idx=0; idx<batch; idx++) {
+        for (long idx=loop_start; idx<loop_start+batch; idx++) {
             compute_flux_edge_kernel(
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[idx],
