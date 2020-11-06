@@ -52,6 +52,7 @@ mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
 renumber=<RENUMBER>
 measure_mem_bound=<MEASURE_MEM_BOUND>
+measure_compute_bound=<MEASURE_COMPUTE_BOUND>
 run_synthetic_compute=<RUN_SYNTHETIC_COMPUTE>
 
 ## Exit early if output csv files already exist.
@@ -162,6 +163,9 @@ if $renumber ; then
 fi
 if $measure_mem_bound ; then
   exec_command+=" -b"
+fi
+if $measure_compute_bound ; then
+  exec_command+=" -f"
 fi
 if $run_synthetic_compute ; then
   exec_command+=" -u"

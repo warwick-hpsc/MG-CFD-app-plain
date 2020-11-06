@@ -10,6 +10,7 @@
 #include "unstructured_stream_vecloop.h"
 
 #include "compute_stream_loop.h"
+#include "compute_stream_vecloop.h"
 
 void compute_flux_edge(
     long first_edge,
@@ -251,26 +252,26 @@ void compute_stream(
     #endif
     )
 {
-    // #ifdef SIMD
-    //     compute_stream_vecloop(
-    //         first_edge,
-    //         nedges,
-    //         edge_nodes, 
-    //         edge_vectors,
-    //         #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-    //             edge_weights,
-    //         #endif
-    //         variables, 
-    //         #ifdef FLUX_FISSION
-    //             edge_variables
-    //         #else
-    //             fluxes
-    //             #ifdef COLOURED_CONFLICT_AVOIDANCE
-    //             , serial_section_start
-    //             #endif
-    //         #endif
-    //         );
-    // #else
+    #ifdef SIMD
+        compute_stream_vecloop(
+            first_edge,
+            nedges,
+            edge_nodes, 
+            edge_vectors,
+            #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                edge_weights,
+            #endif
+            variables, 
+            #ifdef FLUX_FISSION
+                edge_variables
+            #else
+                fluxes
+                #ifdef COLOURED_CONFLICT_AVOIDANCE
+                , serial_section_start
+                #endif
+            #endif
+            );
+    #else
         compute_stream_loop(
             first_edge,
             nedges,
@@ -286,5 +287,5 @@ void compute_stream(
                 fluxes
             #endif
             );
-    // #endif
+    #endif
 }

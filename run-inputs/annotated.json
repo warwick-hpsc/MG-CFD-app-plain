@@ -61,6 +61,9 @@
         "measure mem bound comment": "Toggle whether to run synthetic kernel to measure mem-bound of compute_flux_edge()",
         "measure mem bound": false,
 
+        "measure compute bound comment": "Toggle whether to run synthetic kernel to measure compute-bound of compute_flux_edge()",
+        "measure compute bound": false,
+
         "run synthetic compute comment": "Toggle whether to run synthetic kernel to collect additional compute performance data for model calibration",
         "run synthetic compute": false
     },

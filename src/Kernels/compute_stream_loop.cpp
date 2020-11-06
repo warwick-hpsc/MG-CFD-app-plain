@@ -7,7 +7,7 @@
 #include "timer.h"
 #include "loop_stats.h"
 
-// Performs same cfd compute_flux_edge() but with minimal data movement. 
+// Performs same cfd in compute_flux_edge() but with minimal data movement. 
 // Thus measures compute-bound of compute_flux_edge().
 void compute_stream_loop(
     long first_edge,
