@@ -36,14 +36,6 @@ void init_papi()
     event_sets.resize(num_threads, PAPI_NULL);
     thread_events.resize(num_threads);
 
-    // compute_step_kernel_event_counts.resize(num_threads);
-    // compute_flux_edge_kernel_event_counts.resize(num_threads);
-    // update_kernel_event_counts.resize(num_threads);
-    // time_step_kernel_event_counts.resize(num_threads);
-    // restrict_kernel_event_counts.resize(num_threads);
-    // prolong_kernel_event_counts.resize(num_threads);
-    // unstructured_stream_kernel_event_counts.resize(num_threads);
-    // unstructured_compute_kernel_event_counts.resize(num_threads);
     for (int nk=0; nk<NUM_KERNELS; nk++) {
         kernel_event_counts[nk].resize(num_threads);
     }
@@ -208,14 +200,6 @@ void load_papi_events()
     for (int tid=0; tid<num_threads; tid++) {
         int n = num_thread_events[tid];
 
-        // compute_step_kernel_event_counts.at(tid).resize(n*levels);
-        // compute_flux_edge_kernel_event_counts.at(tid).resize(n*levels);
-        // update_kernel_event_counts.at(tid).resize(n*levels);
-        // time_step_kernel_event_counts.at(tid).resize(n*levels);
-        // restrict_kernel_event_counts.at(tid).resize(n*levels);
-        // prolong_kernel_event_counts.at(tid).resize(n*levels);
-        // unstructured_stream_kernel_event_counts.at(tid).resize(n*levels);
-        // unstructured_compute_kernel_event_counts.at(tid).resize(n*levels);
         for (int nk=0; nk<NUM_KERNELS; nk++) {
             kernel_event_counts[nk].at(tid).resize(n*levels);
         }
@@ -287,46 +271,6 @@ void stop_papi()
     }
 
     int num_events = num_thread_events[tid];
-    // if (current_kernel == COMPUTE_STEP) {
-    //     for (int e=0; e<num_events; e++) {
-    //         compute_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == COMPUTE_FLUX_EDGE) {
-    //     for (int e=0; e<num_events; e++) {
-    //         compute_flux_edge_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == UPDATE) {
-    //     for (int e=0; e<num_events; e++) {
-    //         update_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == TIME_STEP) {
-    //     for (int e=0; e<num_events; e++) {
-    //         time_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == RESTRICT) {
-    //     for (int e=0; e<num_events; e++) {
-    //         restrict_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == PROLONG) {
-    //     for (int e=0; e<num_events; e++) {
-    //         prolong_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == UNSTRUCTURED_STREAM) {
-    //     for (int e=0; e<num_events; e++) {
-    //         unstructured_stream_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
-    // else if (current_kernel == UNSTRUCTURED_COMPUTE) {
-    //     for (int e=0; e<num_events; e++) {
-    //         unstructured_compute_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-    //     }
-    // }
     for (int e=0; e<num_events; e++) {
         kernel_event_counts[current_kernel][tid][level*num_events + e] += temp_count_stores[tid][e];
     }

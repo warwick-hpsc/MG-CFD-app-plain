@@ -6,14 +6,7 @@
 
 int iters_monitoring_state;
 
-std::vector<std::vector<long> > compute_step_kernel_niters;
-std::vector<std::vector<long> > compute_flux_edge_kernel_niters;
-std::vector<std::vector<long> > update_kernel_niters;
-std::vector<std::vector<long> > time_step_kernel_niters;
-std::vector<std::vector<long> > restrict_kernel_niters;
-std::vector<std::vector<long> > prolong_kernel_niters;
-std::vector<std::vector<long> > unstructured_stream_kernel_niters;
-std::vector<std::vector<long> > unstructured_compute_kernel_niters;
+std::vector<std::vector<long> > kernel_niters[NUM_KERNELS];
 
 void init_iters()
 {
@@ -27,24 +20,11 @@ void init_iters()
 
     iters_monitoring_state = 1;
 
-    compute_step_kernel_niters.resize(num_threads);
-    compute_flux_edge_kernel_niters.resize(num_threads);
-    update_kernel_niters.resize(num_threads);
-    time_step_kernel_niters.resize(num_threads);
-    restrict_kernel_niters.resize(num_threads);
-    prolong_kernel_niters.resize(num_threads);
-    unstructured_stream_kernel_niters.resize(num_threads);
-    unstructured_compute_kernel_niters.resize(num_threads);
-
-    for (int t=0; t<num_threads; t++) {
-        compute_step_kernel_niters.at(t).resize(levels, 0);
-        compute_flux_edge_kernel_niters.at(t).resize(levels, 0);
-        update_kernel_niters.at(t).resize(levels, 0);
-        time_step_kernel_niters.at(t).resize(levels, 0);
-        restrict_kernel_niters.at(t).resize(levels, 0);
-        prolong_kernel_niters.at(t).resize(levels, 0);
-        unstructured_stream_kernel_niters.at(t).resize(levels, 0);
-        unstructured_compute_kernel_niters.at(t).resize(levels, 0);
+    for (int nk=0; nk<NUM_KERNELS; nk++) {
+        kernel_niters[nk].resize(num_threads);
+        for (int t=0; t<num_threads; t++) {
+            kernel_niters[nk].at(t).resize(levels, 0);
+        }
     }
 }
 
@@ -60,30 +40,7 @@ void record_iters(long loop_start, long loop_end)
 
     long niters = loop_end - loop_start;
 
-    if (current_kernel == COMPUTE_STEP) {
-        compute_step_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == COMPUTE_FLUX_EDGE) {
-        compute_flux_edge_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == UPDATE) {
-        update_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == TIME_STEP) {
-        time_step_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == RESTRICT) {
-        restrict_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == PROLONG) {
-        prolong_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == UNSTRUCTURED_STREAM) {
-        unstructured_stream_kernel_niters[tid][level] += niters;
-    }
-    else if (current_kernel == UNSTRUCTURED_COMPUTE) {
-        unstructured_compute_kernel_niters[tid][level] += niters;
-    }
+    kernel_niters[current_kernel][tid][level] += niters;
 }
 
 void dump_loop_stats_to_file(int size)
@@ -128,6 +85,7 @@ void dump_loop_stats_to_file(int size)
             header << "prolong" << l << "," ;
             header << "unstructured_stream" << l << "," ;
             header << "unstructured_compute" << l << "," ;
+            header << "compute_stream" << l << "," ;
         }
         outfile << header.str() << std::endl;
     }
@@ -151,14 +109,15 @@ void dump_loop_stats_to_file(int size)
     data_line << cpu_id << ",";
 
     for (int l=0; l<levels; l++) {
-        data_line << compute_flux_edge_kernel_niters[tid][l] << "," ;
-        data_line << update_kernel_niters[tid][l] << "," ;
-        data_line << compute_step_kernel_niters[tid][l] << "," ;
-        data_line << time_step_kernel_niters[tid][l] << "," ;
-        data_line << restrict_kernel_niters[tid][l] << "," ;
-        data_line << prolong_kernel_niters[tid][l] << "," ;
-        data_line << unstructured_stream_kernel_niters[tid][l] << "," ;
-        data_line << unstructured_compute_kernel_niters[tid][l] << "," ;
+        data_line << kernel_niters[COMPUTE_FLUX_EDGE][tid][l] << "," ;
+        data_line << kernel_niters[UPDATE][tid][l] << "," ;
+        data_line << kernel_niters[COMPUTE_STEP][tid][l] << "," ;
+        data_line << kernel_niters[TIME_STEP][tid][l] << "," ;
+        data_line << kernel_niters[RESTRICT][tid][l] << "," ;
+        data_line << kernel_niters[PROLONG][tid][l] << "," ;
+        data_line << kernel_niters[UNSTRUCTURED_STREAM][tid][l] << "," ;
+        data_line << kernel_niters[UNSTRUCTURED_COMPUTE][tid][l] << "," ;
+        data_line << kernel_niters[COMPUTE_STREAM][tid][l] << "," ;
     }
 
     outfile << data_line.str() << std::endl;
