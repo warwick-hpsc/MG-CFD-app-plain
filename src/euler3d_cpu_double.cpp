@@ -726,6 +726,27 @@ int main(int argc, char** argv)
                     #endif
                     );
             }
+
+            if (conf.measure_compute_bound) {
+                compute_stream(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level],
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
+                    #endif
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes_dummy[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
         }
 
         residual(nel[level], old_variables[level], variables[level], residuals[level]);

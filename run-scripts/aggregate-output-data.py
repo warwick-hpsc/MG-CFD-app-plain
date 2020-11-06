@@ -36,7 +36,7 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "unstructured_stream", "unstructured_compute"]
+kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "unstructured_stream", "unstructured_compute", "compute_stream"]
 
 essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
 essential_colnames += ["SIMD failed"]

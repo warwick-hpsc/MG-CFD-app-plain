@@ -45,6 +45,7 @@ defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
 defaults["measure mem bound"] = False
+defaults["measure compute bound"] = False
 defaults["run synthetic compute"] = False
 defaults["min mesh multi"] = 1
 # Optimisation:
@@ -201,6 +202,7 @@ if __name__=="__main__":
     validate = get_key_value(profile, "run", "validate result")
     renumber_modes = get_key_value(profile, "optimisation", "renumber", True)
     measure_mem_bound = get_key_value(profile, "run", "measure mem bound")
+    measure_compute_bound = get_key_value(profile, "run", "measure compute bound")
     run_synthetic_compute = get_key_value(profile, "run", "run synthetic compute")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
@@ -448,6 +450,7 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
             py_sed(batch_filepath, "<RENUMBER>", str(renumber).lower())
             py_sed(batch_filepath, "<MEASURE_MEM_BOUND>", str(measure_mem_bound).lower())
+            py_sed(batch_filepath, "<MEASURE_COMPUTE_BOUND>", str(measure_compute_bound).lower())
             py_sed(batch_filepath, "<RUN_SYNTHETIC_COMPUTE>", str(run_synthetic_compute).lower())
 
             ## - Walltime estimation:

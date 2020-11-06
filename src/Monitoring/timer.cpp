@@ -11,14 +11,7 @@
 
 int timer_monitoring_state;
 
-std::vector<std::vector<double> > compute_step_kernel_times;
-std::vector<std::vector<double> > compute_flux_edge_kernel_times;
-std::vector<std::vector<double> > update_kernel_times;
-std::vector<std::vector<double> > time_step_kernel_times;
-std::vector<std::vector<double> > restrict_kernel_times;
-std::vector<std::vector<double> > prolong_kernel_times;
-std::vector<std::vector<double> > unstructured_stream_kernel_times;
-std::vector<std::vector<double> > unstructured_compute_kernel_times;
+std::vector<std::vector<double> > kernel_times[NUM_KERNELS];
 
 std::vector<double> start_times;
 
@@ -34,28 +27,16 @@ void init_timers()
     int num_threads = 1;
     #endif
 
-    compute_step_kernel_times.resize(num_threads);
-    compute_flux_edge_kernel_times.resize(num_threads);
-    update_kernel_times.resize(num_threads);
-    time_step_kernel_times.resize(num_threads);
-    restrict_kernel_times.resize(num_threads);
-    prolong_kernel_times.resize(num_threads);
-    unstructured_stream_kernel_times.resize(num_threads);
-    unstructured_compute_kernel_times.resize(num_threads);
-
     start_times.resize(num_threads);
-
     for (int t=0; t<num_threads; t++) {
-        compute_step_kernel_times.at(t).resize(levels, 0.0f);
-        compute_flux_edge_kernel_times.at(t).resize(levels, 0.0f);
-        update_kernel_times.at(t).resize(levels, 0.0f);
-        time_step_kernel_times.at(t).resize(levels, 0.0f);
-        restrict_kernel_times.at(t).resize(levels, 0.0f);
-        prolong_kernel_times.at(t).resize(levels, 0.0f);
-        unstructured_stream_kernel_times.at(t).resize(levels, 0.0f);
-        unstructured_compute_kernel_times.at(t).resize(levels, 0.0f);
-
         start_times.at(t) = 0.0f;
+    }
+
+    for (int nk=0; nk<NUM_KERNELS; nk++) {
+        kernel_times[nk].resize(num_threads);
+        for (int t=0; t<num_threads; t++) {
+            kernel_times[nk].at(t).resize(levels, 0.0f);
+        }
     }
 }
 
@@ -84,30 +65,7 @@ void stop_timer()
     
     double duration = omp_get_wtime() - start_times[tid];
 
-    if (current_kernel == COMPUTE_STEP) {
-        compute_step_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == COMPUTE_FLUX_EDGE) {
-        compute_flux_edge_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == UPDATE) {
-        update_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == TIME_STEP) {
-        time_step_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == RESTRICT) {
-        restrict_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == PROLONG) {
-        prolong_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == UNSTRUCTURED_STREAM) {
-        unstructured_stream_kernel_times[tid][level] += duration;
-    }
-    else if (current_kernel == UNSTRUCTURED_COMPUTE) {
-        unstructured_compute_kernel_times[tid][level] += duration;
-    }
+    kernel_times[current_kernel][tid][level] += duration;
 }
 
 void dump_timers_to_file(int size, double total_time)
@@ -152,6 +110,7 @@ void dump_timers_to_file(int size, double total_time)
             header << "prolong" << l << "," ;
             header << "unstructured_stream" << l << "," ;
             header << "unstructured_compute" << l << "," ;
+            header << "compute_stream" << l << "," ;
         }
         header << "Total," ;
         outfile << header.str() << std::endl;
@@ -176,14 +135,15 @@ void dump_timers_to_file(int size, double total_time)
     data_line << cpu_id << ",";
 
     for (int l=0; l<levels; l++) {
-        data_line << compute_flux_edge_kernel_times[tid][l] << "," ;
-        data_line << update_kernel_times[tid][l] << "," ;
-        data_line << compute_step_kernel_times[tid][l] << "," ;
-        data_line << time_step_kernel_times[tid][l] << "," ;
-        data_line << restrict_kernel_times[tid][l] << "," ;
-        data_line << prolong_kernel_times[tid][l] << "," ;
-        data_line << unstructured_stream_kernel_times[tid][l] << "," ;
-        data_line << unstructured_compute_kernel_times[tid][l] << "," ;
+        data_line << kernel_times[COMPUTE_FLUX_EDGE][tid][l] << "," ;
+        data_line << kernel_times[UPDATE][tid][l] << "," ;
+        data_line << kernel_times[COMPUTE_STEP][tid][l] << "," ;
+        data_line << kernel_times[TIME_STEP][tid][l] << "," ;
+        data_line << kernel_times[RESTRICT][tid][l] << "," ;
+        data_line << kernel_times[PROLONG][tid][l] << "," ;
+        data_line << kernel_times[UNSTRUCTURED_STREAM][tid][l] << "," ;
+        data_line << kernel_times[UNSTRUCTURED_COMPUTE][tid][l] << "," ;
+        data_line << kernel_times[COMPUTE_STREAM][tid][l] << "," ;
     }
 
     data_line << total_time << "," ;

@@ -294,9 +294,11 @@ SOURCES = src/euler3d_cpu_double.cpp \
 		  src/Kernels/mg_loops.cpp \
 		  src/Kernels/unstructured_stream_loop.cpp \
 		  src/Kernels/unstructured_compute_loop.cpp \
+		  src/Kernels/compute_stream_loop.cpp \
 		  src/Kernels_vectorised/flux_vecloops.cpp \
 		  src/Kernels_vectorised/unstructured_stream_vecloop.cpp \
 		  src/Kernels_vectorised/unstructured_compute_vecloop.cpp \
+		  src/Kernels_vectorised/compute_stream_vecloop.cpp \
 		  src/Kernels/validation.cpp \
 		  src/Monitoring/timer.cpp \
 		  src/Monitoring/papi_funcs.cpp \
