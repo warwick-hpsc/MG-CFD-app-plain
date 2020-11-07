@@ -43,7 +43,7 @@ void record_iters(long loop_start, long loop_end)
     kernel_niters[current_kernel][tid][level] += niters;
 }
 
-void dump_loop_stats_to_file(int size)
+void dump_loop_stats_to_file()
 {
     log("dump_loop_stats_to_file() called");
 
@@ -67,26 +67,13 @@ void dump_loop_stats_to_file(int size)
         outfile.open(filepath.c_str(), std::ios_base::app);
     }
 
-    std::string header_s;
-    std::string data_line_s;
-    prepare_csv_identification(write_header, &header_s, &data_line_s, size);
-
     if (write_header) {
         std::ostringstream header;
-        header << header_s;
         header << "ThreadNum,";
         header << "CpuId,";
-        for (int l=0; l<levels; l++) {
-            header << "flux" << l << "," ;
-            header << "update" << l << "," ;
-            header << "compute_step" << l << "," ;
-            header << "time_step" << l << "," ;
-            header << "restrict" << l << "," ;
-            header << "prolong" << l << "," ;
-            header << "unstructured_stream" << l << "," ;
-            header << "unstructured_compute" << l << "," ;
-            header << "compute_stream" << l << "," ;
-        }
+        header << "Level,";
+        header << "Loop,";
+        header << "NumIters";
         outfile << header.str() << std::endl;
     }
 
@@ -103,24 +90,19 @@ void dump_loop_stats_to_file(int size)
         int tid = 0;
     #endif
 
-    std::ostringstream data_line;
-    data_line << data_line_s;
-    data_line << tid << ",";
-    data_line << cpu_id << ",";
-
+    std::ostringstream data_line_id;
+    data_line_id << tid << ",";
+    data_line_id << cpu_id << ",";
     for (int l=0; l<levels; l++) {
-        data_line << kernel_niters[COMPUTE_FLUX_EDGE][tid][l] << "," ;
-        data_line << kernel_niters[UPDATE][tid][l] << "," ;
-        data_line << kernel_niters[COMPUTE_STEP][tid][l] << "," ;
-        data_line << kernel_niters[TIME_STEP][tid][l] << "," ;
-        data_line << kernel_niters[RESTRICT][tid][l] << "," ;
-        data_line << kernel_niters[PROLONG][tid][l] << "," ;
-        data_line << kernel_niters[UNSTRUCTURED_STREAM][tid][l] << "," ;
-        data_line << kernel_niters[UNSTRUCTURED_COMPUTE][tid][l] << "," ;
-        data_line << kernel_niters[COMPUTE_STREAM][tid][l] << "," ;
+        for (int nk=0; nk<NUM_KERNELS; nk++) {
+            std::ostringstream data_line;
+            data_line << data_line_id.str();
+            data_line << l << "," ;
+            data_line << kernel_names[nk] << "," ;
+            data_line << kernel_niters[nk][tid][l];
+            outfile << data_line.str() << std::endl;
+        }
     }
-
-    outfile << data_line.str() << std::endl;
 
     #if defined OMP
         } // End loop over thread data.

@@ -277,7 +277,7 @@ void stop_papi()
 }
 
 
-void dump_papi_counters_to_file(int size)
+void dump_papi_counters_to_file()
 {
     log("Called dump_papi_counters_to_file()");
 
@@ -301,27 +301,14 @@ void dump_papi_counters_to_file(int size)
         outfile.open(filepath.c_str(), std::ios_base::app);
     }
 
-    std::string header_s;
-    std::string data_line_s;
-    prepare_csv_identification(write_header, &header_s, &data_line_s, size);
-
     if (write_header) {
         std::ostringstream header;
-        header << header_s;
         header << "ThreadNum,";
         header << "CpuId,";
-        header << "PAPI counter,";
-        for (int l=0; l<levels; l++) {
-            header << "flux" << l << "," ;
-            header << "update" << l << "," ;
-            header << "compute_step" << l << "," ;
-            header << "time_step" << l << "," ;
-            header << "restrict" << l << "," ;
-            header << "prolong" << l << "," ;
-            header << "unstructured_stream" << l << "," ;
-            header << "unstructured_compute" << l << "," ;
-            header << "compute_stream" << l << "," ;
-        }
+        header << "MG level," ;
+        header << "Loop," ;
+        header << "Event," ;
+        header << "Count" ;
         outfile << header.str() << std::endl;
     }
 
@@ -338,38 +325,32 @@ void dump_papi_counters_to_file(int size)
         int tid = 0;
     #endif
 
+    std::ostringstream data_line_id;
+    data_line_id << tid << ",";
+    data_line_id << cpu_id << ",";
+
     int num_events = num_thread_events[tid];
 
-    for (int eid=0; eid<num_thread_events[tid]; eid++)
-    {
-        std::ostringstream event_data_line;
-        event_data_line << data_line_s;
-
+    for (int eid=0; eid<num_thread_events[tid]; eid++) {
         char eventName[PAPI_MAX_STR_LEN] = "";
         if (PAPI_event_code_to_name(thread_events[tid][eid], eventName) != PAPI_OK) {
             fprintf(stderr, "ERROR: Failed to convert code %d to name (tid=%d)\n", thread_events[tid][eid], tid);
             DEBUGGABLE_ABORT
         }
 
-        event_data_line << tid << ",";
-        event_data_line << cpu_id << ",";
-
-        event_data_line << eventName << ",";
-
         for (int l=0; l<levels; l++) {
-            const int idx = l*num_events + eid;
-            event_data_line << kernel_event_counts[COMPUTE_FLUX_EDGE][tid][idx] << ',';
-            event_data_line << kernel_event_counts[UPDATE][tid][idx] << ',';
-            event_data_line << kernel_event_counts[COMPUTE_STEP][tid][idx] << ',';
-            event_data_line << kernel_event_counts[TIME_STEP][tid][idx] << ',';
-            event_data_line << kernel_event_counts[RESTRICT][tid][idx] << ',';
-            event_data_line << kernel_event_counts[PROLONG][tid][idx] << ',';
-            event_data_line << kernel_event_counts[UNSTRUCTURED_STREAM][tid][idx] << ',';
-            event_data_line << kernel_event_counts[UNSTRUCTURED_COMPUTE][tid][idx] << ',';
-            event_data_line << kernel_event_counts[COMPUTE_STREAM][tid][idx] << ',';
+            for (int nk=0; nk<NUM_KERNELS; nk++) {
+                std::ostringstream data_line;
+                data_line << data_line_id.str();
+                data_line << l << "," ;
+                data_line << kernel_names[nk] << "," ;
+                data_line << eventName << ",";
+
+                data_line << kernel_event_counts[nk][tid][l*num_events + eid];
+                
+                outfile << data_line.str() << std::endl;
+            }
         }
-        
-        outfile << event_data_line.str() << std::endl;
     }
 
     #if defined OMP

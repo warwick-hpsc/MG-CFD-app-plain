@@ -1023,14 +1023,15 @@ int main(int argc, char** argv)
     // Output performance data to file:
     ////////////////////////////////////
     log("Writing out performance data");
+    write_run_attributes(problem_size);
     #ifdef TIME
-        dump_timers_to_file(problem_size, total_compute_time);
+        dump_timers_to_file();
     #endif
     #ifdef PAPI
-        dump_papi_counters_to_file(problem_size);
+        dump_papi_counters_to_file();
     #endif
 
-    dump_loop_stats_to_file(problem_size);
+    dump_loop_stats_to_file();
 
     ////////////////////////////////////
     // Clean memory:

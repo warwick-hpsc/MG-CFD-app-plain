@@ -104,11 +104,7 @@ void dump_volumes(
     const double *restrict volumes, 
     long npoints, int level);
 
-void prepare_csv_identification(
-    bool write_header,
-    std::string *header_s,
-    std::string *data_line_s,
-    int input_size);
+void write_run_attributes(int input_size);
 
 #endif
 
