@@ -40,6 +40,8 @@ essential_colnames = ["CPU", "CC", "CC version", "Instruction set"]
 essential_colnames += ["Event"]
 essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
 
+possible_data_colnames = ["Time", "Count", "NumIters"]
+
 def grep(text, filepath):
     found = False
     f = open(filepath, "r")
@@ -125,21 +127,12 @@ def get_data_colnames(df):
     for v in df.columns.values:
         if v.startswith("insn.") or v.startswith("eu."):
             data_colnames.append(v)
-        else:
-            is_kernel_col = False
-            for k in kernels:
-                for l in range(4):
-                    if v == k+str(l):
-                        is_kernel_col = True
-                        break;
-                if is_kernel_col:
-                    break
-            if is_kernel_col:
-                data_colnames.append(v)
+    data_colnames += [c for c in possible_data_colnames if c in df.columns.values]
     return data_colnames
 
 def get_job_id_colnames(df):
-    job_id_colnames = list(Set(df.columns.values).difference(Set(get_data_colnames(df))))
+    data_colnames = get_data_colnames(df)
+    job_id_colnames = [c for c in df.columns.values if not c in data_colnames]
 
     if len(job_id_colnames) == 0:
         print("ERROR: get_job_id_colnames() failed to find any.")
@@ -601,10 +594,8 @@ def aggregate():
         if "ThreadNum" in df.columns.values:
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
-        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
 
-        job_id_colnames = sorted(job_id_colnames)
-        data_colnames = sorted(data_colnames)
         df = df[job_id_colnames + data_colnames]
 
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
@@ -640,10 +631,8 @@ def aggregate():
             if "ThreadNum" in df.columns.values:
                 df = df.drop("ThreadNum", axis=1)
             job_id_colnames = get_job_id_colnames(df)
-            data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+            data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
 
-            job_id_colnames = sorted(job_id_colnames)
-            data_colnames = sorted(data_colnames)
             df = df[job_id_colnames + data_colnames]
 
             df_agg = df.groupby(job_id_colnames)
@@ -659,12 +648,10 @@ def aggregate():
         df = clean_pd_read_csv(df_filepath)
         df["counter"] = "#iterations"
         job_id_colnames = get_job_id_colnames(df)
-        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
 
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
-        job_id_colnames = sorted(job_id_colnames)
-        data_colnames = sorted(data_colnames)
         df = df[job_id_colnames + data_colnames]
 
         df_agg = df.groupby(get_job_id_colnames(df))
@@ -691,12 +678,12 @@ def aggregate():
         print("Aggregating " + cat)
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
-        data_colnames = list(Set(df.columns.values).difference(job_id_colnames))
+        data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
 
         ## Exclude zero values from statistics:
         df[data_colnames] = df[data_colnames].replace(0.0, np.NaN)
 
-        df_grps = df.groupby(get_job_id_colnames(df))
+        df_grps = df.groupby(job_id_colnames)
 
         ## First, compute per-thread average across repeat runs:
         df_thread_means = df_grps.mean().reset_index().replace(np.NaN, 0.0)
@@ -717,12 +704,12 @@ def aggregate():
         df_std = df_grps.std().reset_index().replace(np.NaN, 0.0)
         df_std_pct = safe_frame_divide(df_std, df_run_means)
 
-        for pe in Set(df_run_sums["PAPI counter"]):
-            df_run_sums.loc[df_run_sums["PAPI counter"]==pe, "PAPI counter"] = pe+"_SUM"
-        for pe in Set(df_run_maxs["PAPI counter"]):
-            df_run_maxs.loc[df_run_maxs["PAPI counter"]==pe, "PAPI counter"] = pe+"_MAX"
-        for pe in Set(df_run_means["PAPI counter"]):
-            df_run_means.loc[df_run_means["PAPI counter"]==pe, "PAPI counter"] = pe+"_MEAN"
+        for pe in Set(df_run_sums["Event"]):
+            df_run_sums.loc[df_run_sums["Event"]==pe, "Event"] = pe+"THREADS_SUM"
+        for pe in Set(df_run_maxs["Event"]):
+            df_run_maxs.loc[df_run_maxs["Event"]==pe, "Event"] = pe+"THREADS_MAX"
+        for pe in Set(df_run_means["Event"]):
+            df_run_means.loc[df_run_means["Event"]==pe, "Event"] = pe+"THREADS_MEAN"
         df_agg = df_run_sums.append(df_run_maxs, sort=True).append(df_run_means, sort=True)
         
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
