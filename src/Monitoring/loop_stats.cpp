@@ -71,7 +71,7 @@ void dump_loop_stats_to_file()
         std::ostringstream header;
         header << "ThreadNum,";
         header << "CpuId,";
-        header << "Level,";
+        header << "MG level,";
         header << "Loop,";
         header << "NumIters";
         outfile << header.str() << std::endl;

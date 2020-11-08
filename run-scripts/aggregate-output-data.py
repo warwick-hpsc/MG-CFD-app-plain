@@ -71,8 +71,9 @@ def safe_pd_append(top, bottom):
         missing_from_bot = Set(top_names).difference(bot_names)
         if len(missing_from_bot) > 0:
             raise Exception("Bottom DF missing these columns: " + missing_from_bot.__str__())
-    # return top.append(bottom, sort=True)
-    return top.append(bottom, sort=True).reset_index(drop=True)
+    ## Ensure 'bottom' columns have same ordering:
+    bottom = bottom[top_names]
+    return top.append(bottom).reset_index(drop=True)
 
 def safe_pd_filter(df, field, value):
     if not field in df.columns.values:
@@ -526,58 +527,62 @@ def collate_csvs():
                         df['Run ID'] = run_id
                         # df = pd.pivot(df, index="Run ID", columns="Attribute", values="Value")
 
+                        new_col_ordering_template = ["Run ID", "Attribute", "Event", "MG level", "Loop", "ThreadNum", "Value", "Count", "Time", "NumIters"]
+                        new_col_ordering = [c for c in new_col_ordering_template if c in df.columns.values]
+                        if len(new_col_ordering) != len(df.columns.values):
+                            raise Exception("New column ordering is missing {0} columns: {1}", len(df.columns.values)-len(new_col_ordering), Set(df.columns.values).difference(new_col_ordering))
+                        df = df[new_col_ordering]
+
                         if agg_dfs[cat] is None:
                             agg_dfs[cat] = df
                         else:
                             agg_dfs[cat] = safe_pd_append(agg_dfs[cat], df)
+                        agg_dfs[cat] = agg_dfs[cat].sort_values(by=new_col_ordering)
 
     for cat in cats:
         if agg_dfs[cat] is None:
-            print("WARNING: Failed to find any '{0}' output files to collate".format(cat))
+            print("NOTICE: Failed to find any '{0}.csv' output files to collate".format(cat))
             continue
 
-    # att_df = agg_dfs["Attributes"]
-    # sizes = att_df.loc[att_df["Attribute"]=="Size"].reset_index(drop=True)
-    # sizes["Value"] = pd.to_numeric(sizes["Value"])
-    # size_scaling_factors = sizes.copy()
-    # size_scaling_factors.rename(index=str, columns={"Value":"Size scaling factor"}, inplace=True)
-    # size_scaling_factors.drop("Attribute", axis=1, inplace=True)
-    # size_scaling_factors["Size scaling factor"] /= max(size_scaling_factors["Size scaling factor"])
-    # agg_dfs["Times"] = safe_pd_merge(agg_dfs["Times"], size_scaling_factors)
-    # agg_dfs["Times"]["Time"] *= agg_dfs["Times"]["Size scaling factor"]
-    # agg_dfs["Times"].drop("Size scaling factor", axis=1, inplace=True)
-    # print(agg_dfs["Times"])
-    # agg_dfs["PAPI"] = safe_pd_merge(agg_dfs["PAPI"], size_scaling_factors)
-    # agg_dfs["PAPI"]["Count"] *= agg_dfs["PAPI"]["Size scaling factor"]
-    # agg_dfs["PAPI"].drop("Size scaling factor", axis=1, inplace=True)
-    # print(agg_dfs["PAPI"])
-    # agg_dfs["LoopNumIters"] = safe_pd_merge(agg_dfs["LoopNumIters"], size_scaling_factors)
-    # agg_dfs["LoopNumIters"]["NumIters"] *= agg_dfs["LoopNumIters"]["Size scaling factor"]
-    # agg_dfs["LoopNumIters"].drop("Size scaling factor", axis=1, inplace=True)
-    # print(agg_dfs["LoopNumIters"].loc[agg_dfs["LoopNumIters"]["Level"]==0])
-
-    papi_df = agg_dfs["PAPI"]
-    f = papi_df["Event"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
-    papi_df.loc[f,"Event"] = "GB"
-    papi_df.loc[f,"Count"] = papi_df.loc[f,"Count"] * 64 / 1e9
-    agg_dfs["PAPI"] = papi_df
+    if "PAPI" in agg_dfs and not agg_dfs["PAPI"] is None:
+        papi_df = agg_dfs["PAPI"]
+        f = papi_df["Event"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
+        papi_df.loc[f,"Event"] = "GB"
+        papi_df.loc[f,"Count"] = papi_df.loc[f,"Count"] * 64 / 1e9
+        agg_dfs["PAPI"] = papi_df
 
     # Drop job ID columns with just one value:
     att_df = agg_dfs["Attributes"]
     att_keys = att_df["Attribute"].drop_duplicates()
-    invariant_keys = []
-    variant_keys = []
+    invariant_atts = []
+    variant_atts = []
     for k in att_keys:
         key_values = att_df.loc[att_df["Attribute"]==k, "Value"].drop_duplicates()
         if key_values.shape[0] == 1:
-            invariant_keys.append(k)
+            invariant_atts.append(k)
         else:
-            variant_keys.append(k)
-    invariant_keys = list(Set(invariant_keys).difference(essential_colnames))
-    variant_keys = list(Set(variant_keys).union(essential_colnames))
-    att_pruned_df = att_df.loc[att_df["Attribute"].isin(variant_keys)]
+            variant_atts.append(k)
+    att_pruned_df = att_df.loc[att_df["Attribute"].isin(list(Set(variant_atts).union(essential_colnames)))]
     if att_pruned_df.shape[1] > 0:
         agg_dfs["Attributes"] = att_pruned_df
+
+    att_df = agg_dfs["Attributes"]
+    att_df = att_df.pivot(columns='Attribute', index='Run ID', values='Value')
+    att_df = att_df.reset_index()
+
+    invariant_atts = list(Set(invariant_atts).intersection(att_df.columns.values))
+    variant_atts = list(Set(variant_atts).intersection(att_df.columns.values))
+
+    ## Now combine attributes with the other tables:
+    for cat in list(Set(cats).difference(["Attributes"])):
+        if not agg_dfs[cat] is None:
+            agg_dfs[cat] = agg_dfs[cat].merge(att_df)
+
+            data_colnames = [c for c in agg_dfs[cat].columns.values if not c in att_df.columns.values]
+            new_col_ordering = ["Run ID"] + invariant_atts + variant_atts + data_colnames
+            if len(new_col_ordering) != len(agg_dfs[cat].columns.values):
+                raise Exception("New column ordering has missing/additional columns")
+            agg_dfs[cat] = agg_dfs[cat][new_col_ordering]
 
     for cat in cats:
         if not agg_dfs[cat] is None:
