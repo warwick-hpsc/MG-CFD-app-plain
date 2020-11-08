@@ -36,11 +36,9 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-kernels = ["flux", "update", "compute_step", "time_step", "restrict", "prolong", "unstructured_stream", "unstructured_compute", "compute_stream"]
-
-essential_colnames = ["CPU", "PAPI counter", "CC", "CC version", "Instruction set"]
-essential_colnames += ["SIMD failed"]
-essential_colnames += ["SIMD conflict avoidance strategy"]
+essential_colnames = ["CPU", "CC", "CC version", "Instruction set"]
+essential_colnames += ["Event"]
+essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
 
 def grep(text, filepath):
     found = False
@@ -73,7 +71,8 @@ def safe_pd_append(top, bottom):
         missing_from_bot = Set(top_names).difference(bot_names)
         if len(missing_from_bot) > 0:
             raise Exception("Bottom DF missing these columns: " + missing_from_bot.__str__())
-    return top.append(bottom, sort=True)
+    # return top.append(bottom, sort=True)
+    return top.append(bottom, sort=True).reset_index(drop=True)
 
 def safe_pd_filter(df, field, value):
     if not field in df.columns.values:
@@ -214,11 +213,11 @@ def calc_ins_per_iter(output_dirpath, kernel):
 def infer_field(output_dirpath, field):
     value = None
 
-    times_filepath = os.path.join(output_dirpath, "Times.csv")
-    if os.path.isfile(times_filepath):
-        times = pd.read_csv(times_filepath)
-        if field in times.columns.values:
-            return times.loc[0, field]
+    att_filepath = os.path.join(output_dirpath, "Attributes.csv")
+    if os.path.isfile(att_filepath):
+        df = pd.read_csv(att_filepath)
+        if field in df["Attribute"]:
+            return df.iloc[df["Attribute"]==field]["Value"]
 
     if field == "Precise FP":
         ## Infer this specific field from compiler stdout:
@@ -495,78 +494,97 @@ def analyse_object_files():
                 f.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
-    cats = ["Times", "PAPI", "instruction-counts", "instruction-counts-categorised", "LoopNumIters"]
+    cats = ["Attributes", "Times", "PAPI", "instruction-counts", "instruction-counts-categorised", "LoopNumIters"]
 
     dirpaths = mg_cfd_output_dirpaths
 
-    for cat in cats:
-        print("Collating " + cat)
-        df_agg = None
-        for dp in dirpaths:
-            for root, dirnames, filenames in os.walk(dp):
+    run_id = 0
+
+    agg_dfs = {k:None for k in cats}
+
+    for dp in dirpaths:
+        for root, dirnames, filenames in os.walk(dp):
+            data_found = False
+            for cat in cats:
                 for filename in fnmatch.filter(filenames, cat+'.csv'):
-                    df_filepath = os.path.join(root, filename)
-                    df = clean_pd_read_csv(df_filepath)
+                    data_found = True
+            if data_found:
+                run_id += 1
+                for cat in cats:
+                    for filename in fnmatch.filter(filenames, cat+'.csv'):
+                        df_filepath = os.path.join(root, filename)
+                        df = clean_pd_read_csv(df_filepath)
 
-                    simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
-                    df["SIMD failed"] = simd_failed
+                        if cat == "Attributes":
+                            simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
+                            df = df.append({"Attribute":"SIMD failed", "Value":simd_failed}, ignore_index=True)
 
-                    # Now require 'Precise FP' column:
-                    if not "Precise FP" in df.columns.values:
-                        df["Precise FP"] = infer_field(root, "Precise FP")
+                            # Now require 'Precise FP' field:
+                            if not "Precise FP" in df["Attribute"]:
+                                df = df.append({"Attribute":"Precise FP", "Value":infer_field(root, "Precise FP")}, ignore_index=True)
 
-                    if df_agg is None:
-                        df_agg = df
-                    else:
-                        df_missing_cols = Set(df_agg.columns.values).difference(Set(df.columns.values))
-                        if len(df_missing_cols) > 0:
-                            df_agg_data_col_names = get_data_colnames(df_agg)
-                            for d in df_missing_cols:
-                                if d in df_agg_data_col_names:
-                                    df[d] = 0
+                        df['Run ID'] = run_id
+                        # df = pd.pivot(df, index="Run ID", columns="Attribute", values="Value")
 
-                        df_agg_missing_cols = Set(df.columns.values).difference(Set(df_agg.columns.values))
-                        if len(df_agg_missing_cols) > 0:
-                            df_data_col_names = get_data_colnames(df)
-                            for d in df_agg_missing_cols:
-                                if d in df_data_col_names:
-                                    df_agg[d] = 0
+                        if agg_dfs[cat] is None:
+                            agg_dfs[cat] = df
+                        else:
+                            agg_dfs[cat] = safe_pd_append(agg_dfs[cat], df)
 
-                        df_agg = safe_pd_append(df_agg, df)
-
-        if df_agg is None:
-            print("WARNING: Failed to find any '{0}' output files to collates".format(cat))
+    for cat in cats:
+        if agg_dfs[cat] is None:
+            print("WARNING: Failed to find any '{0}' output files to collate".format(cat))
             continue
 
-        if cat in ["instruction-counts", "instruction-counts-categorised"]:
-            df_agg = df_agg.drop("Size", axis=1)
+    # att_df = agg_dfs["Attributes"]
+    # sizes = att_df.loc[att_df["Attribute"]=="Size"].reset_index(drop=True)
+    # sizes["Value"] = pd.to_numeric(sizes["Value"])
+    # size_scaling_factors = sizes.copy()
+    # size_scaling_factors.rename(index=str, columns={"Value":"Size scaling factor"}, inplace=True)
+    # size_scaling_factors.drop("Attribute", axis=1, inplace=True)
+    # size_scaling_factors["Size scaling factor"] /= max(size_scaling_factors["Size scaling factor"])
+    # agg_dfs["Times"] = safe_pd_merge(agg_dfs["Times"], size_scaling_factors)
+    # agg_dfs["Times"]["Time"] *= agg_dfs["Times"]["Size scaling factor"]
+    # agg_dfs["Times"].drop("Size scaling factor", axis=1, inplace=True)
+    # print(agg_dfs["Times"])
+    # agg_dfs["PAPI"] = safe_pd_merge(agg_dfs["PAPI"], size_scaling_factors)
+    # agg_dfs["PAPI"]["Count"] *= agg_dfs["PAPI"]["Size scaling factor"]
+    # agg_dfs["PAPI"].drop("Size scaling factor", axis=1, inplace=True)
+    # print(agg_dfs["PAPI"])
+    # agg_dfs["LoopNumIters"] = safe_pd_merge(agg_dfs["LoopNumIters"], size_scaling_factors)
+    # agg_dfs["LoopNumIters"]["NumIters"] *= agg_dfs["LoopNumIters"]["Size scaling factor"]
+    # agg_dfs["LoopNumIters"].drop("Size scaling factor", axis=1, inplace=True)
+    # print(agg_dfs["LoopNumIters"].loc[agg_dfs["LoopNumIters"]["Level"]==0])
+
+    papi_df = agg_dfs["PAPI"]
+    f = papi_df["Event"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
+    papi_df.loc[f,"Event"] = "GB"
+    papi_df.loc[f,"Count"] = papi_df.loc[f,"Count"] * 64 / 1e9
+    agg_dfs["PAPI"] = papi_df
+
+    # Drop job ID columns with just one value:
+    att_df = agg_dfs["Attributes"]
+    att_keys = att_df["Attribute"].drop_duplicates()
+    invariant_keys = []
+    variant_keys = []
+    for k in att_keys:
+        key_values = att_df.loc[att_df["Attribute"]==k, "Value"].drop_duplicates()
+        if key_values.shape[0] == 1:
+            invariant_keys.append(k)
         else:
-            df_agg["Size_scale_factor"] = max(df_agg["Size"]) / df_agg["Size"]
-            for dc in get_data_colnames(df_agg):
-                df_agg[dc] *= df_agg["Size_scale_factor"]
-            df_agg = df_agg.drop("Size", axis=1)
-            df_agg = df_agg.drop("Size_scale_factor", axis=1)
+            variant_keys.append(k)
+    invariant_keys = list(Set(invariant_keys).difference(essential_colnames))
+    variant_keys = list(Set(variant_keys).union(essential_colnames))
+    att_pruned_df = att_df.loc[att_df["Attribute"].isin(variant_keys)]
+    if att_pruned_df.shape[1] > 0:
+        agg_dfs["Attributes"] = att_pruned_df
 
-        if cat == "PAPI":
-            f = df_agg["PAPI counter"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
-            data_colnames = get_data_colnames(df_agg)
-            df_agg.loc[f,"PAPI counter"] = "GB"
-            df_agg.loc[f,data_colnames] = df_agg.loc[f,data_colnames] * 64 / 1e9
-
-        # Drop job ID columns with just one value:
-        n_uniq = df_agg.apply(pd.Series.nunique)
-        uniq_colnames = n_uniq[n_uniq==1].index
-        job_id_columns = get_job_id_colnames(df_agg)
-        uniq_colnames = list(Set(uniq_colnames).intersection(job_id_columns))
-        uniq_colnames = list(Set(uniq_colnames).difference(essential_colnames))
-        df_agg_clean = df_agg.drop(uniq_colnames, axis=1)
-        if df_agg_clean.shape[1] > 0:
-            df_agg = df_agg_clean
-
-        agg_fp = os.path.join(prepared_output_dirpath,cat+".csv")
-        if not os.path.isdir(prepared_output_dirpath):
-            os.mkdir(prepared_output_dirpath)
-        df_agg.to_csv(agg_fp, index=False)
+    for cat in cats:
+        if not agg_dfs[cat] is None:
+            agg_fp = os.path.join(prepared_output_dirpath, cat+".csv")
+            if not os.path.isdir(prepared_output_dirpath):
+                os.mkdir(prepared_output_dirpath)
+            agg_dfs[cat].to_csv(agg_fp, index=False)
 
 def aggregate():
     for cat in ["Times"]:
