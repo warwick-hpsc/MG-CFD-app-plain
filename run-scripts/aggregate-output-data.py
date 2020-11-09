@@ -139,25 +139,30 @@ def get_job_id_colnames(df):
         sys.exit(-1)
     return job_id_colnames
 
-def get_output_run_config(output_dirpath):
-    times_df = clean_pd_read_csv(os.path.join(output_dirpath, "Times.csv"))
-
-    job_id_columns = get_job_id_colnames(times_df)
-    job_id_df = times_df[job_id_columns].iloc[0]
-    job_id_df = job_id_df.to_frame()
-    job_id_df = job_id_df.transpose()
-    return job_id_df
+def load_attributes(output_dirpath):
+    att_df = clean_pd_read_csv(os.path.join(output_dirpath, "Attributes.csv"))
+    att_dict = {}
+    for i in range(att_df.shape[0]):
+        row = att_df.iloc[i]
+        k = row["Attribute"]
+        v = row["Value"]
+        try:
+            v = int(v)
+        except:
+            try:
+                v = float(v)
+            except:
+                pass
+        att_dict[k] = v
+    return att_dict
 
 def calc_ins_per_iter(output_dirpath, kernel):
     if "compute_flux_edge" in kernel:
-        timer = "flux0"
-    elif kernel == "unstructured_stream":
-        timer = "unstructured_stream0"
-    elif kernel == "unstructured_compute":
-        timer = "unstructured_compute0"
-    else:
-        return -1
-
+        kernel = "compute_flux_edge"
+    elif "unstructured_stream" in kernel:
+        kernel = "unstructured_stream"
+    elif "unstructured_compute" in kernel:
+        kernel = "unstructured_compute"
     ins_per_iter = -1
 
     papi_filepath = os.path.join(output_dirpath, "PAPI.csv")
@@ -165,42 +170,34 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
+        iters = iters[iters["Loop"]==kernel].drop("Loop", axis=1)
         simd_failed = did_simd_fail(output_dirpath)
         if simd_failed:
             simd_len = 1
         else:
-            simd_len = iters.loc[0,"SIMD len"]
+            simd_len = infer_field(output_dirpath, "SIMD len")
+
+        # 'num_iters' is counting non-vectorised iterations. If code 
+        # was vectorised then fewer loop iterations will have been 
+        # performed. Make that adjustment:
+        iters["NumIters"] = iters["NumIters"] / simd_len
 
         papi = clean_pd_read_csv(papi_filepath)
-        if "PAPI_TOT_INS" in papi["PAPI counter"].unique():
-            papi = papi[papi["PAPI counter"]=="PAPI_TOT_INS"]
-            papi = papi.drop("PAPI counter", axis=1)
+        papi = papi[papi["Loop"]==kernel].drop("Loop", axis=1)
+        if "PAPI_TOT_INS" in papi["Event"].unique():
+            papi = papi[papi["Event"]=="PAPI_TOT_INS"]
+            papi = papi.drop("Event", axis=1)
 
             job_id_colnames = get_job_id_colnames(papi)
-            data_colnames = list(Set(papi.columns.values).difference(job_id_colnames))
+            data_colnames = [c for c in papi.columns.values if not c in job_id_colnames]
 
-            renames = {}
-            for x in data_colnames:
-                renames[x] = x+"_iters"
-            iters = iters.rename(index=str, columns=renames)
-            papi_and_iters = papi.merge(iters)
-            if papi_and_iters.shape[0] != papi.shape[0]:
-                raise Exception("merge of papi and iters failed")
-            num_insn = papi_and_iters.loc[0, timer]
+            papi_and_iters = safe_pd_merge(papi, iters)
+            papi_and_iters = papi_and_iters[papi_and_iters["MG level"]==0]
+            papi_and_iters["InsPerIter"] = papi_and_iters["Count"] / papi_and_iters["NumIters"]
+            ins_per_iter = papi_and_iters.loc[0,"InsPerIter"]
 
-            num_iters = papi_and_iters.loc[0, timer+"_iters"]
-            if num_iters == 0:
-                ins_per_iter = 0.0
-            else:
-                num_iters = float(num_iters)
-                # 'num_iters' is counting non-vectorised iterations. If code 
-                # was vectorised then fewer loop iterations will have been 
-                # performed. Make that adjustment:
-                num_iters /= float(simd_len)
-
-                # print("Kernel {0}, ins = {1}, iters = {2}, SIMD len = {3}".format(kernel, num_insn, num_iters, simd_len))
-
-                ins_per_iter = float(num_insn) / float(num_iters)
+    if ins_per_iter == -1:
+        print("WARNING: Failed to calculate ins-per-iter for loop '{0}'".format(kernel))
 
     return ins_per_iter
 
@@ -208,95 +205,11 @@ def infer_field(output_dirpath, field):
     value = None
 
     att_filepath = os.path.join(output_dirpath, "Attributes.csv")
-    if os.path.isfile(att_filepath):
-        df = pd.read_csv(att_filepath)
-        if field in df["Attribute"]:
-            return df.iloc[df["Attribute"]==field]["Value"]
-
-    if field == "Precise FP":
-        ## Infer this specific field from compiler stdout:
-        log_filepath = os.path.join(output_dirpath, "submit.log")
-        if not os.path.isfile(log_filepath):
-            ## Must use old logic for deducing how this was compiled:
-            ##   FP was precise for all runs except for AVX512 compiled with Intel, as 
-            ##   Intel would segfault.
-            if infer_field(output_dirpath, "CC")=="intel" and "AVX512" in infer_field(output_dirpath, "Instruction set"):
-                value = "N"
-            else:
-                value = "Y"
-        if grep("precise-fp", log_filepath):
-            value = "Y"
-        else:
-            value = "N"
-
-    elif field == "CC":
-        ## Infer this specific field from make stdout:
-        log_filepath = os.path.join(output_dirpath, "submit.log")
-        if not os.path.isfile(log_filepath):
-            raise Exception("Cannot infer field '{0}'".format(field))
-        if grep("COMPILER=", log_filepath):
-            if grep("COMPILER=clang", log_filepath):
-                value = "clang"
-            elif grep("COMPILER=gnu", log_filepath):
-                value = "gnu"
-            elif grep("COMPILER=intel", log_filepath):
-                value = "intel"
-
-    elif field == "SIMD":
-        ## Infer this specific field from make stdout:
-        log_filepath = os.path.join(output_dirpath, "submit.log")
-        if not os.path.isfile(log_filepath):
-            raise Exception("Cannot infer field '{0}'".format(field))
-        if grep("-DSIMD-", log_filepath):
-            value = True
-        else:
-            value = False
-
-    elif field == "SIMD len":
-        ## Infer this specific field from make stdout:
-        log_filepath = os.path.join(output_dirpath, "submit.log")
-        if not os.path.isfile(log_filepath):
-            raise Exception("Cannot infer field '{0}'".format(field))
-        if not grep("-DSIMD-", log_filepath):
-            value = 1
-        else:
-            if grep("DBLS_PER_SIMD=2-", log_filepath):
-                value = 2
-            elif grep("DBLS_PER_SIMD=4-", log_filepath):
-                value = 4
-            elif grep("DBLS_PER_SIMD=8-", log_filepath):
-                value = 8
-            elif grep("DBLS_PER_SIMD=1-", log_filepath):
-                value = 1
-
-    elif field == "SIMD conflict avoidance strategy":
-        ## Infer this specific field from make stdout:
-        log_filepath = os.path.join(output_dirpath, "submit.log")
-        if not os.path.isfile(log_filepath):
-            raise Exception("Cannot infer field '{0}'".format(field))
-        if grep("-DMANUAL_GATHER-", log_filepath) and grep("-DMANUAL_SCATTER-", log_filepath):
-            value = "ManualGatherScatter"
-        elif grep("-DMANUAL_GATHER-", log_filepath):
-            value = "ManualGather"
-        elif grep("-DMANUAL_SCATTER-", log_filepath):
-            value = "ManualScatter"
-        elif grep("-DCOLOURED_CONFLICT_AVOIDANCE-", log_filepath):
-            if grep("-DBIN_COLOURED_VECTORS-", log_filepath):
-                value = "ColouredEdgeVectors"
-            elif grep("-DBIN_COLOURED_CONTIGUOUS-", log_filepath):
-                value = "ColouredEdgesContiguous"
-            else:
-                value = "None"
-        else:
-            value = "None"
-
-    else:
-        times_filepath = os.path.join(output_dirpath, "Times.csv")
-        if os.path.isfile(times_filepath):
-            times = pd.read_csv(times_filepath)
-            if not field in times.columns.values:
-                raise Exception("Field '{0}' not in: {1}".format(field, output_dirpath))
-            value = times.loc[0, field]
+    if not os.path.isfile(att_filepath):
+        raise Exception("File not found: " + att_filepath)
+    attributes = load_attributes(output_dirpath)
+    if field in attributes:
+        return attributes[field]
 
     if value is None:
         raise Exception("Cannot infer field '{0}'".format(field))
@@ -304,8 +217,11 @@ def infer_field(output_dirpath, field):
     return value
 
 def did_simd_fail(output_dirpath, compiler=None):
+    if infer_field(output_dirpath, "SIMD") == "N":
+        return False
+
     failed = False
-    log_filepath =  os.path.join(output_dirpath, "flux_vecloops.o.log")
+    log_filepath =  os.path.join(output_dirpath, "objects", "flux_vecloops.o.log")
 
     if compiler is None:
         compiler = infer_field(output_dirpath, "CC")
@@ -393,7 +309,7 @@ def analyse_object_files():
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
 
-            if simd:
+            if simd == "Y":
                 loop_to_object["compute_flux_edge_vecloop"] = "flux_vecloops.o"
                 loop_to_object["unstructured_stream_vecloop"] = "unstructured_stream_vecloop.o"
                 loop_to_object["unstructured_compute_vecloop"] = "unstructured_compute_vecloop.o"
@@ -416,6 +332,8 @@ def analyse_object_files():
                     k_pretty = "unstructured_stream"
                 elif "unstructured_compute" in k:
                     k_pretty = "unstructured_compute"
+                elif "compute_stream" in k:
+                    k_pretty = "compute_stream"
 
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
 
@@ -426,66 +344,61 @@ def analyse_object_files():
                     raise
                     # continue
                 loop_tally = count_loop_instructions(asm_loop_filepath)
-                loop_tally2 = {}
-                for i in loop_tally.keys():
-                    loop_tally2["insn."+i] = loop_tally[i]
-                loop_tally = loop_tally2
 
-                loop_tally["kernel"] = k_pretty
-
+                df_data = [ [k_pretty, k, float(v)] for k,v in loop_tally.items()]
+                loop_tally_df = pd.DataFrame(df_data, columns=["Loop", "Instruction", "Count"])
                 if loops_tally_df is None:
-                    tmp_dict = {}
-                    if pyv == 2:
-                        for k,v in loop_tally.iteritems():
-                            tmp_dict[k] = [v]
-                    elif pyv == 3:
-                        for k,v in loop_tally.items():
-                            tmp_dict[k] = [v]
-                    loops_tally_df = pd.DataFrame.from_dict(tmp_dict)
+                    loops_tally_df = loop_tally_df
                 else:
-                    for f in Set(loops_tally_df.keys()).difference(Set(loop_tally.keys())):
-                        loop_tally[f] = 0
-                    for f in Set(loop_tally.keys()).difference(Set(loops_tally_df.keys())):
-                        loops_tally_df[f] = 0
+                    loops_tally_df = loops_tally_df.append(loop_tally_df)
 
-                    tmp_dict = {}
-                    if pyv == 2:
-                        for k,v in loop_tally.iteritems():
-                            tmp_dict[k] = [v]
-                    elif pyv == 3:
-                        for k,v in loop_tally.items():
-                            tmp_dict[k] = [v]
-                    loops_tally_df = loops_tally_df.append(pd.DataFrame.from_dict(tmp_dict), sort=True)
+            if "LOAD_SPILLS" in loops_tally_df["Instruction"].values:
+                if "unstructured_stream" in loops_tally_df["Loop"].values:
+                    ## This loop does not actually have any register spilling, so 
+                    ## any that were identified by 'assembly-loop-extractor' are false positives. 
+                    ## Assume that the same number of false positives are identified in the 'flux' kernel, 
+                    ## so remove those:
+                    f = np.logical_and(loops_tally_df["Loop"]=="unstructured_stream", loops_tally_df["Instruction"]=="LOAD_SPILLS")
+                    claimed_unstructured_stream_spills = loops_tally_df.loc[f,"Count"].iloc[0]
+                    f = loops_tally_df["Instruction"]=="LOAD_SPILLS"
+                    loops_tally_df.loc[f,"Count"] -= claimed_unstructured_stream_spills
 
-            if not loops_tally_df is None:
-                if "insn.LOAD_SPILLS" in loops_tally_df.columns.values:
-                    if "unstructured_stream" in loops_tally_df["kernel"]:
-                        ## This loop does not actually have any register spilling, so 
-                        ## any that were identified by 'assembly-loop-extractor' are false positives. 
-                        ## Assume that the same number of false positives are identified in the 'flux' kernel, 
-                        ## so remove those:
-                        claimed_unstructured_stream_spills = loops_tally_df[loops_tally_df["kernel"]=="unstructured_stream"].loc[0,"insn.LOAD_SPILLS"]
-                        loops_tally_df["insn.LOAD_SPILLS"] -= claimed_unstructured_stream_spills
+            loops_tally_df.to_csv(ic_filepath, index=False)
 
-                job_id_df = get_output_run_config(output_dirpath)
-                df = job_id_df.join(loops_tally_df)
-                df.to_csv(ic_filepath, index=False)
+            target_is_aarch64 = False
+            if simd == "Y":
+                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
+            else:
+                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
+            for line in open(raw_asm_filepath):
+              if "aarch64" in line:
+                target_is_aarch64 = True
+                break
 
-                target_is_aarch64 = False
-                if simd:
-                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
-                else:
-                    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
-                for line in open(raw_asm_filepath):
-                  if "aarch64" in line:
-                    target_is_aarch64 = True
-                    break
+            loops_tally_categorised_df = None
+            loops = Set(loops_tally_df["Loop"])
+            for l in loops:
+                df = loops_tally_df[loops_tally_df["Loop"]==l]
+                tally = {}
+                for i in range(df.shape[0]):
+                    row = df.iloc[i]
+                    k = row["Instruction"]
+                    v = row["Count"]
+                    tally[k] = v
 
                 if target_is_aarch64:
-                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_aarch64=True)
+                    tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_aarch64=True)
                 else:
-                    f = categorise_aggregated_instructions_tally_csv(ic_filepath, is_intel64=True)
-                f.to_csv(ic_cat_filepath, index=False)
+                    tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_intel64=True)
+
+                df_data = [ [l, k, float(v)] for k,v in tally_categorised.items()]
+                df = pd.DataFrame(df_data, columns=["Loop", "Instruction", "Count"])
+                if loops_tally_categorised_df is None:
+                    loops_tally_categorised_df = df
+                else:
+                    loops_tally_categorised_df = loops_tally_categorised_df.append(df)
+
+            loops_tally_categorised_df.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
     cats = ["Attributes", "Times", "PAPI", "instruction-counts", "instruction-counts-categorised", "LoopNumIters"]
@@ -513,14 +426,10 @@ def collate_csvs():
                             simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
                             df = df.append({"Attribute":"SIMD failed", "Value":simd_failed}, ignore_index=True)
 
-                            # Now require 'Precise FP' field:
-                            if not "Precise FP" in df["Attribute"]:
-                                df = df.append({"Attribute":"Precise FP", "Value":infer_field(root, "Precise FP")}, ignore_index=True)
-
                         df['Run ID'] = run_id
                         # df = pd.pivot(df, index="Run ID", columns="Attribute", values="Value")
 
-                        new_col_ordering_template = ["Run ID", "Attribute", "Event", "MG level", "Loop", "ThreadNum", "Value", "Count", "Time", "NumIters"]
+                        new_col_ordering_template = ["Run ID", "Attribute", "Event", "MG level", "Loop", "ThreadNum", "Instruction", "Value", "Count", "Time", "NumIters"]
                         new_col_ordering = [c for c in new_col_ordering_template if c in df.columns.values]
                         if len(new_col_ordering) != len(df.columns.values):
                             raise Exception("New column ordering is missing {0} columns: {1}", len(df.columns.values)-len(new_col_ordering), Set(df.columns.values).difference(new_col_ordering))
@@ -539,8 +448,19 @@ def collate_csvs():
 
     if "PAPI" in agg_dfs and not agg_dfs["PAPI"] is None:
         papi_df = agg_dfs["PAPI"]
-        f = papi_df["Event"]=="OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"
-        papi_df.loc[f,"Event"] = "GB"
+        offcore_dram_read_events = [
+            "OFFCORE_REQUESTS:ALL_DATA_READ",
+            "OFFCORE_RESPONSE_[01]:(DMND_DATA_RD|PF_DATA_RD):(DMND_DATA_RD|PF_DATA_RD)",
+            "OFFCORE_RESPONSE_[01]:(DMND_DATA_RD|PF_DATA_RD)"
+            ]
+        f = None
+        for e in offcore_dram_read_events:
+            g = papi_df["Event"].str.match(r''+e)
+            if f is None:
+                f = g
+            else:
+                f = np.logical_or(f, g)
+        papi_df.loc[f,"Event"] = "dram read GB"
         papi_df.loc[f,"Count"] = papi_df.loc[f,"Count"] * 64 / 1e9
         agg_dfs["PAPI"] = papi_df
 
@@ -705,13 +625,13 @@ def aggregate():
         df_std_pct = safe_frame_divide(df_std, df_run_means)
 
         for pe in Set(df_run_sums["Event"]):
-            df_run_sums.loc[df_run_sums["Event"]==pe, "Event"] = pe+"THREADS_SUM"
+            df_run_sums.loc[df_run_sums["Event"]==pe, "Event"] = pe+".THREADS_SUM"
         for pe in Set(df_run_maxs["Event"]):
-            df_run_maxs.loc[df_run_maxs["Event"]==pe, "Event"] = pe+"THREADS_MAX"
+            df_run_maxs.loc[df_run_maxs["Event"]==pe, "Event"] = pe+".THREADS_MAX"
         for pe in Set(df_run_means["Event"]):
-            df_run_means.loc[df_run_means["Event"]==pe, "Event"] = pe+"THREADS_MEAN"
-        df_agg = df_run_sums.append(df_run_maxs, sort=True).append(df_run_means, sort=True)
-        
+            df_run_means.loc[df_run_means["Event"]==pe, "Event"] = pe+".THREADS_MEAN"
+        df_agg = safe_pd_append(safe_pd_append(df_run_sums, df_run_maxs), df_run_means)
+
         out_filepath = os.path.join(prepared_output_dirpath, cat+".mean.csv")
         df_agg.to_csv(out_filepath, index=False)
 
