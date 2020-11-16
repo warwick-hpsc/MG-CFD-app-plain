@@ -40,7 +40,7 @@ essential_colnames = ["CPU", "CC", "CC version", "Instruction set"]
 essential_colnames += ["Event"]
 essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
 
-possible_data_colnames = ["Time", "Count", "NumIters"]
+possible_data_colnames = ["Time", "Count", "NumIters", "Value"]
 
 def grep(text, filepath):
     found = False
@@ -566,7 +566,7 @@ def aggregate():
     if os.path.isfile(df_filepath):
         print("Aggregating " + cat)
         df = clean_pd_read_csv(df_filepath)
-        df["counter"] = "#iterations"
+        df["Metric"] = "#iterations"
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
 
@@ -585,9 +585,9 @@ def aggregate():
             df_mean2 = df_mean
         df_agg2 = df_mean2.groupby(job_id_colnames)
         df_sum = df_agg2.sum().reset_index()
-        df_sum["counter"] = "#iterations_SUM"
+        df_sum["Metric"] = "#iterations_SUM"
         df_max = df_agg2.max().reset_index()
-        df_max["counter"] = "#iterations_MAX"
+        df_max["Metric"] = "#iterations_MAX"
         df_agg3 = df_sum.append(df_max)
         out_filepath = os.path.join(prepared_output_dirpath, cat+".csv")
         df_agg3.to_csv(out_filepath, index=False)
@@ -638,7 +638,7 @@ def aggregate():
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
         df_std_pct.to_csv(out_filepath, index=False)
 
-def count_fp_ins():
+def count_flux_fp_ins():
     insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")
     if not os.path.isfile(insn_df_filepath):
         return None
@@ -659,176 +659,197 @@ def count_fp_ins():
         "[v]?fmul",
         "vfneg"
     ]
-    aarch64_fp_fma_insn = [
+    aarch64_fp_fma_insns = [
         "f[n]?madd", "f[n]?msub", "vfml[as]"
     ]
 
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
-    insn_df = safe_pd_filter(insn_df, "kernel", "compute_flux_edge")
-    insn_df["FLOPs/iter"] = 0
-    insn_df["FP ins/iter"] = 0
-    for colname in insn_df.columns.values:
-        if colname.startswith("insn."):
-            insn = colname.replace("insn.", "")
-            fp_detected = False
-            for f in intel_fp_insns:
-                if re.match(f, insn):
-                    insn_df["FLOPs/iter"]  += insn_df[colname]
-                    insn_df["FP ins/iter"] += insn_df[colname]
-                    fp_detected = True
-                    break
-            if not fp_detected:
-                for f in intel_fp_fma_insns:
-                    if re.match(f, insn):
-                        insn_df["FLOPs/iter"]  += 2*insn_df[colname]
-                        insn_df["FP ins/iter"] +=   insn_df[colname]
-                        fp_detected = True
-                        break
-            if not fp_detected:
-                for f in aarch64_fp_insns:
-                    if re.match(f, insn):
-                        insn_df["FLOPs/iter"]  += insn_df[colname]
-                        insn_df["FP ins/iter"] += insn_df[colname]
-                        fp_detected = True
-                        break
-            if not fp_detected:
-                for f in aarch64_fp_fma_insn:
-                    if re.match(f, insn):
-                        insn_df["FLOPs/iter"]  += 2*insn_df[colname]
-                        insn_df["FP ins/iter"] +=   insn_df[colname]
-                        fp_detected = True
-                        break
+    fp_df = safe_pd_filter(insn_df, "Loop", "compute_flux_edge")
+    # fp_df["FLOPs/iter"] = 0
+    # fp_df["FP ins/iter"] = 0
+    # for colname in fp_df.columns.values:
+    #     if colname.startswith("insn."):
+    #         insn = colname.replace("insn.", "")
+    #         fp_detected = False
+    #         for f in intel_fp_insns:
+    #             if re.match(f, insn):
+    #                 fp_df["FLOPs/iter"]  += fp_df[colname]
+    #                 fp_df["FP ins/iter"] += fp_df[colname]
+    #                 fp_detected = True
+    #                 break
+    #         if not fp_detected:
+    #             for f in intel_fp_fma_insns:
+    #                 if re.match(f, insn):
+    #                     fp_df["FLOPs/iter"]  += 2*fp_df[colname]
+    #                     fp_df["FP ins/iter"] +=   fp_df[colname]
+    #                     fp_detected = True
+    #                     break
+    #         if not fp_detected:
+    #             for f in aarch64_fp_insns:
+    #                 if re.match(f, insn):
+    #                     fp_df["FLOPs/iter"]  += fp_df[colname]
+    #                     fp_df["FP ins/iter"] += fp_df[colname]
+    #                     fp_detected = True
+    #                     break
+    #         if not fp_detected:
+    #             for f in aarch64_fp_fma_insns:
+    #                 if re.match(f, insn):
+    #                     fp_df["FLOPs/iter"]  += 2*fp_df[colname]
+    #                     fp_df["FP ins/iter"] +=   fp_df[colname]
+    #                     fp_detected = True
+    #                     break
+    #         fp_df = fp_df.drop(colname, axis=1)
 
-            insn_df = insn_df.drop(colname, axis=1)
+    fp_df["FLOPs/iter"] = 0
+    fp_df["FP ins/iter"] = 0
+    for f in intel_fp_insns:
+        f = fp_df["Instruction"].str.match(f)
+        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+    for f in intel_fp_fma_insns:
+        f = fp_df["Instruction"].str.match(f)
+        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]*2
+        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+    for f in aarch64_fp_insns:
+        f = fp_df["Instruction"].str.match(f)
+        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+    for f in aarch64_fp_fma_insns:
+        f = fp_df["Instruction"].str.match(f)
+        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]*2
+        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
 
-    if "SIMD len" in insn_df.columns.values:
-        simd_mask = np.invert(insn_df["SIMD failed"])
-        insn_df.loc[simd_mask, "FLOPs/iter"] *= insn_df.loc[simd_mask, "SIMD len"]
+    fp_df = fp_df.drop(["Instruction", "Count"], axis=1)
+    grp_colnames = [c for c in fp_df.columns.values if not c in ["FLOPs/iter", "FP ins/iter"] ]
+    fp_df_grps = fp_df.groupby(grp_colnames)
+    fp_df_sum = fp_df_grps.sum().reset_index().replace(np.NaN, 0.0)
 
-    return insn_df
+    if "SIMD len" in fp_df_sum.columns.values:
+        simd_mask = np.invert(fp_df_sum["SIMD failed"])
+        fp_df_sum.loc[simd_mask, "FLOPs/iter"] *= fp_df_sum.loc[simd_mask, "SIMD len"]
+
+    return fp_df_sum
 
 def combine_all():
     data_all = None
+    metrics = []
 
     times_df_filepath = os.path.join(prepared_output_dirpath, "Times.mean.csv")
     if os.path.isfile(times_df_filepath):
         times_df = clean_pd_read_csv(times_df_filepath)
-        times_df["counter"] = "runtime"
+        times_df["Metric"] = "Runtime"
+        times_df = times_df.rename(index=str, columns={"Time":"Value"})
         data_colnames = get_data_colnames(times_df)
         data_all = times_df
+        metrics.append("Runtime")
 
     papi_df_filepath = os.path.join(prepared_output_dirpath, "PAPI.mean.csv")
     if os.path.isfile(papi_df_filepath):
         papi_df = clean_pd_read_csv(papi_df_filepath)
-        papi_df = papi_df.rename(index=str, columns={"PAPI counter":"counter"})
+        metrics += list(Set(papi_df["Event"]))
+        papi_df = papi_df.rename(index=str, columns={"Event":"Metric", "Count":"Value"})
 
         if data_all is None:
             data_all = papi_df
         else:
-            data_all = data_all.append(papi_df, sort=True)
+            data_all = safe_pd_append(data_all, papi_df)
 
     if data_all is None:
         return
 
-    counters = list(Set(data_all["counter"]))
-    data_colnames = get_data_colnames(data_all)
-    flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
-    other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
-
     iters_df_filepath = os.path.join(prepared_output_dirpath, "LoopNumIters.csv")
     if os.path.isfile(iters_df_filepath):
         iters_df = clean_pd_read_csv(iters_df_filepath)
-        iters_df = safe_pd_filter(iters_df, "counter", "#iterations_SUM")
+        iters_df = safe_pd_filter(iters_df, "Metric", "#iterations_SUM")
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
             ## counts the number of serial iterations.
             simd_mask = np.invert(iters_df["SIMD failed"])
+            data_colnames = get_data_colnames(iters_df)
             for dc in data_colnames:
                 iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
+        flux_iters_df = safe_pd_filter(iters_df, "Loop", "compute_flux_edge")
 
-        fp_counts = count_fp_ins()
-        if not fp_counts is None:
+        flux_fp_counts = count_flux_fp_ins()
+        if not flux_fp_counts is None:
             ## Calculate GFLOPs
-            flops_total = safe_pd_merge(fp_counts.drop("FP ins/iter", axis=1), iters_df, "many_to_one")
-            flops_total["counter"] = "GFLOPs"
-            for f in flux_data_colnames:
-                flops_total[f] = (flops_total[f] / 1e9) * flops_total["FLOPs/iter"]
-            flops_total.drop("FLOPs/iter", axis=1, inplace=True)
-            flops_total[other_data_colnames] = 0.0
-            flops_total[data_colnames] = flops_total[data_colnames]
+            flux_flops_total = safe_pd_merge(flux_iters_df, flux_fp_counts.drop("FP ins/iter", axis=1), "many_to_one")
+            flux_flops_total["Metric"] = "GFLOPs"
+            flux_flops_total["Value"] = flux_flops_total["FLOPs/iter"] * flux_flops_total["NumIters"] / 1e9
+            flux_flops_total.drop(["NumIters", "FLOPs/iter"], axis=1, inplace=True)
+            flux_flops_total["Loop"] = "compute_flux_edge"
             if data_all is None:
-                data_all = flops_total
+                data_all = flux_flops_total
             else:
-                data_all = data_all.append(flops_total, sort=True)
-            counters.append("GFLOPs")
+                data_all = safe_pd_append(data_all, flux_flops_total)
+            metrics.append("GFLOPs")
 
-            if "PAPI_TOT_CYC_MAX" in counters:
+            if "PAPI_TOT_CYC.THREADS_MAX" in metrics:
                 ## Calculate IPC of FP instructions:
-                fp_total = safe_pd_merge(fp_counts.drop("FLOPs/iter", axis=1), iters_df, "many_to_one")
-                fp_total["counter"] = "FP total"
-                flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
-                for f in flux_data_colnames:
-                    fp_total[f] = fp_total[f] * fp_total["FP ins/iter"]
-                fp_total.drop("FP ins/iter", axis=1, inplace=True)
-                fp_total[other_data_colnames] = 0.0
-                fp_total[data_colnames] = fp_total[data_colnames]
+                flux_fp_total = safe_pd_merge(flux_iters_df, flux_fp_counts.drop("FLOPs/iter", axis=1), "many_to_one")
+                # flux_fp_total["Metric"] = "FP total"
+                flux_fp_total["Value"] = flux_fp_total["FP ins/iter"] * flux_fp_total["NumIters"]
+                flux_fp_total.drop(["NumIters", "FP ins/iter"], axis=1, inplace=True)
+                flux_fp_total["Loop"] = "compute_flux_edge"
 
-                cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_SUM"]
-                fp_ipc = safe_frame_divide(fp_total, cyc_data.drop("counter", axis=1))
+                # cyc_data = data_all[data_all["Metric"]=="PAPI_TOT_CYC.THREADS_SUM"]
+                cyc_data = safe_pd_filter(data_all, "Metric", "PAPI_TOT_CYC.THREADS_SUM")
+                flux_cyc_data = safe_pd_filter(cyc_data, "Loop", "compute_flux_edge")
+                flux_cyc_data["Loop"] = "compute_flux_edge"
+                fp_ipc = safe_frame_divide(flux_fp_total, flux_cyc_data)
+                data_colnames = get_data_colnames(fp_ipc)
                 fp_ipc[data_colnames] = fp_ipc[data_colnames]
-                fp_ipc["counter"] = "FP IPC"
-                data_all = data_all.append(fp_ipc, sort=True)
-                counters.append("FP IPC")
+                fp_ipc["Metric"] = "FP IPC"
+                data_all = safe_pd_append(data_all, fp_ipc)
+                metrics.append("FP IPC")
 
             ## Append FP ins/iter:
-            fp_counts.drop("FLOPs/iter", axis=1, inplace=True)
-            fp_counts["counter"] = "FP ins/iter"
-            for dc in other_data_colnames:
-                fp_counts[dc] = 0
-            for dc in flux_data_colnames:
-                fp_counts[dc] = fp_counts["FP ins/iter"].copy()
-            fp_counts.drop("FP ins/iter", axis=1, inplace=True)
-            data_all = safe_pd_append(data_all, fp_counts)
+            flux_FpInsPerIter = flux_fp_counts.drop("FLOPs/iter", axis=1)
+            flux_FpInsPerIter["Metric"] = "FP ins/iter"
+            flux_FpInsPerIter["Loop"] = "compute_flux_edge"
+            flux_FpInsPerIter = flux_FpInsPerIter.rename(index=str, columns={"FP ins/iter":"Value"})
+            # Metric 'FP ins/iter' is invariant to MG level, but appending to 'data_all' requires it, 
+            # so need to add a level column:
+            flux_FpInsPerIter["MG level"] = 0
+            data_all = safe_pd_append(data_all, flux_FpInsPerIter)
 
-    if "runtime" in counters and "GB_SUM" in counters:
+    if "Runtime" in metrics and "dram read GB.THREADS_SUM" in metrics:
         ## Calculate GB_SUM/sec
-        runtime_data = data_all[data_all["counter"]=="runtime"]
-        gb_data = data_all[data_all["counter"]=="GB_SUM"]
-        data_colnames = get_data_colnames(runtime_data)
-        renames = {}
-        for x in data_colnames:
-            renames[x] = x+"_runtime"
-        runtime_data = runtime_data.rename(index=str, columns=renames)
-        runtime_data = runtime_data.drop("counter", axis=1)
-        gb_data = gb_data.drop("counter", axis=1)
-        gb_data = gb_data.merge(runtime_data, validate="one_to_one")
-        for cn in data_colnames:
-            f = gb_data[cn+"_runtime"] != 0.0
-            gb_data.loc[f,cn] /= gb_data.loc[f,cn+"_runtime"]
-            gb_data = gb_data.drop(cn+"_runtime", axis=1)
-        ## Todo: test: the line below should produce the same result as block above
-        # gb_data = safe_frame_divide(gb_data, runtime_data.drop("counter", axis=1))
-        gb_data["counter"] = "GB_SUM/sec"
-        data_all = data_all.append(gb_data, sort=True)
-    if "runtime" in counters and "GFLOPs" in counters:
+        runtime_data = data_all[data_all["Metric"]=="Runtime"]
+        gb_data = data_all[data_all["Metric"]=="dram read GB.THREADS_SUM"]
+        # runtime_data = runtime_data.rename(index=str, columns={"Value":"Runtime"})
+        # runtime_data = runtime_data.drop("Metric", axis=1)
+        # gb_data = gb_data.drop("Metric", axis=1)
+        # gb_data = gb_data.merge(runtime_data, validate="one_to_one")
+        # f = gb_data["Runtime"] != 0.0
+        # gb_data.loc[f,"Value"] /= gb_data.loc[f,"Runtime"]
+        # gb_data = gb_data.drop("Runtime", axis=1)
+        gbsec_data = safe_frame_divide(gb_data, runtime_data.drop("Metric", axis=1))
+        gbsec_data["Metric"] = "dram read GB.THREADS_SUM/sec"
+        data_all = safe_pd_append(data_all, gbsec_data)
+    if "Runtime" in metrics and "GFLOPs" in metrics:
         ## Calculate GFLOPs/sec
-        runtime_data = data_all[data_all["counter"]=="runtime"]
-        gflops_data = data_all[data_all["counter"]=="GFLOPs"]
-        gflops_data = safe_frame_divide(gflops_data, runtime_data.drop("counter", axis=1))
+        runtime_data = data_all[data_all["Metric"]=="runtime"]
+        gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
+        gflops_data = safe_frame_divide(gflops_data, runtime_data.drop("Metric", axis=1))
         gflops_data[data_colnames] = gflops_data[data_colnames]
-        gflops_data["counter"] = "GFLOPs/sec"
-        data_all = data_all.append(gflops_data, sort=True)
-    if "GFLOPs" in counters and "GB_SUM" in counters:
+        gflops_data["Metric"] = "GFLOPs/sec"
+        data_all = safe_pd_append(data_all, gflops_data)
+    f = np.logical_and( data_all["Run ID"]==1, data_all["Loop"]=="compute_flux_edge")
+    f = np.logical_and(f, data_all["MG level"] == 0.0)
+    print(data_all[f])
+    raise Exception("CONTINUE FROM HERE")
+    if "GFLOPs" in metrics and "dram read GB.THREADS_SUM" in metrics:
         ## Calculate Flops/Byte
-        gflops_data = data_all[data_all["counter"]=="GFLOPs"]
-        gb_data = data_all[data_all["counter"]=="GB_SUM"]
+        gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
+        gb_data = data_all[data_all["Metric"]=="dram read GB.THREADS_SUM"]
         data_colnames = get_data_colnames(gflops_data)
         renames = {}
         for x in data_colnames:
             renames[x] = x+"_gb"
         gb_data = gb_data.rename(index=str, columns=renames)
-        gb_data = gb_data.drop("counter", axis=1)
-        gflops_data = gflops_data.drop("counter", axis=1)
+        gb_data = gb_data.drop("Metric", axis=1)
+        gflops_data = gflops_data.drop("Metric", axis=1)
         gflops_data = gflops_data.merge(gb_data, validate="one_to_one")
         for cn in data_colnames:
             f = gflops_data[cn+"_gb"] != 0.0
@@ -837,35 +858,35 @@ def combine_all():
             gflops_data.loc[f,cn] = 0.0
             gflops_data = gflops_data.drop(cn+"_gb", axis=1)
         ## Todo: test: the line below should produce the same result as block above
-        # gflops_data = safe_frame_divide(gflops_data, gb_data.drop("counter", axis=1))
-        gflops_data["counter"] = "Flops/Byte"
-        data_all = data_all.append(gflops_data, sort=True)
-    if "runtime" in counters and "PAPI_TOT_CYC_MAX" in counters:
+        # gflops_data = safe_frame_divide(gflops_data, gb_data.drop("Metric", axis=1))
+        gflops_data["Metric"] = "Flops/Byte"
+        data_all = safe_pd_append(data_all, gflops_data)
+    if "runtime" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate GHz
-        cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_MAX"]
-        runtime_data = data_all[data_all["counter"]=="runtime"].copy()
-        ghz = safe_frame_divide(cyc_data, runtime_data.drop("counter", axis=1))
+        cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_MAX"]
+        runtime_data = data_all[data_all["metric"]=="runtime"].copy()
+        ghz = safe_frame_divide(cyc_data, runtime_data.drop("metric", axis=1))
         ghz[get_data_colnames(runtime_data)] /= 1e9
-        ghz["counter"] = "GHz"
+        ghz["metric"] = "GHz"
         ghz[data_colnames] = ghz[data_colnames]
-        data_all = data_all.append(ghz, sort=True)
-    if "GFLOPs" in counters and "PAPI_TOT_CYC_MAX" in counters:
+        data_all = safe_pd_append(data_all, ghz)
+    if "GFLOPs" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate flops/cycle
-        # cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_MAX"]
-        cyc_data = data_all[data_all["counter"]=="PAPI_TOT_CYC_SUM"]
-        gflops_data = data_all[data_all["counter"]=="GFLOPs"].copy()
-        flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("counter", axis=1))
+        # cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_MAX"]
+        cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_SUM"]
+        gflops_data = data_all[data_all["metric"]=="GFLOPs"].copy()
+        flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("metric", axis=1))
         flops_per_cyc[get_data_colnames(flops_per_cyc)] *= 1e9
-        flops_per_cyc["counter"] = "Flops/Cycle"
+        flops_per_cyc["metric"] = "Flops/Cycle"
         flops_per_cyc[data_colnames] = flops_per_cyc[data_colnames]
-        data_all = data_all.append(flops_per_cyc, sort=True)
+        data_all = safe_pd_append(data_all, flops_per_cyc)
 
-    # Drop PAPI counters:
-    f = data_all["counter"].str.contains("PAPI_")
+    # Drop Events:
+    f = data_all["metric"].str.contains("PAPI_")
     data_all = data_all[np.logical_not(f)]
 
     # Drop GFLOPs:
-    data_all = data_all[data_all["counter"]!="GFLOPs"]
+    data_all = data_all[data_all["metric"]!="GFLOPs"]
 
     # Round to N significant figures:
     N=3
