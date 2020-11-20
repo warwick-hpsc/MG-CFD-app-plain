@@ -72,6 +72,16 @@ void compute_stream_vecloop(
     #endif
     record_iters(flux_loop_start, loop_end);
 
+    const int batch = 8;
+    long outer_loop_start = flux_loop_start;
+    long outer_loop_end = loop_end;
+    #pragma nounroll
+    for (long i=outer_loop_start; i<outer_loop_end; i+=batch) {
+        // Loop over same handful of edges, which should remain in L1 cache:
+        // Each edge reads/writes 23 doubles, x8 edges = 1.44 KB
+        flux_loop_start = outer_loop_start;
+        loop_end = outer_loop_start + batch;
+
     #ifdef FLUX_FISSION
         // SIMD is safe
         #pragma omp simd simdlen(DBLS_PER_SIMD)
@@ -86,7 +96,7 @@ void compute_stream_vecloop(
         #elif defined MANUAL_SCATTER
             const long loop_end_orig = loop_end;
             long v_start = flux_loop_start;
-            long v_end = flux_loop_start + ((loop_end-flux_loop_start)/DBLS_PER_SIMD)*DBLS_PER_SIMD;
+            long v_end = flux_loop_start + batch;
             for (long v=v_start; v<v_end; v+=DBLS_PER_SIMD) {
                 #ifdef MANUAL_GATHER
                     #ifdef __clang__
@@ -120,8 +130,8 @@ void compute_stream_vecloop(
                         simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                     }
                 #endif
-                flux_loop_start = v;
-                loop_end = v+DBLS_PER_SIMD;
+                flux_loop_start = 0;
+                loop_end = DBLS_PER_SIMD;
 
                 #pragma omp simd simdlen(DBLS_PER_SIMD)
 
@@ -136,6 +146,12 @@ void compute_stream_vecloop(
     #endif
     for (long i=flux_loop_start; i<loop_end; i++)
     {
+        #if defined MANUAL_GATHER || defined MANUAL_SCATTER
+            const long edge_idx = v+i;
+            const int simd_idx = i;
+        #else
+            const long edge_idx = i;
+        #endif
         #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
@@ -147,7 +163,7 @@ void compute_stream_vecloop(
         #else
             compute_flux_edge_veckernel(
                 #if defined MANUAL_GATHER || defined MANUAL_SCATTER
-                    i-flux_loop_start,
+                    simd_idx,
                 #endif
 
                 #ifdef MANUAL_GATHER
@@ -159,21 +175,21 @@ void compute_stream_vecloop(
                     simd_variables_b,
                 #else
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[i],
+                        edge_weights[edge_idx],
                     #endif
-                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                    &variables[edge_nodes[i*2]  *NVAR],
-                    &variables[edge_nodes[i*2+1]*NVAR],
+                    edge_vectors[edge_idx*NDIM], edge_vectors[edge_idx*NDIM+1], edge_vectors[edge_idx*NDIM+2],
+                    &variables[edge_nodes[edge_idx*2]  *NVAR],
+                    &variables[edge_nodes[edge_idx*2+1]*NVAR],
                 #endif
 
-                #ifdef MANUAL_SCATTER
+                #if defined MANUAL_SCATTER
                     simd_fluxes_a, 
                     simd_fluxes_b
                 #elif defined FLUX_FISSION
-                    &edge_variables[i*NVAR]
+                    &edge_variables[edge_idx*NVAR]
                 #else
-                    &fluxes[edge_nodes[i*2  ]*NVAR],
-                    &fluxes[edge_nodes[i*2+1]*NVAR]
+                    &fluxes[edge_nodes[edge_idx*2  ]*NVAR],
+                    &fluxes[edge_nodes[edge_idx*2+1]*NVAR]
                 #endif
                 );
         #endif
@@ -197,35 +213,7 @@ void compute_stream_vecloop(
             }
         } // Close outer loop over SIMD blocks
     #endif
-
-    #if (defined COLOURED_CONFLICT_AVOIDANCE || defined MANUAL_SCATTER) && (!defined FLUX_FISSION)
-        // Compute fluxes of 'remainder' edges without SIMD:
-        #ifdef COLOURED_CONFLICT_AVOIDANCE
-            long remainder_loop_start = serial_section_start;
-            loop_end = first_edge + nedges;
-        #elif defined MANUAL_SCATTER
-            long remainder_loop_start = v_end;
-            loop_end = loop_end_orig;
-        #endif
-        #pragma omp simd safelen(1)
-        for (long i=remainder_loop_start; i<loop_end; i++)
-        {
-            compute_flux_edge_kernel(
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[i],
-                #endif
-                edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                &variables[edge_nodes[i*2]  *NVAR],
-                &variables[edge_nodes[i*2+1]*NVAR],
-                #ifdef FLUX_FISSION
-                    &edge_variables[i*NVAR]
-                #else
-                    &fluxes[edge_nodes[i*2  ]*NVAR],
-                    &fluxes[edge_nodes[i*2+1]*NVAR]
-                #endif
-                );
-        }
-    #endif
+    } // Close outer loop over same handful of edges
 
     #ifdef TIME
     stop_timer();

@@ -38,6 +38,18 @@
 #define UNSTRUCTURED_COMPUTE 7
 #define COMPUTE_STREAM 8
 #define NUM_KERNELS (COMPUTE_STREAM+1)
+static const char * const   kernel_names[] =
+{
+    "compute_step",
+    "compute_flux_edge",
+    "update",
+    "time_step",
+    "restrict",
+    "prolong",
+    "unstructured_stream",
+    "unstructured_compute",
+    "compute_stream"
+};
 
 #define MESH_FVCORR 0
 #define MESH_M6_WING 2

@@ -68,7 +68,7 @@ void stop_timer()
     kernel_times[current_kernel][tid][level] += duration;
 }
 
-void dump_timers_to_file(int size, double total_time)
+void dump_timers_to_file()
 {
     log("dump_timers_to_file() called");
 
@@ -92,27 +92,13 @@ void dump_timers_to_file(int size, double total_time)
         outfile.open(filepath.c_str(), std::ios_base::app);
     }
 
-    std::string header_s;
-    std::string data_line_s;
-    prepare_csv_identification(write_header, &header_s, &data_line_s, size);
-
     if (write_header) {
         std::ostringstream header;
-        header << header_s;
         header << "ThreadNum,";
         header << "CpuId,";
-        for (int l=0; l<levels; l++) {
-            header << "flux" << l << "," ;
-            header << "update" << l << "," ;
-            header << "compute_step" << l << "," ;
-            header << "time_step" << l << "," ;
-            header << "restrict" << l << "," ;
-            header << "prolong" << l << "," ;
-            header << "unstructured_stream" << l << "," ;
-            header << "unstructured_compute" << l << "," ;
-            header << "compute_stream" << l << "," ;
-        }
-        header << "Total," ;
+        header << "MG level," ;
+        header << "Loop," ;
+        header << "Time" ;
         outfile << header.str() << std::endl;
     }
 
@@ -129,26 +115,19 @@ void dump_timers_to_file(int size, double total_time)
         int tid = 0;
     #endif
 
-    std::ostringstream data_line;
-    data_line << data_line_s;
-    data_line << tid << ",";
-    data_line << cpu_id << ",";
-
+    std::ostringstream data_line_id;
+    data_line_id << tid << ",";
+    data_line_id << cpu_id << ",";
     for (int l=0; l<levels; l++) {
-        data_line << kernel_times[COMPUTE_FLUX_EDGE][tid][l] << "," ;
-        data_line << kernel_times[UPDATE][tid][l] << "," ;
-        data_line << kernel_times[COMPUTE_STEP][tid][l] << "," ;
-        data_line << kernel_times[TIME_STEP][tid][l] << "," ;
-        data_line << kernel_times[RESTRICT][tid][l] << "," ;
-        data_line << kernel_times[PROLONG][tid][l] << "," ;
-        data_line << kernel_times[UNSTRUCTURED_STREAM][tid][l] << "," ;
-        data_line << kernel_times[UNSTRUCTURED_COMPUTE][tid][l] << "," ;
-        data_line << kernel_times[COMPUTE_STREAM][tid][l] << "," ;
+        for (int nk=0; nk<NUM_KERNELS; nk++) {
+            std::ostringstream data_line;
+            data_line << data_line_id.str();
+            data_line << l << "," ;
+            data_line << kernel_names[nk] << "," ;
+            data_line << kernel_times[nk][tid][l];
+            outfile << data_line.str() << std::endl;
+        }
     }
-
-    data_line << total_time << "," ;
-
-    outfile << data_line.str() << std::endl;
 
     #if defined OMP
         } // End loop over thread data.

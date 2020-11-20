@@ -121,8 +121,8 @@ void unstructured_stream_vecloop(
                         simd_edge_vectors[2][n] = edge_vectors[(v+n)*NDIM+2];
                     }
                 #endif
-                loop_start = v;
-                loop_end = v+DBLS_PER_SIMD;
+                loop_start = 0;
+                loop_end = DBLS_PER_SIMD;
 
                 #ifdef __clang__
                     #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
@@ -142,6 +142,12 @@ void unstructured_stream_vecloop(
     #endif
     for (long i=loop_start; i<loop_end; i++)
     {
+        #if defined MANUAL_GATHER || defined MANUAL_SCATTER
+            const long edge_idx = v+i;
+            const int simd_idx = i;
+        #else
+            const long edge_idx = i;
+        #endif
         #if defined USE_AVX512CD
             // For Intel AVX-512-CD auto-vectorizer to act, I need to 
             // directly include the kernel source here rather than 
@@ -153,7 +159,7 @@ void unstructured_stream_vecloop(
         #else
             unstructured_stream_veckernel(
                 #if defined MANUAL_GATHER || defined MANUAL_SCATTER
-                    i-loop_start,
+                    simd_idx,
                 #endif
 
                 #if defined MANUAL_GATHER
@@ -165,21 +171,21 @@ void unstructured_stream_vecloop(
                     simd_variables_b,
                 #else
                     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[i],
+                        edge_weights[edge_idx],
                     #endif
-                    edge_vectors[i*NDIM], edge_vectors[i*NDIM+1], edge_vectors[i*NDIM+2],
-                    &variables[edge_nodes[i*2]  *NVAR],
-                    &variables[edge_nodes[i*2+1]*NVAR],
+                    edge_vectors[edge_idx*NDIM], edge_vectors[edge_idx*NDIM+1], edge_vectors[edge_idx*NDIM+2],
+                    &variables[edge_nodes[edge_idx*2]  *NVAR],
+                    &variables[edge_nodes[edge_idx*2+1]*NVAR],
                 #endif
 
                 #if defined MANUAL_SCATTER
                     simd_fluxes_a, 
                     simd_fluxes_b
                 #elif defined FLUX_FISSION
-                    &edge_variables[i*NVAR]
+                    &edge_variables[edge_idx*NVAR]
                 #else
-                    &fluxes[edge_nodes[i*2  ]*NVAR],
-                    &fluxes[edge_nodes[i*2+1]*NVAR]
+                    &fluxes[edge_nodes[edge_idx*2  ]*NVAR],
+                    &fluxes[edge_nodes[edge_idx*2+1]*NVAR]
                 #endif
                 );
         #endif

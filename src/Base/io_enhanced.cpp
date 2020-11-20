@@ -945,64 +945,88 @@ bool read_double_array(
     return true;
 }
 
-void prepare_csv_identification(
-    bool write_header,
-    std::string *header_s,
-    std::string *data_line_s,
-    int input_size)
+void write_run_attributes(int input_size)
 {
-    log("prepare_csv_identification() called");
+    log("write_run_attributes() called");
 
-    std::ostringstream header, data_line;
+    // File admin:
+    std::string filepath = std::string(conf.output_file_prefix);
+    if (filepath.size() > 0 && filepath.at(filepath.size()-1) != '/') {
+        filepath += ".";
+    }
+    filepath += "Attributes.csv";
 
-    if (write_header) header << "Size," ;
-    data_line << input_size << "," ;
-
-    if (write_header) header << "Mesh," ;
-    if (mesh_variant == MESH_LA_CASCADE) {
-        data_line << "la_cascade,";
-    } else if (mesh_variant == MESH_ROTOR_37) {
-        data_line << "rotor37,";
-    } else if (mesh_variant == MESH_FVCORR) {
-        data_line << "fvcorr,";
-    } else if (mesh_variant == MESH_M6_WING) {
-        data_line << "m6wing,";
-    } else {
-        data_line << "unknown,";
+    if (file_exists(filepath.c_str())) {
+        std::remove(filepath.c_str());
     }
 
-    if (write_header) header << "MG cycles,";
-    data_line << conf.num_cycles << "," ;
+    bool write_header = !file_exists(filepath.c_str());
 
-    if (write_header) header << "Flux options,";
+    std::ofstream outfile;
+    if (write_header) {
+        outfile.open(filepath.c_str(), std::ios_base::out);
+    } else {
+        outfile.open(filepath.c_str(), std::ios_base::app);
+    }
+
+    if (write_header) {
+        std::ostringstream header;
+        header << "Attribute,Value";
+        outfile << header.str() << std::endl;
+    }
+
+    std::ostringstream line;
+
+    outfile << "Size," << input_size;
+    outfile << std::endl;
+
+    outfile << "Mesh," ;
+    if (mesh_variant == MESH_LA_CASCADE) {
+        outfile << "la_cascade";
+    } else if (mesh_variant == MESH_ROTOR_37) {
+        outfile << "rotor37";
+    } else if (mesh_variant == MESH_FVCORR) {
+        outfile << "fvcorr";
+    } else if (mesh_variant == MESH_M6_WING) {
+        outfile << "m6wing";
+    } else {
+        outfile << "unknown";
+    }
+    outfile << std::endl;
+
+    outfile << "MG cycles," << conf.num_cycles;
+    outfile << std::endl;
+
+    outfile << "Flux options,";
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-        data_line << "PrecomputeLength;" ;
+        outfile << "PrecomputeLength;";
     #endif
     #ifdef FLUX_REUSE_DIV
-        data_line << "Reciprocal;" ;
+        outfile << "Reciprocal;";
     #endif
     #ifdef FLUX_REUSE_FACTOR
-        data_line << "ReuseFactor;" ;
+        outfile << "ReuseFactor;";
     #endif
     #ifdef FLUX_REUSE_FLUX
-        data_line << "ReuseFluxes;" ;
+        outfile << "ReuseFluxes;";
     #endif
-    data_line << "," ;
+    outfile << std::endl;
 
-    if (write_header) header << "CC,";
+    outfile << "CC,";
     #ifdef __ICC
-        data_line << "intel" << "," ;
+        outfile << "intel";
     #elif defined __clang__
-        data_line << "clang" << "," ;
+        outfile << "clang";
     #elif defined _CRAYC
-        data_line << "cray" << "," ;
+        outfile << "cray";
     #elif defined __GNUC__
-        data_line << "gnu" << "," ;
+        outfile << "gnu";
     #else
-        data_line << "UNKNOWN," ;
+        outfile << "UNKNOWN";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "CC version,";
+    outfile << "CC version,";
     #ifdef __ICC
         int intel_update_minor = __INTEL_COMPILER_UPDATE;
         if (__ICC == 1900) {
@@ -1020,112 +1044,123 @@ void prepare_csv_identification(
                 intel_update_minor = -1;
             }
         }
-        data_line << XMACRO_TO_STR(__ICC) << "u" << intel_update_minor << "," ;
+        outfile << XMACRO_TO_STR(__ICC) << "u" << intel_update_minor;
     #elif defined __clang__
-        data_line << XMACRO_TO_STR(__clang_major__) << "." << XMACRO_TO_STR(__clang_minor__) << "." << XMACRO_TO_STR(__clang_patchlevel__) << "," ;
+        outfile << XMACRO_TO_STR(__clang_major__) << "." << XMACRO_TO_STR(__clang_minor__) << "." << XMACRO_TO_STR(__clang_patchlevel__);
     #elif defined _CRAYC
-        data_line << XMACRO_TO_STR(_RELEASE) << "." << XMACRO_TO_STR(_RELEASE_MINOR) << "," ;
+        outfile << XMACRO_TO_STR(_RELEASE) << "." << XMACRO_TO_STR(_RELEASE_MINOR);
     #elif defined __GNUC__
-        data_line << XMACRO_TO_STR(__GNUC__) << "." << XMACRO_TO_STR(__GNUC_MINOR__) << "." << XMACRO_TO_STR(__GNUC_PATCHLEVEL__) << "," ;
+        outfile << XMACRO_TO_STR(__GNUC__) << "." << XMACRO_TO_STR(__GNUC_MINOR__) << "." << XMACRO_TO_STR(__GNUC_PATCHLEVEL__);
     #else
-        data_line << "UNKNOWN," ;
+        outfile << "UNKNOWN";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Opt level," ;
+    outfile << "Opt level," ;
     #ifdef OPT_LEVEL
-        data_line << XMACRO_TO_STR(OPT_LEVEL) << "," ;
+        outfile << XMACRO_TO_STR(OPT_LEVEL);
     #else
-        data_line << "3" << "," ;
+        outfile << "3";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Instruction set," ;
+    outfile << "Instruction set," ;
     #ifdef INSN_SET
-        data_line << XMACRO_TO_STR(INSN_SET) << "," ;
+        outfile << XMACRO_TO_STR(INSN_SET);
     #else
-        data_line << "UNKNOWN," ;
+        outfile << "UNKNOWN" ;
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Precise FP,";
+    outfile << "FP mode,";
     #ifdef PRECISE_FP
-        data_line << "Y,";
+        outfile << "strict";
     #else
-        data_line << "N,";
+        outfile << "fast";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "SIMD," ;
+    outfile << "SIMD," ;
     #ifdef SIMD
-        data_line << "Y,";
+        outfile << "Y";
     #else
-        data_line << "N,";
+        outfile << "N";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "SIMD conflict avoidance strategy," ;
+    outfile << "SIMD conflict avoidance strategy," ;
     #ifdef COLOURED_CONFLICT_AVOIDANCE
         #ifdef BIN_COLOURED_VECTORS
-            data_line << "ColouredEdgeVectors,";
+            outfile << "ColouredEdgeVectors";
         #elif defined BIN_COLOURED_CONTIGUOUS
-            data_line << "ColouredEdgesContiguous,";
+            outfile << "ColouredEdgesContiguous";
         #else
-            data_line << "None,";
+            outfile << "None";
         #endif
     #elif (defined MANUAL_GATHER) && (defined MANUAL_SCATTER)
-        data_line << "ManualGatherScatter,";
+        outfile << "ManualGatherScatter";
     #elif defined MANUAL_GATHER
-        data_line << "ManualGather,";
+        outfile << "ManualGather";
     #elif defined MANUAL_SCATTER
-        data_line << "ManualScatter,";
+        outfile << "ManualScatter";
     #else
-        data_line << "None,";
+        outfile << "None";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "SIMD len," ;
+    outfile << "SIMD len," ;
     #ifdef DBLS_PER_SIMD
-        data_line << DBLS_PER_SIMD << ",";
+        outfile << DBLS_PER_SIMD;
     #else
-        data_line << "1," ;
+        outfile << "1" ;
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "OpenMP," ;
+    outfile << "OpenMP," ;
     #ifdef OMP
-        data_line << "Strong," ;
+        outfile << "Strong" ;
     #else
-        data_line << "Off," ;
+        outfile << "Off" ;
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Num threads," ;
+    outfile << "Num threads," ;
     #if defined OMP
         int num_threads = conf.omp_num_threads;
     #else
         int num_threads = 1;
     #endif
-    data_line << number_to_string(num_threads) + ",";
+    outfile << number_to_string(num_threads);
+    outfile << std::endl;
 
-    if (write_header) header << "Permit scatter OpenMP," ;
+    outfile << "Permit scatter OpenMP," ;
     #ifdef OMP_SCATTERS
-        data_line << "Y,";
+        outfile << "Y";
     #else
-        data_line << "N,";
+        outfile << "N";
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Flux fission," ;
+    outfile << "Flux fission," ;
     #ifdef FLUX_FISSION
-        data_line << "Y," ;
+        outfile << "Y" ;
     #else
-        data_line << "N," ;
+        outfile << "N" ;
     #endif
+    outfile << std::endl;
 
-    if (write_header) header << "Renumber," ;
+    outfile << "Renumber," ;
     if (conf.renumber_mesh)
-        data_line << "Y," ;
+        outfile << "Y" ;
     else
-        data_line << "N," ;
+        outfile << "N" ;
+    outfile << std::endl;
 
+    outfile << "CPU," ;
+    outfile << get_cpu_model_name();
+    outfile << std::endl;
+    
+    outfile.close();
 
-    if (write_header) header << "CPU," ;
-    data_line << get_cpu_model_name() << "," ;
-
-    (*header_s) = header.str();
-    (*data_line_s) = data_line.str();
-
-    log("prepare_csv_identification() complete");
+    log("write_run_attributes() complete");
 }

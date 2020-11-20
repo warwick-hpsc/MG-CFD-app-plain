@@ -13,7 +13,7 @@ void start_timer();
 
 void stop_timer();
 
-void dump_timers_to_file(int size, double total_time);
+void dump_timers_to_file();
 
 #endif
 
