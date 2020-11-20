@@ -36,9 +36,12 @@ if not assembly_analyser_dirpath is None:
 
 compile_info = {}
 
-essential_colnames = ["CPU", "CC", "CC version", "Instruction set"]
-essential_colnames += ["Event"]
-essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
+essential_colnames = []
+# essential_colnames += ["CPU", "CC", "CC version", "Instruction set"]
+# essential_colnames += ["Event"]
+# essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
+
+key_loops = ["compute_flux_edge", "unstructured_stream", "compute_stream"]
 
 possible_data_colnames = ["Time", "Count", "NumIters", "Value"]
 
@@ -81,8 +84,13 @@ def safe_pd_filter(df, field, value):
     if not field in df.columns.values:
         print("WARNING: field '{0}' not in df".format(field))
         return df
-    df = df[df[field]==value]
-    df = df.drop(field, axis=1)
+    if isinstance(value, list):
+        if len(value) == 0:
+            raise Exception("No values to filter on")
+        df = df[df[field].isin(value)].copy()
+    else:
+        df = df[df[field]==value]
+        df = df.drop(field, axis=1)
     nrows = df.shape[0]
     if nrows == 0:
         raise Exception("No rows left after filter: '{0}' == '{1}'".format(field, value))
@@ -163,6 +171,8 @@ def calc_ins_per_iter(output_dirpath, kernel):
         kernel = "unstructured_stream"
     elif "unstructured_compute" in kernel:
         kernel = "unstructured_compute"
+    elif "compute_stream" in kernel:
+        kernel = "compute_stream"
     ins_per_iter = -1
 
     papi_filepath = os.path.join(output_dirpath, "PAPI.csv")
@@ -313,10 +323,12 @@ def analyse_object_files():
                 loop_to_object["compute_flux_edge_vecloop"] = "flux_vecloops.o"
                 loop_to_object["unstructured_stream_vecloop"] = "unstructured_stream_vecloop.o"
                 loop_to_object["unstructured_compute_vecloop"] = "unstructured_compute_vecloop.o"
+                loop_to_object["compute_stream_vecloop"] = "compute_stream_vecloop.o"
             else:
                 loop_to_object["compute_flux_edge_loop"] = "flux_loops.o"
                 loop_to_object["unstructured_stream_loop"] = "unstructured_stream_loop.o"
                 loop_to_object["unstructured_compute_loop"] = "unstructured_compute_loop.o"
+                loop_to_object["compute_stream_loop"] = "compute_stream_loop.o"
 
             if "manual" in compile_info["SIMD CA scheme"].lower():
                 if compile_info["compiler"] == "clang":
@@ -625,7 +637,7 @@ def aggregate():
         df_std_pct = safe_frame_divide(df_std, df_run_means)
 
         for pe in Set(df_run_sums["Event"]):
-            df_run_sums.loc[df_run_sums["Event"]==pe, "Event"] = pe+".THREADS_SUM"
+            df_run_sums.loc[df_run_sums["Event"]==pe, "Event"] = pe
         for pe in Set(df_run_maxs["Event"]):
             df_run_maxs.loc[df_run_maxs["Event"]==pe, "Event"] = pe+".THREADS_MAX"
         for pe in Set(df_run_means["Event"]):
@@ -638,7 +650,7 @@ def aggregate():
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
         df_std_pct.to_csv(out_filepath, index=False)
 
-def count_flux_fp_ins():
+def count_fp_ins():
     insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")
     if not os.path.isfile(insn_df_filepath):
         return None
@@ -664,60 +676,26 @@ def count_flux_fp_ins():
     ]
 
     insn_df = clean_pd_read_csv(os.path.join(insn_df_filepath))
-    fp_df = safe_pd_filter(insn_df, "Loop", "compute_flux_edge")
-    # fp_df["FLOPs/iter"] = 0
-    # fp_df["FP ins/iter"] = 0
-    # for colname in fp_df.columns.values:
-    #     if colname.startswith("insn."):
-    #         insn = colname.replace("insn.", "")
-    #         fp_detected = False
-    #         for f in intel_fp_insns:
-    #             if re.match(f, insn):
-    #                 fp_df["FLOPs/iter"]  += fp_df[colname]
-    #                 fp_df["FP ins/iter"] += fp_df[colname]
-    #                 fp_detected = True
-    #                 break
-    #         if not fp_detected:
-    #             for f in intel_fp_fma_insns:
-    #                 if re.match(f, insn):
-    #                     fp_df["FLOPs/iter"]  += 2*fp_df[colname]
-    #                     fp_df["FP ins/iter"] +=   fp_df[colname]
-    #                     fp_detected = True
-    #                     break
-    #         if not fp_detected:
-    #             for f in aarch64_fp_insns:
-    #                 if re.match(f, insn):
-    #                     fp_df["FLOPs/iter"]  += fp_df[colname]
-    #                     fp_df["FP ins/iter"] += fp_df[colname]
-    #                     fp_detected = True
-    #                     break
-    #         if not fp_detected:
-    #             for f in aarch64_fp_fma_insns:
-    #                 if re.match(f, insn):
-    #                     fp_df["FLOPs/iter"]  += 2*fp_df[colname]
-    #                     fp_df["FP ins/iter"] +=   fp_df[colname]
-    #                     fp_detected = True
-    #                     break
-    #         fp_df = fp_df.drop(colname, axis=1)
+    fp_df = safe_pd_filter(insn_df, "Loop", key_loops)
 
     fp_df["FLOPs/iter"] = 0
     fp_df["FP ins/iter"] = 0
     for f in intel_fp_insns:
         f = fp_df["Instruction"].str.match(f)
-        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]
-        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FLOPs/iter"]  = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FP ins/iter"] = fp_df.loc[f,"Count"]
     for f in intel_fp_fma_insns:
         f = fp_df["Instruction"].str.match(f)
-        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]*2
-        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FLOPs/iter"]  = fp_df.loc[f,"Count"]*2
+        fp_df.loc[f,"FP ins/iter"] = fp_df.loc[f,"Count"]
     for f in aarch64_fp_insns:
         f = fp_df["Instruction"].str.match(f)
-        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]
-        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FLOPs/iter"]  = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FP ins/iter"] = fp_df.loc[f,"Count"]
     for f in aarch64_fp_fma_insns:
         f = fp_df["Instruction"].str.match(f)
-        fp_df.loc[f,"FLOPs/iter"] = fp_df.loc[f,"Count"]*2
-        fp_df.loc[f,"FP ins/iter"]    = fp_df.loc[f,"Count"]
+        fp_df.loc[f,"FLOPs/iter"]  = fp_df.loc[f,"Count"]*2
+        fp_df.loc[f,"FP ins/iter"] = fp_df.loc[f,"Count"]
 
     fp_df = fp_df.drop(["Instruction", "Count"], axis=1)
     grp_colnames = [c for c in fp_df.columns.values if not c in ["FLOPs/iter", "FP ins/iter"] ]
@@ -770,137 +748,104 @@ def combine_all():
                 iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
         flux_iters_df = safe_pd_filter(iters_df, "Loop", "compute_flux_edge")
 
-        flux_fp_counts = count_flux_fp_ins()
-        if not flux_fp_counts is None:
+        fp_counts = count_fp_ins()
+        if not fp_counts is None:
             ## Calculate GFLOPs
-            flux_flops_total = safe_pd_merge(flux_iters_df, flux_fp_counts.drop("FP ins/iter", axis=1), "many_to_one")
-            flux_flops_total["Metric"] = "GFLOPs"
-            flux_flops_total["Value"] = flux_flops_total["FLOPs/iter"] * flux_flops_total["NumIters"] / 1e9
-            flux_flops_total.drop(["NumIters", "FLOPs/iter"], axis=1, inplace=True)
-            flux_flops_total["Loop"] = "compute_flux_edge"
+            flops_total = fp_counts.drop("FP ins/iter", axis=1).merge(flux_iters_df)
+            flops_total["Metric"] = "GFLOPs"
+            flops_total["Value"] = flops_total["FLOPs/iter"] * flops_total["NumIters"] / 1e9
+            flops_total.drop(["NumIters", "FLOPs/iter"], axis=1, inplace=True)
             if data_all is None:
-                data_all = flux_flops_total
+                data_all = flops_total
             else:
-                data_all = safe_pd_append(data_all, flux_flops_total)
+                data_all = safe_pd_append(data_all, flops_total)
             metrics.append("GFLOPs")
 
             if "PAPI_TOT_CYC.THREADS_MAX" in metrics:
                 ## Calculate IPC of FP instructions:
-                flux_fp_total = safe_pd_merge(flux_iters_df, flux_fp_counts.drop("FLOPs/iter", axis=1), "many_to_one")
-                # flux_fp_total["Metric"] = "FP total"
-                flux_fp_total["Value"] = flux_fp_total["FP ins/iter"] * flux_fp_total["NumIters"]
-                flux_fp_total.drop(["NumIters", "FP ins/iter"], axis=1, inplace=True)
-                flux_fp_total["Loop"] = "compute_flux_edge"
+                fp_total = fp_counts.drop("FLOPs/iter", axis=1).merge(flux_iters_df)
+                fp_total["Metric"] = "FP total"
+                fp_total["Value"] = fp_total["FP ins/iter"] * fp_total["NumIters"]
+                fp_total.drop(["NumIters", "FP ins/iter"], axis=1, inplace=True)
 
-                # cyc_data = data_all[data_all["Metric"]=="PAPI_TOT_CYC.THREADS_SUM"]
-                cyc_data = safe_pd_filter(data_all, "Metric", "PAPI_TOT_CYC.THREADS_SUM")
-                flux_cyc_data = safe_pd_filter(cyc_data, "Loop", "compute_flux_edge")
-                flux_cyc_data["Loop"] = "compute_flux_edge"
-                fp_ipc = safe_frame_divide(flux_fp_total, flux_cyc_data)
-                data_colnames = get_data_colnames(fp_ipc)
-                fp_ipc[data_colnames] = fp_ipc[data_colnames]
+                cyc_data = safe_pd_filter(data_all, "Metric", "PAPI_TOT_CYC")
+                cyc_data = safe_pd_filter(cyc_data, "Loop", key_loops)
+                fp_ipc = safe_frame_divide(fp_total, cyc_data)
                 fp_ipc["Metric"] = "FP IPC"
                 data_all = safe_pd_append(data_all, fp_ipc)
                 metrics.append("FP IPC")
 
             ## Append FP ins/iter:
-            flux_FpInsPerIter = flux_fp_counts.drop("FLOPs/iter", axis=1)
-            flux_FpInsPerIter["Metric"] = "FP ins/iter"
-            flux_FpInsPerIter["Loop"] = "compute_flux_edge"
-            flux_FpInsPerIter = flux_FpInsPerIter.rename(index=str, columns={"FP ins/iter":"Value"})
+            fpInsPerIter = fp_counts.drop("FLOPs/iter", axis=1)
+            fpInsPerIter["Metric"] = "FP ins/iter"
+            fpInsPerIter = fpInsPerIter.rename(index=str, columns={"FP ins/iter":"Value"})
             # Metric 'FP ins/iter' is invariant to MG level, but appending to 'data_all' requires it, 
             # so need to add a level column:
-            flux_FpInsPerIter["MG level"] = 0
-            data_all = safe_pd_append(data_all, flux_FpInsPerIter)
+            fpInsPerIter["MG level"] = 0
+            data_all = safe_pd_append(data_all, fpInsPerIter)
 
-    if "Runtime" in metrics and "dram read GB.THREADS_SUM" in metrics:
-        ## Calculate GB_SUM/sec
+    if "Runtime" in metrics and "dram read GB" in metrics:
+        ## Calculate GB/sec
         runtime_data = data_all[data_all["Metric"]=="Runtime"]
-        gb_data = data_all[data_all["Metric"]=="dram read GB.THREADS_SUM"]
-        # runtime_data = runtime_data.rename(index=str, columns={"Value":"Runtime"})
-        # runtime_data = runtime_data.drop("Metric", axis=1)
-        # gb_data = gb_data.drop("Metric", axis=1)
-        # gb_data = gb_data.merge(runtime_data, validate="one_to_one")
-        # f = gb_data["Runtime"] != 0.0
-        # gb_data.loc[f,"Value"] /= gb_data.loc[f,"Runtime"]
-        # gb_data = gb_data.drop("Runtime", axis=1)
+        gb_data = data_all[data_all["Metric"]=="dram read GB"]
         gbsec_data = safe_frame_divide(gb_data, runtime_data.drop("Metric", axis=1))
-        gbsec_data["Metric"] = "dram read GB.THREADS_SUM/sec"
+        gbsec_data["Metric"] = "dram read GB/sec"
         data_all = safe_pd_append(data_all, gbsec_data)
     if "Runtime" in metrics and "GFLOPs" in metrics:
         ## Calculate GFLOPs/sec
-        runtime_data = data_all[data_all["Metric"]=="runtime"]
+        runtime_data = data_all[data_all["Metric"]=="Runtime"]
         gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
         gflops_data = safe_frame_divide(gflops_data, runtime_data.drop("Metric", axis=1))
-        gflops_data[data_colnames] = gflops_data[data_colnames]
         gflops_data["Metric"] = "GFLOPs/sec"
         data_all = safe_pd_append(data_all, gflops_data)
-    f = np.logical_and( data_all["Run ID"]==1, data_all["Loop"]=="compute_flux_edge")
-    f = np.logical_and(f, data_all["MG level"] == 0.0)
-    print(data_all[f])
-    raise Exception("CONTINUE FROM HERE")
-    if "GFLOPs" in metrics and "dram read GB.THREADS_SUM" in metrics:
+    if "GFLOPs" in metrics and "dram read GB" in metrics:
         ## Calculate Flops/Byte
         gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
-        gb_data = data_all[data_all["Metric"]=="dram read GB.THREADS_SUM"]
-        data_colnames = get_data_colnames(gflops_data)
-        renames = {}
-        for x in data_colnames:
-            renames[x] = x+"_gb"
-        gb_data = gb_data.rename(index=str, columns=renames)
-        gb_data = gb_data.drop("Metric", axis=1)
-        gflops_data = gflops_data.drop("Metric", axis=1)
-        gflops_data = gflops_data.merge(gb_data, validate="one_to_one")
-        for cn in data_colnames:
-            f = gflops_data[cn+"_gb"] != 0.0
-            gflops_data.loc[f,cn] /= gflops_data.loc[f,cn+"_gb"]
-            f = gflops_data[cn+"_gb"] == 0.0
-            gflops_data.loc[f,cn] = 0.0
-            gflops_data = gflops_data.drop(cn+"_gb", axis=1)
-        ## Todo: test: the line below should produce the same result as block above
-        # gflops_data = safe_frame_divide(gflops_data, gb_data.drop("Metric", axis=1))
-        gflops_data["Metric"] = "Flops/Byte"
-        data_all = safe_pd_append(data_all, gflops_data)
-    if "runtime" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
+        gb_data = data_all[data_all["Metric"]=="dram read GB"]
+        arith_intensity_data = safe_frame_divide(gflops_data, gb_data.drop("Metric", axis=1))
+        arith_intensity_data["Metric"] = "Flops/Byte"
+        data_all = safe_pd_append(data_all, arith_intensity_data)
+    if "Runtime" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate GHz
-        cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_MAX"]
-        runtime_data = data_all[data_all["metric"]=="runtime"].copy()
-        ghz = safe_frame_divide(cyc_data, runtime_data.drop("metric", axis=1))
-        ghz[get_data_colnames(runtime_data)] /= 1e9
-        ghz["metric"] = "GHz"
-        ghz[data_colnames] = ghz[data_colnames]
+        cyc_data = data_all[data_all["Metric"]=="PAPI_TOT_CYC.THREADS_MAX"]
+        runtime_data = data_all[data_all["Metric"]=="Runtime"]
+        ghz = safe_frame_divide(cyc_data, runtime_data.drop("Metric", axis=1))
+        ghz["Value"] /= 1e9
+        ghz["Metric"] = "GHz"
         data_all = safe_pd_append(data_all, ghz)
     if "GFLOPs" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate flops/cycle
         # cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_MAX"]
-        cyc_data = data_all[data_all["metric"]=="PAPI_TOT_CYC.THREADS_SUM"]
-        gflops_data = data_all[data_all["metric"]=="GFLOPs"].copy()
-        flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("metric", axis=1))
-        flops_per_cyc[get_data_colnames(flops_per_cyc)] *= 1e9
-        flops_per_cyc["metric"] = "Flops/Cycle"
-        flops_per_cyc[data_colnames] = flops_per_cyc[data_colnames]
+        cyc_data = data_all[data_all["Metric"]=="PAPI_TOT_CYC"]
+        gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
+        flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("Metric", axis=1))
+        flops_per_cyc["Value"] *= 1e9
+        flops_per_cyc["Metric"] = "Flops/Cycle"
         data_all = safe_pd_append(data_all, flops_per_cyc)
 
-    # Drop Events:
-    f = data_all["metric"].str.contains("PAPI_")
+    # Drop runtime:
+    f = data_all["Metric"] == "Runtime"
     data_all = data_all[np.logical_not(f)]
 
-    # Drop GFLOPs:
-    data_all = data_all[data_all["metric"]!="GFLOPs"]
+    # Drop PAPI events:
+    f = data_all["Metric"].str.contains("PAPI_")
+    data_all = data_all[np.logical_not(f)]
+
+    # Drop intermediate derivations from PAPI events:
+    data_all = data_all[data_all["Metric"]!="GFLOPs"]
+    data_all = data_all[data_all["Metric"]!="dram read GB"]
+    data_all = data_all[data_all["Metric"]!="dram read GB.THREADS_MAX"]
+    data_all = data_all[data_all["Metric"]!="dram read GB.THREADS_MEAN"]
 
     # Round to N significant figures:
     N=3
     # N=2
-    data_colnames = get_data_colnames(data_all)
-    for dc in data_colnames:
-        f = data_all[dc]!=0.0
-        data_all.loc[f,dc] = data_all.loc[f,dc].apply(lambda x: round(x, N-1-int(floor(log10(abs(x))))))
+    f = data_all["Value"]!=0.0
+    data_all.loc[f,"Value"] = data_all.loc[f,"Value"].apply(lambda x: round(x, N-1-int(floor(log10(abs(x))))))
 
     # Reorder columns like so: <job id columns>, <flux() columns>, <all other kernel columns>
     data_colnames = get_data_colnames(data_all)
-    flux_data_colnames = [c for c in data_colnames if c.startswith("flux")]
-    other_data_colnames = [c for c in data_colnames if not c.startswith("flux")]
-    data_all = data_all[get_job_id_colnames(data_all)+flux_data_colnames+other_data_colnames]
+    data_all = data_all[get_job_id_colnames(data_all)+data_colnames]
 
     if "Flux options" in data_all.columns.values:
         data_all = data_all[data_all["Flux options"]==""]
@@ -911,7 +856,7 @@ def combine_all():
         data_all.drop("Flux variant", axis=1, inplace=True)
 
     if not data_all is None:
-        data_all.to_csv(os.path.join(prepared_output_dirpath, "all-data-combined.csv"), index=False)
+        data_all.to_csv(os.path.join(prepared_output_dirpath, "Performance-Metrics-(derived).csv"), index=False)
 
 if not assembly_analyser_dirpath is None:
     analyse_object_files()
