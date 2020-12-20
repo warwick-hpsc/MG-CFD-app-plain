@@ -488,7 +488,9 @@ def collate_csvs():
         else:
             variant_atts.append(k)
     att_pruned_df = att_df.loc[att_df["Attribute"].isin(list(Set(variant_atts).union(essential_colnames)))]
-    if att_pruned_df.shape[0] > 0:
+    if att_pruned_df.shape[0] == 0:
+        agg_dfs["Attributes"] = None
+    else:
         agg_dfs["Attributes"] = att_pruned_df
 
     att_df = agg_dfs["Attributes"]
