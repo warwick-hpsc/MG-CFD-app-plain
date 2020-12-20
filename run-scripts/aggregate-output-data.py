@@ -488,26 +488,28 @@ def collate_csvs():
         else:
             variant_atts.append(k)
     att_pruned_df = att_df.loc[att_df["Attribute"].isin(list(Set(variant_atts).union(essential_colnames)))]
-    if att_pruned_df.shape[0] > 0:
+    if att_pruned_df.shape[0] == 0:
+        agg_dfs["Attributes"] = None
+    else:
         agg_dfs["Attributes"] = att_pruned_df
 
-    att_df = agg_dfs["Attributes"]
-    att_df = att_df.pivot(columns='Attribute', index='Run ID', values='Value')
-    att_df = att_df.reset_index()
+        att_df = agg_dfs["Attributes"]
+        att_df = att_df.pivot(columns='Attribute', index='Run ID', values='Value')
+        att_df = att_df.reset_index()
 
-    invariant_atts = list(Set(invariant_atts).intersection(att_df.columns.values))
-    variant_atts = list(Set(variant_atts).intersection(att_df.columns.values))
+        invariant_atts = list(Set(invariant_atts).intersection(att_df.columns.values))
+        variant_atts = list(Set(variant_atts).intersection(att_df.columns.values))
 
-    ## Now combine attributes with the other tables:
-    for cat in list(Set(cats).difference(["Attributes"])):
-        if not agg_dfs[cat] is None:
-            agg_dfs[cat] = agg_dfs[cat].merge(att_df)
+        ## Now combine attributes with the other tables:
+        for cat in list(Set(cats).difference(["Attributes"])):
+            if not agg_dfs[cat] is None:
+                agg_dfs[cat] = agg_dfs[cat].merge(att_df)
 
-            data_colnames = [c for c in agg_dfs[cat].columns.values if not c in att_df.columns.values]
-            new_col_ordering = ["Run ID"] + invariant_atts + variant_atts + data_colnames
-            if len(new_col_ordering) != len(agg_dfs[cat].columns.values):
-                raise Exception("New column ordering has missing/additional columns")
-            agg_dfs[cat] = agg_dfs[cat][new_col_ordering]
+                data_colnames = [c for c in agg_dfs[cat].columns.values if not c in att_df.columns.values]
+                new_col_ordering = ["Run ID"] + invariant_atts + variant_atts + data_colnames
+                if len(new_col_ordering) != len(agg_dfs[cat].columns.values):
+                    raise Exception("New column ordering has missing/additional columns")
+                agg_dfs[cat] = agg_dfs[cat][new_col_ordering]
 
     for cat in cats:
         if not agg_dfs[cat] is None:
@@ -529,12 +531,13 @@ def aggregate():
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
         df = df[job_id_colnames + data_colnames]
-
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
-        df_agg = df.groupby(get_job_id_colnames(df))
+        df_agg = df.groupby(job_id_colnames)
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         df_mean = df_mean[job_id_colnames + data_colnames]
@@ -566,9 +569,10 @@ def aggregate():
                 df = df.drop("ThreadNum", axis=1)
             job_id_colnames = get_job_id_colnames(df)
             data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+            if "Run ID" in job_id_colnames:
+                job_id_colnames.remove("Run ID")
 
             df = df[job_id_colnames + data_colnames]
-
             df_agg = df.groupby(job_id_colnames)
 
             df_mean = df_agg.mean().reset_index()
@@ -583,12 +587,13 @@ def aggregate():
         df["Metric"] = "#iterations"
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
-
-        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
         df = df[job_id_colnames + data_colnames]
+        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
-        df_agg = df.groupby(get_job_id_colnames(df))
+        df_agg = df.groupby(job_id_colnames)
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         ## Next, compute sum and max across threads within each run:
@@ -613,8 +618,10 @@ def aggregate():
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
-        ## Exclude zero values from statistics:
+        df = df[job_id_colnames + data_colnames]
         df[data_colnames] = df[data_colnames].replace(0.0, np.NaN)
 
         df_grps = df.groupby(job_id_colnames)
@@ -624,7 +631,7 @@ def aggregate():
 
         ## Next, compute sum and max across threads within each run:
         if "ThreadNum" in df.columns.values:
-            del job_id_colnames[job_id_colnames.index("ThreadNum")]
+            job_id_colnames.remove("ThreadNum")
             df_thread_means = df_thread_means.drop("ThreadNum", axis=1)
 
         df_grps = df_thread_means.groupby(job_id_colnames)
@@ -831,6 +838,8 @@ def combine_all():
 
     # Drop PAPI events:
     f = data_all["Metric"].str.contains("PAPI_")
+    data_all = data_all[np.logical_not(f)]
+    f = data_all["Metric"].str.contains("OFFCORE_")
     data_all = data_all[np.logical_not(f)]
 
     # Drop intermediate derivations from PAPI events:
