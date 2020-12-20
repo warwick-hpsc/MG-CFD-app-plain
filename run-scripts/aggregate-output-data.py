@@ -837,6 +837,8 @@ def combine_all():
     # Drop PAPI events:
     f = data_all["Metric"].str.contains("PAPI_")
     data_all = data_all[np.logical_not(f)]
+    f = data_all["Metric"].str.contains("OFFCORE_")
+    data_all = data_all[np.logical_not(f)]
 
     # Drop intermediate derivations from PAPI events:
     data_all = data_all[data_all["Metric"]!="GFLOPs"]
