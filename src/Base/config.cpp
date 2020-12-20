@@ -29,6 +29,29 @@
 
 config conf;
 
+struct option long_opts[] = {
+    { "help",                 no_argument,       NULL, 'h' },
+    { "config-filepath",      required_argument, NULL, 'c' },
+    { "input-file",           required_argument, NULL, 'i' },
+    { "input-directory",      required_argument, NULL, 'd' },
+    { "papi_config_file",     required_argument, NULL, 'p' },
+    { "output-file-prefix",   required_argument, NULL, 'o' },
+    { "mesh-duplicate-count", required_argument, NULL, 'm' },
+    { "num-cycles",           required_argument, NULL, 'g' },
+    { "validate-result",      no_argument,       NULL, 'v' },
+    { "renumber",             no_argument,       NULL, 'r' },
+
+    { "measure-mem-bound",    no_argument,       NULL, 'b' },
+    {"measure-compute-bound", no_argument,       NULL, 'f' },
+    { "perform-uns-compute",  no_argument,       NULL, 'u' },
+
+    { "output-variables",     no_argument,       (int*)&conf.output_variables,    1 },
+    { "output-fluxes",        no_argument,       (int*)&conf.output_fluxes,       1 },
+    { "output-step-factors",  no_argument,       (int*)&conf.output_step_factors, 1 },
+    {NULL, 0, NULL, 0} 
+};
+#define GETOPTS "hc:i:d:p:o:m:g:vrbfu"
+
 void set_config_defaults() {
     conf.config_filepath = (char*)malloc(sizeof(char));
     conf.config_filepath[0] = '\0';
@@ -45,7 +68,13 @@ void set_config_defaults() {
 
     conf.num_cycles = 25;
 
+    conf.renumber_mesh = false;
+
     conf.validate_result = false;
+
+    conf.measure_mem_bound = false;
+    conf.measure_compute_bound = false;
+    conf.perform_uns_compute = false;
 
     #ifdef OMP
     conf.omp_num_threads = omp_get_max_threads();
@@ -231,6 +260,18 @@ bool parse_arguments(int argc, char** argv) {
                 break;
             case 'v':
                 conf.validate_result = true;
+                break;
+            case 'b':
+                conf.measure_mem_bound = true;
+                break;
+            case 'f':
+                conf.measure_compute_bound = true;
+                break;
+            case 'u':
+                conf.perform_uns_compute = true;
+                break;
+            case 'r':
+                conf.renumber_mesh = true;
             case '\0':
                 break;
             default:
@@ -280,6 +321,18 @@ void print_help(void)
     fprintf(stderr, "  -g, --num-cycles=INT             Number of multigrid V-cycles\n");
     fprintf(stderr, "  -m, --mesh-duplicate-count=INT   Number of times to duplicate mesh\n");
     fprintf(stderr, "  -v, --validate-result            Check final state against pre-calculated solution\n");
+    fprintf(stderr, "  -r, --renumber                   Renumber mesh nodes using RCM\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "SYNTHETIC KERNELS\n");
+    fprintf(stderr, "  -b, --measure-mem-bound\n");
+    fprintf(stderr, "        run synthetic kernel 'unstructured_stream' to measure\n");
+    fprintf(stderr, "        memory bound of 'compute_flux_edge' kernel\n");
+    fprintf(stderr, "  -f, --measure-compute-bound\n");
+    fprintf(stderr, "        run synthetic kernel 'compute_stream' to measure\n");
+    fprintf(stderr, "        compute bound of 'compute_flux_edge' kernel\n");
+    fprintf(stderr, "  -u, --perform-uns-compute\n");
+    fprintf(stderr, "        run synthetic kernel 'unstructured_compute' which has \n");
+    fprintf(stderr, "        approximately 50%% of flops in 'compute_flux_edge' kernel\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "DEBUGGING ARGUMENTS\n");
     fprintf(stderr, "  --output-variables               Write Euler equation variable values to file\n");

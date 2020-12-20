@@ -2,7 +2,6 @@
 // This code is from the AIAA-2009-4001 paper
 
 #include <stdlib.h>
-#include <cmath>
 
 #include "cfd_loops.h"
 
@@ -12,7 +11,7 @@
 
 // Original step factor calculation from rodinia/cfd
 void compute_step_factor_legacy(
-    int nel, 
+    long nel, 
     const double *restrict variables, 
     const double *restrict volumes, 
     double *restrict step_factors)
@@ -20,8 +19,8 @@ void compute_step_factor_legacy(
     log("compute_step_factor()");
     current_kernel = COMPUTE_STEP;
 
-    int loop_start = 0;
-    int loop_end = nel;
+    long loop_start = 0;
+    long loop_end = nel;
 
     #ifdef OMP
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -35,13 +34,13 @@ void compute_step_factor_legacy(
     #ifdef TIME
     start_timer();
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
-        int p_idx  = NVAR*i + VAR_DENSITY;
-        int mx_idx = NVAR*i + VAR_MOMENTUMX;
-        int my_idx = NVAR*i + VAR_MOMENTUMY;
-        int mz_idx = NVAR*i + VAR_MOMENTUMZ;
-        int pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
+        long p_idx  = NVAR*i + VAR_DENSITY;
+        long mx_idx = NVAR*i + VAR_MOMENTUMX;
+        long my_idx = NVAR*i + VAR_MOMENTUMY;
+        long mz_idx = NVAR*i + VAR_MOMENTUMZ;
+        long pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
 
         double density, density_energy;
         double3 momentum;
@@ -75,7 +74,7 @@ void compute_step_factor_legacy(
 
 // Corrected step factor calculation
 void compute_step_factor(
-    int nel, 
+    long nel, 
     const double *restrict variables, 
     const double *restrict volumes, 
     double *restrict step_factors)
@@ -83,8 +82,8 @@ void compute_step_factor(
     log("compute_step_factor()");
     current_kernel = COMPUTE_STEP;
 
-    int loop_start = 0;
-    int loop_end = nel;
+    long loop_start = 0;
+    long loop_end = nel;
     #ifdef OMP
         #pragma omp parallel firstprivate(loop_start, loop_end)
         {
@@ -96,13 +95,13 @@ void compute_step_factor(
     #ifdef TIME
     start_timer();
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
-        int p_idx  = NVAR*i + VAR_DENSITY;
-        int mx_idx = NVAR*i + VAR_MOMENTUMX;
-        int my_idx = NVAR*i + VAR_MOMENTUMY;
-        int mz_idx = NVAR*i + VAR_MOMENTUMZ;
-        int pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
+        long p_idx  = NVAR*i + VAR_DENSITY;
+        long mx_idx = NVAR*i + VAR_MOMENTUMX;
+        long my_idx = NVAR*i + VAR_MOMENTUMY;
+        long mz_idx = NVAR*i + VAR_MOMENTUMZ;
+        long pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
 
         double density, density_energy;
         double3 momentum;
@@ -137,39 +136,44 @@ void compute_step_factor(
 
     // Sync dt:
     double min_dt = step_factors[0];
-    #pragma omp parallel for reduction(min:min_dt)
-    for (int i=0; i<nel; i++)
+    #ifdef OMP
+        #pragma omp parallel for reduction(min:min_dt)
+    #endif
+    for (long i=0; i<nel; i++)
     {
         if (step_factors[i] < min_dt) {
             min_dt = step_factors[i];
         }
     }
-    #pragma omp parallel for
-    for (int i=0; i<nel; i++)
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
+    for (long i=0; i<nel; i++)
     {
         step_factors[i] = min_dt;
     }
     // Bring forward a division-by-volume performed by time_step():
-    #pragma omp parallel for
-    for (int i=0; i<nel; i++)
+    #ifdef OMP
+        #pragma omp parallel for
+    #endif
+    for (long i=0; i<nel; i++)
     {
         step_factors[i] /= volumes[i];
     }
 }
 
 void update_edges(
-    int first_edge, 
-    int nedges, 
+    long first_edge, 
+    long nedges, 
     const edge_neighbour *restrict edges,
-    int nel,
     const edge *restrict edge_variables,
     double *restrict fluxes)
 {
     log("update_edges()");
     current_kernel = UPDATE;
 
-    int loop_start = first_edge;
-    int loop_end = loop_start + nedges;
+    long loop_start = first_edge;
+    long loop_end = loop_start + nedges;
 
     #if defined OMP && defined OMP_SCATTERS
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -183,9 +187,9 @@ void update_edges(
     #ifdef TIME
     start_timer();
     #endif
-    for (int i=loop_start; i<loop_end; i++)
+    for (long i=loop_start; i<loop_end; i++)
     {
-        const int a = edges[i].a;
+        const long a = edges[i].a;
         if (a >= 0) {
             update_a(
                 i, 
@@ -193,7 +197,7 @@ void update_edges(
                 edge_variables);
         }
 
-        const int b = edges[i].b;
+        const long b = edges[i].b;
         update_b(
             i,
             b, fluxes, 
@@ -216,9 +220,8 @@ void update_edges(
 
 void time_step(
     int j, 
-    int nel, 
+    long nel, 
     const double *restrict step_factors, 
-    const double *restrict volumes, 
     double *restrict fluxes, 
     const double *restrict old_variables, 
     double *restrict variables)
@@ -226,8 +229,8 @@ void time_step(
     log("time_step()");
     current_kernel = TIME_STEP;
 
-    int loop_start = 0;
-    int loop_end = nel;
+    long loop_start = 0;
+    long loop_end = nel;
 
     #ifdef OMP
         #pragma omp parallel firstprivate(loop_start, loop_end)
@@ -241,21 +244,21 @@ void time_step(
     #ifdef TIME
     start_timer();
     #endif
-    for(int i=loop_start; i<loop_end; i++)
+    for(long i=loop_start; i<loop_end; i++)
     {
         double factor = (step_factors[i]/double(RK+1-j));
 
-        const int p_var_idx  = NVAR*i + VAR_DENSITY;
-        const int mx_var_idx = NVAR*i + VAR_MOMENTUMX;
-        const int my_var_idx = NVAR*i + VAR_MOMENTUMY;
-        const int mz_var_idx = NVAR*i + VAR_MOMENTUMZ;
-        const int pe_var_idx = NVAR*i + VAR_DENSITY_ENERGY;
+        const long p_var_idx  = NVAR*i + VAR_DENSITY;
+        const long mx_var_idx = NVAR*i + VAR_MOMENTUMX;
+        const long my_var_idx = NVAR*i + VAR_MOMENTUMY;
+        const long mz_var_idx = NVAR*i + VAR_MOMENTUMZ;
+        const long pe_var_idx = NVAR*i + VAR_DENSITY_ENERGY;
         
-        const int p_flx_idx  = NVAR*i + VAR_DENSITY;
-        const int mx_flx_idx = NVAR*i + VAR_MOMENTUMX;
-        const int my_flx_idx = NVAR*i + VAR_MOMENTUMY;
-        const int mz_flx_idx = NVAR*i + VAR_MOMENTUMZ;
-        const int pe_flx_idx = NVAR*i + VAR_DENSITY_ENERGY;
+        const long p_flx_idx  = NVAR*i + VAR_DENSITY;
+        const long mx_flx_idx = NVAR*i + VAR_MOMENTUMX;
+        const long my_flx_idx = NVAR*i + VAR_MOMENTUMY;
+        const long mz_flx_idx = NVAR*i + VAR_MOMENTUMZ;
+        const long pe_flx_idx = NVAR*i + VAR_DENSITY_ENERGY;
 
         variables[p_var_idx]  = old_variables[p_var_idx]  + factor*fluxes[p_flx_idx];
         variables[mx_var_idx] = old_variables[mx_var_idx] + factor*fluxes[mx_flx_idx];
@@ -283,7 +286,7 @@ void time_step(
 }
 
 void zero_fluxes(
-    int nel, 
+    long nel, 
     double *restrict fluxes)
 {
     log("zero_fluxes()");
@@ -291,13 +294,13 @@ void zero_fluxes(
     #ifdef OMP
         #pragma omp parallel for
     #endif
-    for(int i=0; i<nel; i++)
+    for(long i=0; i<nel; i++)
     {
-        const int p_idx  = NVAR*i + VAR_DENSITY;
-        const int mx_idx = NVAR*i + VAR_MOMENTUMX;
-        const int my_idx = NVAR*i + VAR_MOMENTUMY;
-        const int mz_idx = NVAR*i + VAR_MOMENTUMZ;
-        const int pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
+        const long p_idx  = NVAR*i + VAR_DENSITY;
+        const long mx_idx = NVAR*i + VAR_MOMENTUMX;
+        const long my_idx = NVAR*i + VAR_MOMENTUMY;
+        const long mz_idx = NVAR*i + VAR_MOMENTUMZ;
+        const long pe_idx = NVAR*i + VAR_DENSITY_ENERGY;
 
         fluxes[p_idx]  = 0.0;
         fluxes[mx_idx] = 0.0;

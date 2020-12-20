@@ -14,13 +14,7 @@ std::vector<int> event_sets;
 std::vector<int> num_thread_events;
 std::vector<std::vector<int> > thread_events;
 
-std::vector<std::vector<long_long> > compute_step_kernel_event_counts;
-std::vector<std::vector<long_long> > compute_flux_edge_kernel_event_counts;
-std::vector<std::vector<long_long> > update_kernel_event_counts;
-std::vector<std::vector<long_long> > indirect_rw_kernel_event_counts;
-std::vector<std::vector<long_long> > time_step_kernel_event_counts;
-std::vector<std::vector<long_long> > up_kernel_event_counts;
-std::vector<std::vector<long_long> > down_kernel_event_counts;
+std::vector<std::vector<long_long> > kernel_event_counts[NUM_KERNELS];
 
 std::vector<long_long*> temp_count_stores;
 
@@ -42,27 +36,29 @@ void init_papi()
     event_sets.resize(num_threads, PAPI_NULL);
     thread_events.resize(num_threads);
 
-    compute_step_kernel_event_counts.resize(num_threads);
-    compute_flux_edge_kernel_event_counts.resize(num_threads);
-    update_kernel_event_counts.resize(num_threads);
-    indirect_rw_kernel_event_counts.resize(num_threads);
-    time_step_kernel_event_counts.resize(num_threads);
-    up_kernel_event_counts.resize(num_threads);
-    down_kernel_event_counts.resize(num_threads);
+    for (int nk=0; nk<NUM_KERNELS; nk++) {
+        kernel_event_counts[nk].resize(num_threads);
+    }
 
     temp_count_stores.resize(num_threads);
-
-    if (PAPI_num_counters() < 2) {
-       fprintf(stderr, "No hardware counters here, or PAPI not supported.\n");
-       exit(-1);
-    }
-    log("PAPI_num_counters() complete");
 
     if ((ret=PAPI_library_init(PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
         fprintf(stderr, "PAPI_library_init() failed: '%s'.\n", PAPI_strerror(ret));
         exit(EXIT_FAILURE);
     }
     log("PAPI_library_init() complete");
+
+    // int num_ctrs = PAPI_num_counters();
+    int num_ctrs = 0;
+    int num_comps = PAPI_num_components();
+    for (int c=0; c<num_comps; c++) {
+        num_ctrs += PAPI_num_cmp_hwctrs(c);
+    }
+    if (num_ctrs < 2) {
+       fprintf(stderr, "No hardware counters here, or PAPI not supported.\n");
+       exit(-1);
+    }
+    log("PAPI_num_counters() complete");
 
     #ifdef OMP
         #pragma omp parallel
@@ -111,7 +107,7 @@ void load_papi_events()
         std::string line;
         std::ifstream file_if(conf.papi_config_file);
         if(!file_if.is_open()) {
-            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to open PAPI config file: '%s'\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         while(std::getline(file_if, line))
@@ -178,7 +174,7 @@ void load_papi_events()
             }
         }
         if (file_if.bad()) {
-            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file, std::ifstream::in);
+            printf("ERROR: Failed to read PAPI config file: %s\n", conf.papi_config_file);
             exit(EXIT_FAILURE);
         }
         log("Finished parsing PAPI file");
@@ -206,13 +202,9 @@ void load_papi_events()
         if (n == 0)
             continue;
 
-        compute_step_kernel_event_counts.at(tid).resize(n*levels);
-        compute_flux_edge_kernel_event_counts.at(tid).resize(n*levels);
-        update_kernel_event_counts.at(tid).resize(n*levels);
-        indirect_rw_kernel_event_counts.at(tid).resize(n*levels);
-        time_step_kernel_event_counts.at(tid).resize(n*levels);
-        up_kernel_event_counts.at(tid).resize(n*levels);
-        down_kernel_event_counts.at(tid).resize(n*levels);
+        for (int nk=0; nk<NUM_KERNELS; nk++) {
+            kernel_event_counts[nk].at(tid).resize(n*levels);
+        }
 
         temp_count_stores.at(tid) = alloc<long_long>(n*levels);
 
@@ -283,45 +275,13 @@ void stop_papi()
     }
 
     int num_events = num_thread_events[tid];
-    if (current_kernel == COMPUTE_STEP) {
-        for (int e=0; e<num_events; e++) {
-            compute_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == COMPUTE_FLUX_EDGE) {
-        for (int e=0; e<num_events; e++) {
-            compute_flux_edge_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == UPDATE) {
-        for (int e=0; e<num_events; e++) {
-            update_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == INDIRECT_RW) {
-        for (int e=0; e<num_events; e++) {
-            indirect_rw_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == TIME_STEP) {
-        for (int e=0; e<num_events; e++) {
-            time_step_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == UP) {
-        for (int e=0; e<num_events; e++) {
-            up_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
-    }
-    else if (current_kernel == DOWN) {
-        for (int e=0; e<num_events; e++) {
-            down_kernel_event_counts[tid][level*num_events + e] += temp_count_stores[tid][e];
-        }
+    for (int e=0; e<num_events; e++) {
+        kernel_event_counts[current_kernel][tid][level*num_events + e] += temp_count_stores[tid][e];
     }
 }
 
 
-void dump_papi_counters_to_file(int size)
+void dump_papi_counters_to_file()
 {
     log("Called dump_papi_counters_to_file()");
 
@@ -345,29 +305,17 @@ void dump_papi_counters_to_file(int size)
         outfile.open(filepath.c_str(), std::ios_base::app);
     }
 
-    std::string header_s;
-    std::string data_line_s;
-    prepare_csv_identification(write_header, &header_s, &data_line_s, size);
-
     if (write_header) {
         std::ostringstream header;
-        header << header_s;
         header << "ThreadNum,";
         header << "CpuId,";
-        header << "PAPI counter,";
-        for (int l=0; l<levels; l++) {
-            header << "flux" << l << "," ;
-            header << "update" << l << "," ;
-            header << "compute_step" << l << "," ;
-            header << "time_step" << l << "," ;
-            header << "up" << l << "," ;
-            header << "down" << l << "," ;
-            header << "indirect_rw" << l << "," ;
-        }
+        header << "MG level," ;
+        header << "Loop," ;
+        header << "Event," ;
+        header << "Count" ;
         outfile << header.str() << std::endl;
     }
 
-    int tid;
     #ifdef OMP
         int cpu_ids[conf.omp_num_threads];
         #pragma omp parallel
@@ -378,39 +326,35 @@ void dump_papi_counters_to_file(int size)
             const int cpu_id = cpu_ids[tid];
     #else
         const int cpu_id = sched_getcpu();
-        tid = 0;
+        int tid = 0;
     #endif
+
+    std::ostringstream data_line_id;
+    data_line_id << tid << ",";
+    data_line_id << cpu_id << ",";
 
     int num_events = num_thread_events[tid];
 
-    for (int eid=0; eid<num_thread_events[tid]; eid++)
-    {
-        std::ostringstream event_data_line;
-        event_data_line << data_line_s;
-
+    for (int eid=0; eid<num_thread_events[tid]; eid++) {
         char eventName[PAPI_MAX_STR_LEN] = "";
         if (PAPI_event_code_to_name(thread_events[tid][eid], eventName) != PAPI_OK) {
             fprintf(stderr, "ERROR: Failed to convert code %d to name (tid=%d)\n", thread_events[tid][eid], tid);
             DEBUGGABLE_ABORT
         }
 
-        event_data_line << tid << ",";
-        event_data_line << cpu_id << ",";
-
-        event_data_line << eventName << ",";
-
         for (int l=0; l<levels; l++) {
-            const int idx = l*num_events + eid;
-            event_data_line << compute_flux_edge_kernel_event_counts[tid][idx] << ',';
-            event_data_line << update_kernel_event_counts[tid][idx] << ',';
-            event_data_line << compute_step_kernel_event_counts[tid][idx] << ',';
-            event_data_line << time_step_kernel_event_counts[tid][idx] << ',';
-            event_data_line << up_kernel_event_counts[tid][idx] << ',';
-            event_data_line << down_kernel_event_counts[tid][idx] << ',';
-            event_data_line << indirect_rw_kernel_event_counts[tid][idx] << ',';
+            for (int nk=0; nk<NUM_KERNELS; nk++) {
+                std::ostringstream data_line;
+                data_line << data_line_id.str();
+                data_line << l << "," ;
+                data_line << kernel_names[nk] << "," ;
+                data_line << eventName << ",";
+
+                data_line << kernel_event_counts[nk][tid][l*num_events + eid];
+                
+                outfile << data_line.str() << std::endl;
+            }
         }
-        
-        outfile << event_data_line.str() << std::endl;
     }
 
     #if defined OMP

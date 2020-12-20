@@ -25,17 +25,31 @@
  
 #define NVAR (VAR_DENSITY_ENERGY+1)
 
-#define MG_UP 0
-#define MG_DOWN 1
+#define MG_RESTRICT 0
+#define MG_PROLONG 1
 
 #define COMPUTE_STEP 0
 #define COMPUTE_FLUX_EDGE 1
 #define UPDATE 2
-#define INDIRECT_RW 3
-#define TIME_STEP 4
-#define UP 5
-#define DOWN 6
-#define NUM_KERNELS (DOWN+1)
+#define TIME_STEP 3
+#define RESTRICT 4
+#define PROLONG 5
+#define UNSTRUCTURED_STREAM 6
+#define UNSTRUCTURED_COMPUTE 7
+#define COMPUTE_STREAM 8
+#define NUM_KERNELS (COMPUTE_STREAM+1)
+static const char * const   kernel_names[] =
+{
+    "compute_step",
+    "compute_flux_edge",
+    "update",
+    "time_step",
+    "restrict",
+    "prolong",
+    "unstructured_stream",
+    "unstructured_compute",
+    "compute_stream"
+};
 
 #define MESH_FVCORR 0
 #define MESH_M6_WING 2

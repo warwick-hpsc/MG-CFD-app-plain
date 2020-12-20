@@ -23,7 +23,7 @@ void init_papi();
 
 void load_papi_events();
 
-void dump_papi_counters_to_file(int problem_size);
+void dump_papi_counters_to_file();
 
 #endif
 

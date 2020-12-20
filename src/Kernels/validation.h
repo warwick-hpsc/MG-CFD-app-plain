@@ -5,31 +5,32 @@
 
 void adjust_ewt(
     const double3 *restrict coords,
-    int num_edges, 
+    long num_edges, 
     edge_neighbour *restrict edges);
 
 void dampen_ewt(
-    int num_edges, 
+    long num_edges, 
     edge_neighbour *restrict edges, 
     double damping_factor);
 
 void residual(
-    int nel, 
+    long nel, 
     const double *restrict old_variables, 
     const double *restrict variables, 
     double *restrict residuals);
 
 double calc_rms(
-    int nel, 
+    long nel, 
     const double *restrict residuals);
 
 void check_for_invalid_variables(
     const double *restrict variables,
-    int n);
+    long n);
 
 void identify_differences(
     const double* test_values,
     const double* master_values, 
-    int n);
+    long n, 
+    const long* peritab);
 
 #endif

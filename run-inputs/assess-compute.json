@@ -2,8 +2,14 @@
     "compile": {
         "compiler": "intel",
         "base flags": "TIME PAPI",
-        "flux flags": [ "", "FLUX_CRIPPLE", "FLUX_PRECOMPUTE_EDGE_WEIGHTS", "FLUX_REUSE_DIV", "FLUX_REUSE_FACTOR", "FLUX_REUSE_FLUX"],
+        "flux flags": [ "", "FLUX_PRECOMPUTE_EDGE_WEIGHTS", "FLUX_REUSE_DIV", "FLUX_REUSE_FACTOR", "FLUX_REUSE_FLUX"],
         "insn set": [ "SSE42", "AVX2" ]
+    },
+
+    "optimisation": {
+        "simd mode": [true, false],
+        "simd CA scheme": "colour",
+        "simd len": 4
     },
 
     "run": {
@@ -12,7 +18,8 @@
         "num repeats": 3,
         "mg cycles": 5,
         "unit walltime": 1.0,
-        "min mesh multi": 2
+        "min mesh multi": 2,
+        "run synthetic compute": true
     },
 
     "setup": {

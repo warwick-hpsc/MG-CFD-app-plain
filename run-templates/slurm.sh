@@ -5,6 +5,8 @@
 #SBATCH --error=sbatch.stderr
 
 #SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=<NUM_THREADS>
 #SBATCH --time=<HOURS>:<MINUTES>:00
 #SBATCH --exclusive
 #SBATCH --partition=<PARTITION>
@@ -12,4 +14,4 @@
 
 #SBATCH --export=ALL
 
-RUN_CMD="srun"
+export RUN_CMD="srun --cpu_bind=cores"

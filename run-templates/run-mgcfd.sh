@@ -50,7 +50,10 @@ _t=<NUM_THREADS>
 _m=<MESH_MULTI>
 mg_cycles=<MG_CYCLES>
 validate_result=<VALIDATE_RESULT>
-
+renumber=<RENUMBER>
+measure_mem_bound=<MEASURE_MEM_BOUND>
+measure_compute_bound=<MEASURE_COMPUTE_BOUND>
+run_synthetic_compute=<RUN_SYNTHETIC_COMPUTE>
 
 ## Exit early if output csv files already exist.
 if [ -f "${run_outdir}/Times.csv" ]; then
@@ -74,6 +77,8 @@ fi
 bin_filename="$bin_filename"`echo "$flags_final" | tr -d " "`.b
 bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
+objs_dirpath="${app_dirpath}"/obj/"${compiler}"`echo "$flags_final" | tr -d " "`
+
 if $do_compile ; then
   export BUILD_FLAGS="$flags_final"
   cd "${app_dirpath}"
@@ -94,28 +99,67 @@ elif [ ! -f "$bin_filepath" ]; then
   exit 1
 fi
 
-# Grab object files:
+# Grab object files, compile logs, and optimisation reports:
 if [ ! -d "${run_outdir}/objects" ]; then
     mkdir "${run_outdir}/objects"
 fi
 obj_dir="${app_dirpath}/obj/"
 obj_dir+="${compiler}"
 obj_dir+=`echo "$flags_final" | tr -d " "`
-for loop in flux_loops indirect_rw_loop ; do
-  # Grab any optimisation reports:
-  for ext in lst optrpt ; do
-    if [ -f "${obj_dir}/Kernels/${loop}.${ext}" ]; then
-      cp "${obj_dir}/Kernels/${loop}.${ext}" "${run_outdir}"/objects/
+for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
+  for suffix in loop loops ; do
+    # Compile logs:
+    if [[ "$flags_final" = *"SIMD"* ]]; then
+      log_fp="${obj_dir}/Kernels_vectorised/${kernel}_vec${suffix}".o.log
+    else
+      log_fp="${obj_dir}/Kernels/${kernel}_${suffix}".o.log
+    fi
+    echo "$log_fp"
+    if [ -f "$log_fp" ]; then
+      cp "$log_fp" "${run_outdir}"/objects/
+    fi
+
+    ## Optimisation reports:
+    for ext in lst optrpt ; do
+      if [[ "$flags_final" = *"SIMD"* ]]; then
+        opt_fp="${obj_dir}/Kernels_vectorised/${kernel}_vec${suffix}.${ext}"
+      else
+        opt_fp="${obj_dir}/Kernels/${kernel}_${suffix}.${ext}"
+      fi
+      if [ -f "$opt_fp" ]; then
+        cp "$opt_fp" "${run_outdir}"/objects/
+      fi
+    done
+
+    # Objects:
+    if [[ "$flags_final" = *"SIMD"* ]]; then
+      obj_fp="${obj_dir}/Kernels_vectorised/${kernel}_vec${suffix}".o
+    else
+      obj_fp="${obj_dir}/Kernels/${kernel}_${suffix}".o
+    fi
+    if [ -f "$obj_fp" ]; then
+      cp "$obj_fp" "${run_outdir}"/objects/
+    fi
+
+    # Update: run 'objdump' on the system to get assembly:
+    if [[ "$flags_final" = *"SIMD"* ]]; then
+      obj_fp="${run_outdir}"/objects/"${kernel}_vec${suffix}".o
+    else
+      obj_fp="${run_outdir}"/objects/"${kernel}_${suffix}".o
+    fi
+    if [ -f "$obj_fp" ]; then
+      objdump_raw_command="objdump -d --no-show-raw-insn ${obj_fp}"
+      objdump_raw_command+=" > ${obj_fp}.raw-asm"
+      echo "$objdump_raw_command"
+      eval "$objdump_raw_command"
+      objdump_command="cat ${obj_fp}.raw-asm"
+      objdump_command+=' | sed "s/^Disassembly of section/ fnc: Disassembly/g"'
+      objdump_command+=' | sed "s/:$//g" | grep "^ " | grep ":" | sed "s/^[ \t]*//g"'
+      objdump_command+=" > ${obj_fp}.asm"
+      echo "$objdump_command"
+      eval "$objdump_command"
     fi
   done
-  cp "${obj_dir}/Kernels/${loop}".o "${run_outdir}"/objects/
-  # Update: run 'objdump' on the system to get assembly:
-  objdump_command="objdump -d --no-show-raw-insn ${run_outdir}/objects/${loop}.o"
-  objdump_command+=' | sed "s/^Disassembly of section/ fnc: Disassembly/g"'
-  objdump_command+=' | sed "s/:$//g" | grep "^ " | grep ":" | sed "s/^[ \t]*//g"'
-  objdump_command+=" > ${run_outdir}/objects/${loop}.o.asm"
-  echo "$objdump_command"
-  eval "$objdump_command"
 done
 
 ## Exit early if app execution not requested.
@@ -134,9 +178,51 @@ exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o $
 if $validate_result ; then
   exec_command+=" -v"
 fi
+if $renumber ; then
+  exec_command+=" -r"
+fi
+if $measure_mem_bound ; then
+  exec_command+=" -b"
+fi
+if $measure_compute_bound ; then
+  exec_command+=" -f"
+fi
+if $run_synthetic_compute ; then
+  exec_command+=" -u"
+fi
+
+if [ "$compiler" = "intel" ]; then
+  if [ -z ${KMP_AFFINITY+x} ]; then
+    KMP_AFFINITY=""
+  fi
+  if [ -z ${KMP_GRANULARITY+x} ]; then
+    KMP_GRANULARITY=""
+  fi
+  if [ "$KMP_AFFINITY" = "" ] && [ "$KMP_GRANULARITY" = "" ] ; then
+    export KMP_AFFINITY=scatter
+    export KMP_GRANULARITY=core
+  fi
+else
+  if [ -z ${OMP_PROC_PLACES+x} ]; then
+    OMP_PROC_PLACES=""
+  fi
+  if [ -z ${OMP_PROC_BIND+x} ]; then
+    OMP_PROC_BIND=""
+  fi
+  if [ "$OMP_PROC_PLACES" = "" ] && [ "$OMP_PROC_BIND" = "" ] ; then
+    export OMP_PLACES=sockets
+    export OMP_PROC_BIND=spread
+  fi
+fi
+if $renumber ; then
+  exec_command+=" -r"
+fi
 echo "EXECUTING $bin_filepath"
 export OMP_NUM_THREADS=$_t
 cd "${data_dirpath}"
+echo ""
 echo "$exec_command"
 eval "$exec_command"
+
+touch "${run_outdir}"/job-is-complete.txt
 rm "${run_outdir}"/job-is-running.txt

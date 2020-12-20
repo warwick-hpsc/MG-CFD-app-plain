@@ -5,6 +5,9 @@ import math
 from tempfile import NamedTemporaryFile
 import imp
 
+import sys
+pyv = sys.version_info[0]
+
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 template_dirpath = os.path.join(os.path.dirname(script_dirpath), "run-templates")
 app_dirpath = os.path.dirname(script_dirpath)
@@ -33,15 +36,26 @@ defaults["debug"] = False
 defaults["insn set"] = "Host"
 defaults["base flags"] = "-DTIME"
 defaults["flux flags"] = [""]
+defaults["precise fp"] = True
+defaults["compile only"] = False
 # Job scheduling:
 defaults["unit walltime"] = 0.0
-defaults["budget code"] = "NotSpecified"
+defaults["budget code"] = ""
+defaults["partition"] = ""
+defaults["single batch"] = False
 # MG-CFD execution:
 defaults["num threads"] = 1
 defaults["num repeats"] = 1
 defaults["mg cycles"] = 10
 defaults["validate result"] = False
+defaults["measure mem bound"] = False
+defaults["measure compute bound"] = False
+defaults["run synthetic compute"] = False
 defaults["min mesh multi"] = 1
+# Optimisation:
+defaults["simd mode"] = False
+defaults["simd CA scheme"] = ""
+defaults["renumber"] = False
 
 def get_key_value(profile, cat, key, ensure_list=False):
     v = None
@@ -75,6 +89,15 @@ def py_sed(filepath, from_rgx, to_rgx, delete_if_null=False):
             else:
                 f.write(line)
 
+def py_grep(filepath, str):
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    for line in lines:
+        if line.find(str) != -1:
+            return True
+
+    return False
+
 def delete_folder_contents(dirpath):
     print("Deleting contents of folder: " + dirpath)
     for f in os.listdir(dirpath):
@@ -86,27 +109,20 @@ def delete_folder_contents(dirpath):
 
 def prune_flux_flags_permutations(flux_flags_permutations):
     flux_flags_permutations_pruned = []
-    for p in flux_flags_permutations:
-        flux_cripple_option_present = False
+    for perm in flux_flags_permutations:
         other_flux_options_present = False
-        for i in p:
-            if "FLUX_CRIPPLE" in i:
-                flux_cripple_option_present = True
-            elif "FLUX_" in i:
+        for i in perm:
+            if "FLUX_" in i:
                 other_flux_options_present = True
-        if flux_cripple_option_present and other_flux_options_present:
-            ## Discard this permutation, as the FLUX_CRIPPLE option should be
-            ## applied without other flux options.
-            pass
-        else:
-            p_clean = []
-            for i in p:
-                if i == "" and ("" in p_clean or other_flux_options_present or flux_cripple_option_present):
-                    continue
-                else:
-                    p_clean.append(i)
-            if len(p_clean) > 0:
-                flux_flags_permutations_pruned.append(p_clean)
+                break
+        perm_clean = []
+        for i in perm:
+            if i == "" and (i in perm_clean or other_flux_options_present):
+                continue
+            else:
+                perm_clean.append(i)
+        if len(perm_clean) > 0:
+            flux_flags_permutations_pruned.append(perm_clean)
 
     # Remove duplicates:
     flux_flags_permutations_pruned.sort()
@@ -122,7 +138,7 @@ def powerset(iterable):
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
 
 def concat_compile_flags(flags):
-    if isinstance(flags, str) or isinstance(flags, unicode):
+    if isinstance(flags, str) or (pyv==2 and isinstance(flags, unicode)):
         flags = flags.split(' ')
 
     s = ""
@@ -148,7 +164,7 @@ if __name__=="__main__":
     ## Read file/folder paths and prepare folders:
     jobs_dir = profile["setup"]["jobs dir"]
     if jobs_dir[0] != '/':
-        jobs_dir = os.path.join(app_dirpath, jobs_dir)
+        jobs_dir = os.path.join(os.getcwd(), jobs_dir)
     if not os.path.isdir(jobs_dir):
         os.mkdir(jobs_dir)
     else:
@@ -162,9 +178,11 @@ if __name__=="__main__":
     job_queue = get_key_value(profile, "setup", "partition")
     budget_code = get_key_value(profile, "setup", "budget code")
     js = get_key_value(profile, "setup", "job scheduler")
+    single_batch = get_key_value(profile, "setup", "single batch") 
 
     compilers = get_key_value(profile, "compile", "compiler", True)
     cpp_wrapper = get_key_value(profile, "compile", "cpp wrapper")
+    compile_only = get_key_value(profile, "compile", "compile only")
     debug = get_key_value(profile, "compile", "debug")
     if "insn sets" in profile["compile"].keys():
         ## Backwards compatibility
@@ -172,6 +190,7 @@ if __name__=="__main__":
     else:
         isas = get_key_value(profile, "compile", "insn set", True)
     base_flags = get_key_value(profile, "compile", "base flags", True)
+    precise_fp = get_key_value(profile, "optimisation", "precise fp", True)
 
     if "permutable flags" in profile["compile"]:
         ## Backwards compatibility
@@ -185,8 +204,20 @@ if __name__=="__main__":
     num_repeats = get_key_value(profile, "run", "num repeats")
     mg_cycles = get_key_value(profile, "run", "mg cycles")
     validate = get_key_value(profile, "run", "validate result")
+    renumber_modes = get_key_value(profile, "optimisation", "renumber", True)
+    measure_mem_bound = get_key_value(profile, "run", "measure mem bound")
+    measure_compute_bound = get_key_value(profile, "run", "measure compute bound")
+    run_synthetic_compute = get_key_value(profile, "run", "run synthetic compute")
     mgcfd_unit_runtime_secs = get_key_value(profile, "run", "unit walltime")
     min_mesh_multi = get_key_value(profile, "run", "min mesh multi")
+
+    simd_modes = get_key_value(profile, "optimisation", "simd mode", True)
+    if True in simd_modes:
+        simd_ca_schemes = get_key_value(profile, "optimisation", "simd CA scheme", True)
+        simd_lens = get_key_value(profile, "optimisation", "simd len", True)
+    else:
+        simd_ca_schemes = None
+        simd_lens = None
 
     iteration_space = {}
     if not compilers is None:
@@ -195,10 +226,20 @@ if __name__=="__main__":
         iteration_space["isa"] = isas
     if not base_flags is None:
         iteration_space["base flags"] = base_flags
+    if not precise_fp is None:
+        iteration_space["precise fp"] = precise_fp
     if not flux_flags_permutations is None:
         iteration_space["flux flags"] = flux_flags_permutations
     if not threads is None:
         iteration_space["threads"] = threads
+    if not renumber_modes is None:
+        iteration_space["renumber"] = renumber_modes
+    if not simd_modes is None:
+        iteration_space["simd mode"] = simd_modes
+    if not simd_ca_schemes is None:
+        iteration_space["simd CA scheme"] = simd_ca_schemes
+    if not simd_lens is None:
+        iteration_space["simd len"] = simd_lens
 
     # with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
     #     if "papi events" in profile["run"].keys():
@@ -232,30 +273,50 @@ if __name__=="__main__":
 
     iterables = itertools.product(*iteration_space.values())
     iterables_labelled = []
+    iteration_keys = list(iteration_space.keys())
     for item in iterables:
         item_dict = {}
-        for i in xrange(len(item)):
-          item_dict[iteration_space.keys()[i]] = item[i]
+        for i in range(len(item)):
+          item_dict[iteration_keys[i]] = item[i]
         iterables_labelled.append(item_dict)
+    ## Process incompatible options:
+    iterables_labelled_processed = []
+    for item in iterables_labelled:
+        if not item["simd mode"]:
+            item["simd len"] = 1
+            item["simd CA scheme"] = ""
+        else:
+            isa = item["isa"]
+            simd_len = item["simd len"]
+            if isa.startswith("SSE42"):
+                if simd_len > 2:
+                    item["simd len"] = 2
+            elif isa.startswith("AVX") and not isa == "AVX512":
+                if simd_len > 4:
+                    item["simd len"] = 4
+
+        if item["compiler"] == "intel" and item["precise fp"]:
+            disable_precise_fp = False
+            if item["isa"] == "AVX512" or item["isa"] == "KNL-AVX512":
+                disable_precise_fp = True
+            elif item["isa"] == "Host" and ("avx512cd" in subprocess.check_output(['lscpu'])):
+                disable_precise_fp = True
+            if disable_precise_fp:
+                print("WARNING: Intel compiler segfaults when compiling precise FP with target AVX512, so disabling precise FP")
+                item["precise fp"] = False
+        iterables_labelled_processed.append(item)
     ## Prune duplicates:
     iterables_labelled_pruned = []
-    for item in iterables_labelled:
+    for item in iterables_labelled_processed:
         if not item in iterables_labelled_pruned:
             iterables_labelled_pruned.append(item)
     iterables_labelled = iterables_labelled_pruned
 
     num_jobs = len(iterables_labelled) * num_repeats
 
-    ## Init the master job submission script:
-    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
-    submit_all_file = open(submit_all_filepath, "w")
-    submit_all_file.write("#!/bin/bash\n")
-    submit_all_file.write("set -e\n")
-    submit_all_file.write("set -u\n")
-    submit_all_file.write("\n")
-    submit_all_file.write("# {0}:\n".format(js))
-    submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
-    submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
+        f.write("PAPI_TOT_INS\n")
+        f.write("PAPI_TOT_CYC\n")
 
     if js != "":
         js_filename = js_to_filename[js]
@@ -265,6 +326,47 @@ if __name__=="__main__":
             raise Exception("Cannot find provided 'batch header filepath': '{0}'".format(src_js_filepath))
     else:
         src_js_filepath = None
+    if (src_js_filepath is None) and (js != ""):
+        ## Use bundled scheduler options
+        src_js_filepath = os.path.join(template_dirpath, js_filename)
+
+    if js == "":
+        single_batch = False
+
+    if (not src_js_filepath is None) and py_grep(src_js_filepath, "<COMPILER>") and len(compilers) > 1:
+        raise Exception("Single batch is incompatible with multiple compilers")
+
+    ## Init the master job submission script:
+    submit_all_filepath = os.path.join(jobs_dir, "submit_all.sh")
+    submit_all_file = open(submit_all_filepath, "w")
+    submit_all_file.write("#!/bin/bash\n")
+    if single_batch:
+        run_all_filepath = os.path.join(jobs_dir, "run_all.sh")
+        run_all_file = open(run_all_filepath, "w")
+        with open(src_js_filepath, "r") as f_in:
+            for line in f_in.readlines():
+                run_all_file.write(line)
+        run_all_file.write("submit_cmd=\"\"")
+        run_all_file.write("\n")
+        run_all_file.write("set -e\n")
+        run_all_file.write("set -u\n")
+        run_all_file.write("\n")
+
+        submit_all_file.write("\n")
+        submit_all_file.write("{0} {1}".format(js_to_submit_cmd[js], run_all_filepath))
+
+        estimated_total_runtime_secs = 0.0
+        nt_max = 1
+        ## No longer need to know which job scheduler:
+        js = ""
+        run_all_file.write("num_jobs={0}\n\n".format(num_jobs))
+    else:
+        submit_all_file.write("set -e\n")
+        submit_all_file.write("set -u\n")
+        submit_all_file.write("\n")
+        submit_all_file.write("# {0}:\n".format(js))
+        submit_all_file.write("submit_cmd=\"{0}\"\n\n".format(js_to_submit_cmd[js]))
+        submit_all_file.write("num_jobs={0}\n\n".format(num_jobs))
 
     n = 0
     for repeat in range(num_repeats):
@@ -285,8 +387,26 @@ if __name__=="__main__":
             if flux_flags != "":
                 build_flags += " " + flux_flags
 
+            renumber = item.get("renumber")
+
             compiler = item.get("compiler")
             isa = item.get("isa")
+            simd = item.get("simd mode")
+            if simd:
+                build_flags += " -DSIMD"
+                build_flags += " -DDBLS_PER_SIMD={0}".format(item.get("simd len"))
+                ca_scheme = item.get("simd CA scheme")
+                if ca_scheme == "manual":
+                    build_flags += " -DMANUAL_SCATTER -DMANUAL_GATHER"
+                elif ca_scheme == "manual scatter":
+                    build_flags += " -DMANUAL_SCATTER"
+                elif ca_scheme == "colour":
+                    build_flags += " -DCOLOURED_CONFLICT_AVOIDANCE"
+                    build_flags += " -DBIN_COLOURED_VECTORS"
+
+            precise_fp = item.get("precise fp")
+            if precise_fp:
+                build_flags += " -DPRECISE_FP"
 
             bin_filename = "euler3d_cpu_double_" + compiler
             bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"
@@ -306,14 +426,11 @@ if __name__=="__main__":
             shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
 
             ## Instantiate job scheduling header:
-            if (src_js_filepath is None) and (js != ""):
-                ## Use bundled scheduler options
-                src_js_filepath = os.path.join(template_dirpath, js_filename)
             if not src_js_filepath is None:
                 out_js_filepath = os.path.join(job_dir, js_filename)
                 shutil.copyfile(src_js_filepath, out_js_filepath)
 
-            ## Combine into a batch submission script:
+            ## Combine into a batch run script:
             if js == "":
                 batch_filename = "run.sh"
             else:
@@ -344,7 +461,7 @@ if __name__=="__main__":
             py_sed(batch_filepath, "<RUN ID>", job_id)
             py_sed(batch_filepath, "<PARTITION>", job_queue)
             py_sed(batch_filepath, "<RUN_DIR>", job_dir)
-            py_sed(batch_filepath, "<BUDGET CODE>", budget_code)
+            py_sed(batch_filepath, "<BUDGET CODE>", budget_code, True)
 
             ## - Parallelism:
             py_sed(batch_filepath, "<NUM_THREADS>", nt)
@@ -354,6 +471,8 @@ if __name__=="__main__":
                 while (mesh_multi % nt) > 0:
                     mesh_multi += 1
             py_sed(batch_filepath, "<MESH_MULTI>", mesh_multi)
+            if single_batch:
+                nt_max = max(nt_max, nt)
 
             ## - Compilation:
             py_sed(batch_filepath, "<COMPILER>", compiler)
@@ -365,29 +484,45 @@ if __name__=="__main__":
             ## - Execution:
             py_sed(batch_filepath, "<MG_CYCLES>", mg_cycles)
             py_sed(batch_filepath, "<VALIDATE_RESULT>", str(validate).lower())
+            py_sed(batch_filepath, "<RENUMBER>", str(renumber).lower())
+            py_sed(batch_filepath, "<MEASURE_MEM_BOUND>", str(measure_mem_bound).lower())
+            py_sed(batch_filepath, "<MEASURE_COMPUTE_BOUND>", str(measure_compute_bound).lower())
+            py_sed(batch_filepath, "<RUN_SYNTHETIC_COMPUTE>", str(run_synthetic_compute).lower())
 
             ## - Walltime estimation:
-            if mgcfd_unit_runtime_secs == 0.0:
-                est_runtime_hours = 0
-                est_runtime_minutes = 10
+            if single_batch:
+                if mgcfd_unit_runtime_secs == 0.0:
+                    estimated_total_runtime_secs += 60.0 * 10
+                else:
+                    estimated_total_runtime_secs += float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
             else:
-                est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
-                est_runtime_secs *= 1.2 ## Allow for estimation error
-                est_runtime_secs += 20  ## Add time for file load
-                est_runtime_secs += 60
-                est_runtime_secs = int(round(est_runtime_secs))
-                est_runtime_hours = est_runtime_secs/60/60
-                est_runtime_secs -= est_runtime_hours*60*60
-                est_runtime_minutes = est_runtime_secs/60
-                est_runtime_secs -= est_runtime_minutes*60
-                if est_runtime_secs > 0:
-                    est_runtime_minutes += 1
-                    est_runtime_secs = 0
-            py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
-            py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
+                if mgcfd_unit_runtime_secs == 0.0:
+                    est_runtime_hours = 0
+                    est_runtime_minutes = 10
+                else:
+                    est_runtime_secs = float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
+                    est_runtime_secs *= 1.2 ## Allow for estimation error
+                    est_runtime_secs += 20  ## Add time for file load
+                    est_runtime_secs += 60
+                    est_runtime_secs = int(round(est_runtime_secs))
+                    if pyv == 3:
+                        est_runtime_hours = est_runtime_secs//60//60
+                        est_runtime_secs -= est_runtime_hours*60*60
+                        est_runtime_minutes = est_runtime_secs//60
+                        est_runtime_secs -= est_runtime_minutes*60
+                    else:
+                        est_runtime_hours = est_runtime_secs/60/60
+                        est_runtime_secs -= est_runtime_hours*60*60
+                        est_runtime_minutes = est_runtime_secs/60
+                        est_runtime_secs -= est_runtime_minutes*60
+                    if est_runtime_secs > 0:
+                        est_runtime_minutes += 1
+                        est_runtime_secs = 0
+                py_sed(batch_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
+                py_sed(batch_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
-            ## Make batch script executable:
-            os.chmod(batch_filepath, 0755)
+            ## Make batch script executable (chmod 755):
+            os.chmod(batch_filepath, stat.S_IRWXU | stat.S_IRGRP|stat.S_IXGRP | stat.S_IROTH|stat.S_IXOTH)
 
             ## Add an entry to submit_all.sh:
             # Copy template 'submit.sh' to a temp file:
@@ -403,10 +538,15 @@ if __name__=="__main__":
             py_sed(submit_tmp_filepath, "<RUN_DIRPATH>",    job_dir)
             py_sed(submit_tmp_filepath, "<BATCH_FILENAME>", batch_filename)
             py_sed(submit_tmp_filepath, "<BIN_FILEPATH>",   bin_filepath)
-            submit_all_file.write("\n\n")
+            py_sed(submit_tmp_filepath, "<COMPILE_ONLY>", str(compile_only).lower())
+            if not single_batch:
+                submit_all_file.write("\n\n")
             with open(submit_tmp_filepath, 'r') as f:
                 for line in f:
-                    submit_all_file.write(line)
+                    if single_batch:
+                        run_all_file.write(line)
+                    else:
+                        submit_all_file.write(line)
             # Now close (and delete) submit_tmp file
             submit_tmp.close()
             if os.path.isfile(submit_tmp_filepath):
@@ -418,6 +558,38 @@ if __name__=="__main__":
     submit_all_file.close()
     st = os.stat(submit_all_filepath)
     os.chmod(submit_all_filepath, st.st_mode | stat.S_IEXEC)
+    if single_batch:
+        run_all_file.close()
+        st = os.stat(run_all_filepath)
+        os.chmod(run_all_filepath, st.st_mode | stat.S_IEXEC)
+
+        ## Fill in scheduling fields:
+        est_runtime_secs = estimated_total_runtime_secs
+        est_runtime_secs *= 1.2 ## Allow for estimation error
+        est_runtime_secs += 20  ## Add time for file load
+        est_runtime_secs += 60
+        est_runtime_secs = int(round(est_runtime_secs))
+        if pyv == 3:
+            est_runtime_hours = est_runtime_secs/60/60
+            est_runtime_secs -= est_runtime_hours*60*60
+            est_runtime_minutes = est_runtime_secs/60
+            est_runtime_secs -= est_runtime_minutes*60
+        else:
+            est_runtime_hours = est_runtime_secs/60/60
+            est_runtime_secs -= est_runtime_hours*60*60
+            est_runtime_minutes = est_runtime_secs/60
+            est_runtime_secs -= est_runtime_minutes*60
+        if est_runtime_secs > 0:
+            est_runtime_minutes += 1
+            est_runtime_secs = 0
+        py_sed(run_all_filepath, "<HOURS>", str(est_runtime_hours).zfill(2))
+        py_sed(run_all_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
+
+        py_sed(run_all_filepath, "<RUN ID>", 1)
+        py_sed(run_all_filepath, "<NUM_THREADS>", nt_max)
+        py_sed(run_all_filepath, "<COMPILER>", compilers[0])
+        py_sed(run_all_filepath, "<PARTITION>", job_queue)
+        py_sed(run_all_filepath, "<BUDGET CODE>", budget_code, True)
 
     ## Create a little script for listing jobs that failed during execution:
     error_scan_filepath = os.path.join(jobs_dir, "list_errored_jobs.sh")

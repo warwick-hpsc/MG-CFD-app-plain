@@ -5,13 +5,20 @@
         "base flags": "TIME PAPI OMP OMP_SCATTERS"
     },
 
+    "optimisation": {
+        "simd mode": [false, true],
+        "simd CA scheme": ["colour", "manual"],
+        "simd len": [4]
+    },
+
     "run": {
         "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
         "num threads": [1, 2, 4, 6, 8, 12, 16, 20, 24], 
         "num repeats": 3,
         "mg cycles": 5,
         "unit walltime": 1.0,
-        "min mesh multi": 2
+        "min mesh multi": 2,
+        "measure mem bound": true
     },
 
     "setup": {

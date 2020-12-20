@@ -18,10 +18,15 @@
 #include "io_enhanced.h"
 
 // Kernels:
-#include "flux_loops.h"
-#include "indirect_rw_loop.h"
+#include "kernel_wrappers.h"
 #include "cfd_loops.h"
 #include "mg_loops.h"
+
+// Meshing:
+#include "colour.h"
+#include "reorder.h"
+#include "graph.h"
+#include "reduce_bw.h"
 
 // Monitoring:
 #include "papi_funcs.h"
@@ -42,7 +47,6 @@ double3 ff_flux_contribution_momentum_z;
 double3 ff_flux_contribution_density_energy;
 
 void clean_level(
-    int nel, 
     double* restrict volumes, 
     double* restrict variables, 
     double* restrict old_variables, 
@@ -122,12 +126,6 @@ int main(int argc, char** argv)
     }
     cycles = conf.num_cycles;
 
-    #if defined OMP
-        if (conf.omp_num_threads != -1) {
-            omp_set_num_threads(conf.omp_num_threads);
-        }
-    #endif
-
     double total_compute_time = 0.0;
     #ifdef TIME
     init_timers();
@@ -142,26 +140,27 @@ int main(int argc, char** argv)
     // Create data arrays:
     ///////////////////////////////////////////////////////////////////////////
     // Number of points:
-    int nel[levels];
-    int num_internal_edges[levels];
-    int num_boundary_edges[levels];
-    int num_wall_edges[levels];
-    int internal_edge_starts[levels];
-    int boundary_edge_starts[levels];
-    int wall_edge_starts[levels];
+    long nel[levels];
+    long num_internal_edges[levels];
+    long num_boundary_edges[levels];
+    long num_wall_edges[levels];
+    long internal_edge_starts[levels];
+    long boundary_edge_starts[levels];
+    long wall_edge_starts[levels];
     double* volumes[levels];
-    int number_of_edges[levels];
+    long number_of_edges[levels];
     edge_neighbour* edges[levels];
     edge* edge_variables[levels];
     double* variables[levels];
     double* old_variables[levels];
     double* residuals[levels];
     double* fluxes[levels];
+    double* fluxes_dummy[levels];
     double* step_factors[levels];
     double3* coords[levels];
     // Multigrid connectivity stuff:
-    int* mg_connectivity[levels];
-    int mg_connectivity_size[levels];
+    long* mg_connectivity[levels];
+    long mg_connectivity_size[levels];
     for (int i=0; i<levels; i++) {
         coords[i] = NULL;
         mg_connectivity[i] = NULL;
@@ -240,14 +239,22 @@ int main(int argc, char** argv)
         // Create intermediary arrays
         variables[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, variables[i]);
+
         residuals[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, residuals[i]);
+
         old_variables[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, old_variables[i]);
+
         fluxes[i] = alloc<double>(nel[i]*NVAR);
         zero_array(nel[i]*NVAR, fluxes[i]);
+
+        fluxes_dummy[i] = alloc<double>(nel[i]*NVAR);
+        zero_array(nel[i]*NVAR, fluxes_dummy[i]);
+
         step_factors[i] = alloc<double>(nel[i]);
         zero_array(nel[i], step_factors[i]);
+        
         #ifndef FLUX_FISSION
             edge_variables[i] = NULL;
         #else
@@ -257,6 +264,165 @@ int main(int argc, char** argv)
         log("Level %d: #edges = %d (#internal = %d, #boundary = %d, #wall = %d), #nodes = %d\n", i, number_of_edges[i], num_internal_edges[i], num_boundary_edges[i], num_wall_edges[i], nel[i]);
         if (i != (levels-1)) {
             log("          mg_connectivity_size = %d\n", mg_connectivity_size[i]);
+        }
+    }
+
+    #ifdef COLOURED_CONFLICT_AVOIDANCE
+        int* edge_colours[levels];
+        int number_of_colours[levels];
+        printf("Colouring mesh edges:\n");
+        double colour_start_time = omp_get_wtime();
+        for (int i=0; i<levels; i++) {
+            edge_colours[i] = NULL;
+            number_of_colours[i] = 0;
+
+            colour_mesh_strict(
+                edges[i], 
+                number_of_edges[i], 
+                nel[i], 
+                boundary_edge_starts[i], 
+                wall_edge_starts[i], 
+                num_internal_edges[i], 
+                num_boundary_edges[i], 
+                num_wall_edges[i], 
+                &edge_colours[i], 
+                &number_of_colours[i]);
+        }
+        printf("Colouring time = %.2f\n", omp_get_wtime()-colour_start_time);
+    #endif
+
+    #ifdef BIN_COLOURED_VECTORS
+        long internal_serial_section_starts[levels];
+        long boundary_serial_section_starts[levels];
+        long wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoColouredVectorUnits(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoColouredVectorUnits(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #elif defined BIN_COLOURED_CONTIGUOUS
+        long internal_serial_section_starts[levels];
+        long boundary_serial_section_starts[levels];
+        long wall_serial_section_starts[levels];
+
+        for (int i=0; i<levels; i++) {
+            BinEdgesIntoContiguousColouredBlocks(
+                0, 
+                num_internal_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &internal_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                boundary_edge_starts[i], 
+                boundary_edge_starts[i]+num_boundary_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &boundary_serial_section_starts[i]);
+
+            BinEdgesIntoContiguousColouredBlocks(
+                wall_edge_starts[i], 
+                wall_edge_starts[i]+num_wall_edges[i]-1, 
+                edges[i], 
+                edge_colours[i], 
+                number_of_colours[i], 
+                &wall_serial_section_starts[i]);
+        }
+    #endif
+
+    long** point_peritabs = alloc<long*>(levels);
+    for (int l=0; l<levels; l++) point_peritabs[l] = NULL;
+    if (conf.renumber_mesh) {
+        // Renumber nodes using reverse Cuthill-McKee (RCM):
+        printf("Renumbering nodes using RCM:\n");
+        for (int i=0; i<levels; i++) {
+            if (levels == 1) {
+                point_peritabs[i] = reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    NULL, 
+                    0, 
+                    NULL, 
+                    0, 
+                    true);
+            }
+            else if (i==0) {
+                point_peritabs[i] = reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    mg_connectivity[i], 
+                    mg_connectivity_size[i], 
+                    NULL, 
+                    0, 
+                    true);
+            }
+            else if (i==(levels-1)) {
+                reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    NULL, 
+                    0, 
+                    mg_connectivity[i-1], 
+                    mg_connectivity_size[i-1], 
+                    true);
+            }
+            else {
+                reduce_bw_of_points(
+                    edges[i], 
+                    number_of_edges[i], 
+                    num_internal_edges[i], 
+                    volumes[i], 
+                    coords[i], 
+                    nel[i], 
+                    mg_connectivity[i], 
+                    mg_connectivity_size[i], 
+                    mg_connectivity[i-1], 
+                    mg_connectivity_size[i-1], 
+                    true);
+            }
+
+            // Renumbering without also reordering edges incurs 
+            // significant performance cost. Doesn't matter which 
+            // edge endpoint is used
+            qsort(edges[i], 
+                  num_internal_edges[i], sizeof(edge_neighbour), 
+                  compare_two_internal_edges_amajor);
+            qsort(edges[i]+boundary_edge_starts[i], 
+                  num_boundary_edges[i], sizeof(edge_neighbour), compare_two_noninternal_edges);
+            qsort(edges[i]+wall_edge_starts[i], 
+                  num_wall_edges[i],     sizeof(edge_neighbour), compare_two_noninternal_edges);
         }
     }
 
@@ -278,10 +444,16 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     nel[i+1],
                     &mg_connectivity[i], 
-                    &mg_connectivity_size[i]);
+                    &mg_connectivity_size[i], 
+                    &point_peritabs[i]);
             } else {
                 duplicate_mesh(
                     &nel[i],
@@ -293,24 +465,38 @@ int main(int argc, char** argv)
                     &num_wall_edges[i], 
                     &boundary_edge_starts[i], 
                     &wall_edge_starts[i],
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        &internal_serial_section_starts[i],
+                        &boundary_serial_section_starts[i], 
+                        &wall_serial_section_starts[i],
+                    #endif
                     &edges[i],
                     0,
                     NULL, 
-                    NULL);
+                    NULL, 
+                    &point_peritabs[i]);
             }
 
             dealloc<double>(variables[i]);
             variables[i] = alloc<double>((nel[i])*NVAR);
             zero_array(nel[i]*NVAR, variables[i]);
+
             dealloc<double>(residuals[i]);
             residuals[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, residuals[i]);
+
             dealloc<double>(old_variables[i]);
             old_variables[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, old_variables[i]);
+
             dealloc<double>(fluxes[i]);
             fluxes[i] = alloc<double>(nel[i]*NVAR);
             zero_array(nel[i]*NVAR, fluxes[i]);
+
+            dealloc<double>(fluxes_dummy[i]);
+            fluxes_dummy[i] = alloc<double>(nel[i]*NVAR);
+            zero_array(nel[i]*NVAR, fluxes_dummy[i]);
+            
             dealloc<double>(step_factors[i]);
             step_factors[i] = alloc<double>(nel[i]);
             zero_array(nel[i], step_factors[i]);
@@ -325,14 +511,9 @@ int main(int argc, char** argv)
     ///////////////////////////////////////////////////////////////////////////
     // Initialise:
     ///////////////////////////////////////////////////////////////////////////
-    initialize_far_field_conditions(
-        ff_variable, 
-        ff_flux_contribution_momentum_x,
-        ff_flux_contribution_momentum_y,
-        ff_flux_contribution_momentum_z,
-        ff_flux_contribution_density_energy);
+    initialize_far_field_conditions();
 
-    int* up_scratch = alloc<int>(nel[0]);
+    long* up_scratch = alloc<long>(nel[0]);
     for (int i=0; i<levels; i++) {
         initialize_variables(nel[i], variables[i]);
     }
@@ -363,12 +544,32 @@ int main(int argc, char** argv)
         }
     }
 
+    ///////////////////////////////////////////////////////////////////////////
+    // Reshape arrays for better vectorisation:
+    ///////////////////////////////////////////////////////////////////////////
+    long* edge_nodes[levels];
+    double* edge_vectors[levels];
+    for (int l=0; l<levels; l++) {
+        edge_nodes[l] = alloc<long>(number_of_edges[l]*2);
+        edge_vectors[l] = alloc<double>(number_of_edges[l]*NDIM);
+        for (long e=0; e<number_of_edges[l]; e++) {
+            edge_nodes[l][e*2]   = edges[l][e].a;
+            edge_nodes[l][e*2+1] = edges[l][e].b;
+
+            edge_vectors[l][e*NDIM]   = edges[l][e].x;
+            edge_vectors[l][e*NDIM+1] = edges[l][e].y;
+            edge_vectors[l][e*NDIM+2] = edges[l][e].z;
+        }
+    }
+
     #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
         double* edge_weights[levels];
         for (int i=0; i<levels; i++) {
             edge_weights[i] = alloc<double>(number_of_edges[i]);
-            for (int e=0; e<number_of_edges[i]; e++) {
-                edge_weights[i][e] = sqrt(edges[i][e].x*edges[i][e].x + edges[i][e].y*edges[i][e].y + edges[i][e].z*edges[i][e].z);
+            for (long e=0; e<number_of_edges[i]; e++) {
+                edge_weights[i][e] = sqrt(  edge_vectors[i][e*NDIM]  *edge_vectors[i][e*NDIM] 
+                                          + edge_vectors[i][e*NDIM+1]*edge_vectors[i][e*NDIM+1] 
+                                          + edge_vectors[i][e*NDIM+2]*edge_vectors[i][e*NDIM+2]);
             }
         }
     #endif
@@ -379,8 +580,7 @@ int main(int argc, char** argv)
     log("Beginning compute");
     double loop_start_time = omp_get_wtime();
     level = 0;
-    int mg_direction = MG_UP;
-    int edge_offset = 0;
+    int mg_direction = MG_RESTRICT;
     for (int i=0; i<cycles;)
     {
         log("LEVEL %d\n", level);
@@ -409,37 +609,20 @@ int main(int argc, char** argv)
 
         for(int j=0; j<RK; j++)
         {
-            #ifdef FLUX_CRIPPLE
-                compute_flux_edge_crippled(
-                    internal_edge_starts[level], 
-                    num_internal_edges[level],
-                    edges[level], 
-                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                        edge_weights[level],
-                    #endif
-                    variables[level], 
-                    #ifndef FLUX_FISSION
-                        fluxes[level]
-                    #else
-                        edge_variables[level]
-                    #endif
-                    );
-                #ifndef FLUX_FISSION
-                    // Revert writes made by 'flux cripple':
-                    zero_fluxes(nel[level], fluxes[level]);
-                #endif
-            #endif
-
             compute_flux_edge(
                 internal_edge_starts[level], 
                 num_internal_edges[level],
-                edges[level], 
+                edge_nodes[level],
+                edge_vectors[level],
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
                     edge_weights[level],
                 #endif
                 variables[level], 
                 #ifndef FLUX_FISSION
                     fluxes[level]
+                    #ifdef COLOURED_CONFLICT_AVOIDANCE
+                    , internal_serial_section_starts[level]
+                    #endif
                 #else
                     edge_variables[level]
                 #endif
@@ -474,7 +657,6 @@ int main(int argc, char** argv)
                     internal_edge_starts[level],
                     num_internal_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
 
@@ -482,7 +664,6 @@ int main(int argc, char** argv)
                     boundary_edge_starts[level],
                     num_boundary_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
 
@@ -490,7 +671,6 @@ int main(int argc, char** argv)
                     wall_edge_starts[level],
                     num_wall_edges[level],
                     edges[level], 
-                    nel[level], 
                     edge_variables[level],
                     fluxes[level]);
             #endif
@@ -498,28 +678,75 @@ int main(int argc, char** argv)
             time_step(
                 j, nel[level], 
                 step_factors[level], 
-                volumes[level], 
                 fluxes[level], 
                 old_variables[level], 
                 variables[level]);
 
             check_for_invalid_variables(variables[level], nel[level]);
 
-            indirect_rw(
-                internal_edge_starts[level], 
-                num_internal_edges[level],
-                edges[level], 
-                #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
-                    edge_weights[level],
-                #endif
-                variables[level], 
-                #ifndef FLUX_FISSION
-                    fluxes[level]
-                #else
-                    edge_variables[level]
-                #endif
-                );
-            zero_fluxes(nel[level], fluxes[level]);
+            // Synthetic kernels that provide calibration data for MG-CFD performance model:
+            if (conf.perform_uns_compute) {
+                unstructured_compute(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level], 
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
+                    #endif
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes_dummy[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
+
+            if (conf.measure_mem_bound) {
+                unstructured_stream(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level],
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
+                    #endif
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes_dummy[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
+
+            if (conf.measure_compute_bound) {
+                compute_stream(
+                    internal_edge_starts[level], 
+                    num_internal_edges[level],
+                    edge_nodes[level],
+                    edge_vectors[level],
+                    #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
+                        edge_weights[level],
+                    #endif
+                    variables[level], 
+                    #ifndef FLUX_FISSION
+                        fluxes_dummy[level]
+                        #ifdef COLOURED_CONFLICT_AVOIDANCE
+                        , internal_serial_section_starts[level]
+                        #endif
+                    #else
+                        edge_variables[level]
+                    #endif
+                    );
+            }
         }
 
         residual(nel[level], old_variables[level], variables[level], residuals[level]);
@@ -540,20 +767,20 @@ int main(int argc, char** argv)
                 // the residual error should be restricted up, not 
                 // the grid state itself. However, doing this 
                 // immediately introduces NaN's.
-                // #define UP_RESIDUALS 1
-                if(mg_direction == MG_UP)
+                // #define RESTRICT_RESIDUALS 1
+                if(mg_direction == MG_RESTRICT)
                 {
                     level++;
-                    #ifdef UP_RESIDUALS
+                    #ifdef RESTRICT_RESIDUALS
                         if (level == 1) {
-                            up(residuals[level-1], 
+                            mg_restrict(residuals[level-1], 
                                variables[level], 
                                nel[level], 
                                mg_connectivity[level-1], 
                                up_scratch, 
                                mg_connectivity_size[level-1]);
                         } else {
-                            up(variables[level-1], 
+                            mg_restrict(variables[level-1], 
                                variables[level], 
                                nel[level], 
                                mg_connectivity[level-1], 
@@ -561,7 +788,7 @@ int main(int argc, char** argv)
                                mg_connectivity_size[level-1]);
                         }
                     #else
-                        up(variables[level-1], 
+                        mg_restrict(variables[level-1], 
                            variables[level], 
                            nel[level], 
                            mg_connectivity[level-1], 
@@ -571,115 +798,97 @@ int main(int argc, char** argv)
 
                     if(level == (levels-1))
                     {
-                        mg_direction = MG_DOWN;
+                        mg_direction = MG_PROLONG;
                     }
                 }
                 else
                 {
                     level--;
 
-                    // down() generates NaN's after 3 MG cycles
-                    // down(
+                    // // prolong() generates NaN's after 3 MG cycles
+                    // prolong(
                     //     variables[level+1], 
-                    //     nel[level+1], 
                     //     variables[level], 
-                    //     nel[level], 
                     //     mg_connectivity[level], 
                     //     mg_connectivity_size[level], 
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // down_interpolate() generates NaN's after 33 MG cycles
-                    // down_interpolate(
+                    // // prolong_interpolate() generates NaN's after 33 MG cycles
+                    // prolong_interpolate(
                     //     variables[level+1], 
                     //     nel[level+1], 
                     //     variables[level], 
-                    //     nel[level], 
                     //     mg_connectivity[level], 
                     //     mg_connectivity_size[level], 
                     //     coords[level+1], 
                     //     coords[level]);
 
-                    // down_residuals() generates NaN's after 1 MG cycles
-                    // #ifdef UP_RESIDUAL
+                    // // prolong_residuals() generates NaN's after 1 MG cycles
+                    // #ifdef RESTRICT_RESIDUALS
                     //     if (level == 0) {
-                    //         down_residuals(
+                    //         prolong_residuals(
                     //             variables[level+1], 
-                    //             nel[level+1], 
                     //             variables[level], 
                     //             residuals[level], 
-                    //             nel[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level]);
+                    //     } 
+                    //     else {
+                    //         prolong_residuals(
+                    //             variables[level+1], 
+                    //             residuals[level], 
+                    //             residuals[level], 
+                    //             mg_connectivity[level], 
+                    //             mg_connectivity_size[level]);
+                    //     }
+                    // #else
+                    //     prolong_residuals(
+                    //         residuals[level+1], 
+                    //         variables[level], 
+                    //         residuals[level], 
+                    //         mg_connectivity[level], 
+                    //         mg_connectivity_size[level]);
+                    // #endif
+
+                    // #ifdef RESTRICT_RESIDUALS
+                    //     if (level == 0) {
+                    //         prolong_residuals_interpolate_crude(
+                    //             variables[level+1], 
+                    //             nel[level+1], 
+                    //             residuals[level], 
+                    //             variables[level], 
                     //             mg_connectivity[level], 
                     //             mg_connectivity_size[level], 
                     //             coords[level+1], 
                     //             coords[level]);
                     //     } 
                     //     else {
-                    //         down_residuals(
+                    //         prolong_residuals_interpolate_crude(
                     //             variables[level+1], 
                     //             nel[level+1], 
-                    //             residuals[level], 
-                    //             residuals[level], 
-                    //             nel[level], 
+                    //             variables[level], 
+                    //             variables[level], 
                     //             mg_connectivity[level], 
                     //             mg_connectivity_size[level], 
                     //             coords[level+1], 
                     //             coords[level]);
                     //     }
                     // #else
-                    //     down_residuals(
+                    //     prolong_residuals_interpolate_crude(
                     //         residuals[level+1], 
                     //         nel[level+1], 
-                    //         variables[level], 
                     //         residuals[level], 
-                    //         nel[level], 
+                    //         variables[level], 
                     //         mg_connectivity[level], 
                     //         mg_connectivity_size[level], 
                     //         coords[level+1], 
                     //         coords[level]);
                     // #endif
 
-                    // #ifdef UP_RESIDUAL
-                    //     if (level == 0) {
-                    //         down_residuals_interpolate_crude(
-                    //             variables[level+1], 
-                    //             nel[level+1], 
-                    //             residuals[level], 
-                    //             variables[level], 
-                    //             nel[level], 
-                    //             mg_connectivity[level], 
-                    //             mg_connectivity_size[level], 
-                    //             coords[level+1], 
-                    //             coords[level]);
-                    //     } 
-                    //     else {
-                    //         down_residuals_interpolate_crude(
-                    //             variables[level+1], 
-                    //             nel[level+1], 
-                    //             variables[level], 
-                    //             variables[level], 
-                    //             nel[level], 
-                    //             mg_connectivity[level], 
-                    //             mg_connectivity_size[level], 
-                    //             coords[level+1], 
-                    //             coords[level]);
-                    //     }
-                    // #else
-                    //     down_residuals_interpolate_crude(
-                    //         residuals[level+1], 
-                    //         nel[level+1], 
-                    //         residuals[level], 
-                    //         variables[level], 
-                    //         nel[level], 
-                    //         mg_connectivity[level], 
-                    //         mg_connectivity_size[level], 
-                    //         coords[level+1], 
-                    //         coords[level]);
-                    // #endif
-
-                    #ifdef UP_RESIDUAL
+                    #ifdef RESTRICT_RESIDUALS
                         if (level == 0) {
-                            down_residuals_interpolate_proper(
+                            prolong_residuals_interpolate_proper(
                                 edges[level], 
                                 num_internal_edges[level],
                                 variables[level+1], 
@@ -687,12 +896,11 @@ int main(int argc, char** argv)
                                 variables[level], 
                                 nel[level], 
                                 mg_connectivity[level], 
-                                mg_connectivity_size[level], 
                                 coords[level+1], 
                                 coords[level]);
                         } 
                         else {
-                            down_residuals_interpolate_proper(
+                            prolong_residuals_interpolate_proper(
                                 edges[level], 
                                 num_internal_edges[level],
                                 variables[level+1], 
@@ -700,12 +908,11 @@ int main(int argc, char** argv)
                                 variables[level], 
                                 nel[level], 
                                 mg_connectivity[level], 
-                                mg_connectivity_size[level], 
                                 coords[level+1], 
                                 coords[level]);
                         }
                     #else
-                        down_residuals_interpolate_proper(
+                        prolong_residuals_interpolate_proper(
                             edges[level], 
                             num_internal_edges[level],
                             residuals[level+1], 
@@ -713,14 +920,13 @@ int main(int argc, char** argv)
                             variables[level], 
                             nel[level], 
                             mg_connectivity[level], 
-                            mg_connectivity_size[level], 
                             coords[level+1], 
                             coords[level]);
                     #endif
 
                     if (level == 0)
                     {
-                        mg_direction = MG_UP;
+                        mg_direction = MG_RESTRICT;
                         i++;
                     }
                 }
@@ -739,13 +945,13 @@ int main(int argc, char** argv)
     // Validate solution:
     ////////////////////////////////////
     printf("\n");
+    bool data_check_passed = true;
     if (conf.validate_result) {
         printf("Beginning validation of variables[]\n");
         for (int level=0; level<levels; level++) {
             check_for_invalid_variables(variables[level], nel[level]);
         }
         printf("  NaN check passed\n");
-        bool data_check_passed = true;
         bool res;
         // for (int level=0; level<levels; level++) {
         // Update: only interested in the finest mesh:
@@ -769,14 +975,18 @@ int main(int argc, char** argv)
                 break;
             } else {
                 printf("  scanning variables[] on level %d for errors\n", level);
-                identify_differences(variables[level], variables_solution, nel[level]);
+                identify_differences(
+                    variables[level], 
+                    variables_solution, 
+                    nel[level], 
+                    point_peritabs[level]);
             }
             dealloc<double>(variables_solution);
         }
         if (data_check_passed) {
             printf("PASS: variables[] validated successfully\n");
-        // } else {
-        //     printf("FAIL: variables[] validation failed\n");
+        } else {
+            printf("FAIL: variables[] validation failed\n");
         }
         printf("\n");
     }
@@ -813,14 +1023,15 @@ int main(int argc, char** argv)
     // Output performance data to file:
     ////////////////////////////////////
     log("Writing out performance data");
+    write_run_attributes(problem_size);
     #ifdef TIME
-        dump_timers_to_file(problem_size, total_compute_time);
+        dump_timers_to_file();
     #endif
     #ifdef PAPI
-        dump_papi_counters_to_file(problem_size);
+        dump_papi_counters_to_file();
     #endif
 
-    dump_loop_stats_to_file(problem_size);
+    dump_loop_stats_to_file();
 
     ////////////////////////////////////
     // Clean memory:
@@ -828,7 +1039,7 @@ int main(int argc, char** argv)
     log("Cleaning memory");
     for(int i = 0; i < levels; i++)
     {
-        clean_level(nel[i], volumes[i], 
+        clean_level(volumes[i], 
             variables[i], old_variables[i],
             fluxes[i], step_factors[i], edges[i],
             edge_variables[i],
@@ -836,12 +1047,15 @@ int main(int argc, char** argv)
     }
     for(int i = 0; i < levels-1; i++)
     {
-        dealloc<int>(mg_connectivity[i]);
+        dealloc<long>(mg_connectivity[i]);
     }
-    dealloc<int>(up_scratch);
+    dealloc<long>(up_scratch);
 
     delete[] (layers);
     delete[] (mg_connectivity_filename);
 
+    // return 0;
+    if (!data_check_passed)
+        return 1;
     return 0;
 }
