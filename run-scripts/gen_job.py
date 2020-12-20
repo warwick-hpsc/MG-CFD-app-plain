@@ -249,7 +249,7 @@ if __name__=="__main__":
     #         # Default events:
     #         f.write("PAPI_TOT_INS\n")
     #         f.write("PAPI_TOT_CYC\n")
-    # TODO: Use 'papi_event_chooser' to check for incompatibility between events
+    ## Use 'papi_event_chooser' to check for incompatibility between events
     papi_preset_events = []
     papi_native_events = []
     papi_requested_events = []
@@ -260,7 +260,6 @@ if __name__=="__main__":
             ## User has already grouped PAPI events into batches:
             batched_papi_events = events
         for e in events:
-            # papi_events.append(e)
             if e.startswith("PAPI_"):
                 papi_preset_events.append(e)
             else:
@@ -397,7 +396,6 @@ if __name__=="__main__":
     n = 0
     for repeat in range(num_repeats):
         for item in iterables_labelled:
-            print(item)
             n += 1
             job_id = str(n).zfill(3)
             print("Creating job {0}/{1}".format(n, num_jobs))
