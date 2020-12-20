@@ -529,12 +529,13 @@ def aggregate():
             df = df.drop("ThreadNum", axis=1)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
         df = df[job_id_colnames + data_colnames]
-
         df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
-        df_agg = df.groupby(get_job_id_colnames(df))
+        df_agg = df.groupby(job_id_colnames)
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         df_mean = df_mean[job_id_colnames + data_colnames]
@@ -566,9 +567,10 @@ def aggregate():
                 df = df.drop("ThreadNum", axis=1)
             job_id_colnames = get_job_id_colnames(df)
             data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+            if "Run ID" in job_id_colnames:
+                job_id_colnames.remove("Run ID")
 
             df = df[job_id_colnames + data_colnames]
-
             df_agg = df.groupby(job_id_colnames)
 
             df_mean = df_agg.mean().reset_index()
@@ -583,12 +585,13 @@ def aggregate():
         df["Metric"] = "#iterations"
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
-
-        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
         df = df[job_id_colnames + data_colnames]
+        df[data_colnames] = df[data_colnames].replace(0, np.NaN)
 
-        df_agg = df.groupby(get_job_id_colnames(df))
+        df_agg = df.groupby(job_id_colnames)
 
         df_mean = df_agg.mean().reset_index().replace(np.NaN, 0.0)
         ## Next, compute sum and max across threads within each run:
@@ -613,8 +616,10 @@ def aggregate():
         df = clean_pd_read_csv(papi_df_filepath)
         job_id_colnames = get_job_id_colnames(df)
         data_colnames = [c for c in df.columns.values if not c in job_id_colnames]
+        if "Run ID" in job_id_colnames:
+            job_id_colnames.remove("Run ID")
 
-        ## Exclude zero values from statistics:
+        df = df[job_id_colnames + data_colnames]
         df[data_colnames] = df[data_colnames].replace(0.0, np.NaN)
 
         df_grps = df.groupby(job_id_colnames)
@@ -624,7 +629,7 @@ def aggregate():
 
         ## Next, compute sum and max across threads within each run:
         if "ThreadNum" in df.columns.values:
-            del job_id_colnames[job_id_colnames.index("ThreadNum")]
+            job_id_colnames.remove("ThreadNum")
             df_thread_means = df_thread_means.drop("ThreadNum", axis=1)
 
         df_grps = df_thread_means.groupby(job_id_colnames)
@@ -831,6 +836,8 @@ def combine_all():
 
     # Drop PAPI events:
     f = data_all["Metric"].str.contains("PAPI_")
+    data_all = data_all[np.logical_not(f)]
+    f = data_all["Metric"].str.contains("OFFCORE_")
     data_all = data_all[np.logical_not(f)]
 
     # Drop intermediate derivations from PAPI events:
