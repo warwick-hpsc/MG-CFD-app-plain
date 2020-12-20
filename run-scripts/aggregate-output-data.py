@@ -488,7 +488,7 @@ def collate_csvs():
         else:
             variant_atts.append(k)
     att_pruned_df = att_df.loc[att_df["Attribute"].isin(list(Set(variant_atts).union(essential_colnames)))]
-    if att_pruned_df.shape[1] > 0:
+    if att_pruned_df.shape[0] > 0:
         agg_dfs["Attributes"] = att_pruned_df
 
     att_df = agg_dfs["Attributes"]
@@ -511,6 +511,8 @@ def collate_csvs():
 
     for cat in cats:
         if not agg_dfs[cat] is None:
+            if agg_dfs[cat].shape[0] == 0:
+                raise Exception("Collated data table for '{0}' is empty".format(cat))
             agg_fp = os.path.join(prepared_output_dirpath, cat+".csv")
             if not os.path.isdir(prepared_output_dirpath):
                 os.mkdir(prepared_output_dirpath)
