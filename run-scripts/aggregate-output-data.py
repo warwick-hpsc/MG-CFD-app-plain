@@ -493,23 +493,23 @@ def collate_csvs():
     else:
         agg_dfs["Attributes"] = att_pruned_df
 
-    att_df = agg_dfs["Attributes"]
-    att_df = att_df.pivot(columns='Attribute', index='Run ID', values='Value')
-    att_df = att_df.reset_index()
+        att_df = agg_dfs["Attributes"]
+        att_df = att_df.pivot(columns='Attribute', index='Run ID', values='Value')
+        att_df = att_df.reset_index()
 
-    invariant_atts = list(Set(invariant_atts).intersection(att_df.columns.values))
-    variant_atts = list(Set(variant_atts).intersection(att_df.columns.values))
+        invariant_atts = list(Set(invariant_atts).intersection(att_df.columns.values))
+        variant_atts = list(Set(variant_atts).intersection(att_df.columns.values))
 
-    ## Now combine attributes with the other tables:
-    for cat in list(Set(cats).difference(["Attributes"])):
-        if not agg_dfs[cat] is None:
-            agg_dfs[cat] = agg_dfs[cat].merge(att_df)
+        ## Now combine attributes with the other tables:
+        for cat in list(Set(cats).difference(["Attributes"])):
+            if not agg_dfs[cat] is None:
+                agg_dfs[cat] = agg_dfs[cat].merge(att_df)
 
-            data_colnames = [c for c in agg_dfs[cat].columns.values if not c in att_df.columns.values]
-            new_col_ordering = ["Run ID"] + invariant_atts + variant_atts + data_colnames
-            if len(new_col_ordering) != len(agg_dfs[cat].columns.values):
-                raise Exception("New column ordering has missing/additional columns")
-            agg_dfs[cat] = agg_dfs[cat][new_col_ordering]
+                data_colnames = [c for c in agg_dfs[cat].columns.values if not c in att_df.columns.values]
+                new_col_ordering = ["Run ID"] + invariant_atts + variant_atts + data_colnames
+                if len(new_col_ordering) != len(agg_dfs[cat].columns.values):
+                    raise Exception("New column ordering has missing/additional columns")
+                agg_dfs[cat] = agg_dfs[cat][new_col_ordering]
 
     for cat in cats:
         if not agg_dfs[cat] is None:
