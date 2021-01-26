@@ -1,10 +1,10 @@
-import os
+import os, shutil
 import pandas as pd
 import numpy as np
 import fnmatch
 import argparse
 import re
-from math import floor, log10
+from math import floor, log10, isnan
 
 import sys
 pyv = sys.version_info[0]
@@ -26,6 +26,8 @@ assembly_analyser_dirpath = args.assembly_dirpath
 mg_cfd_output_dirpaths = args.data_dirpaths
 
 prepared_output_dirpath = args.output_dirpath
+if os.path.isdir(prepared_output_dirpath):
+    shutil.rmtree(prepared_output_dirpath)
 
 if not assembly_analyser_dirpath is None:
     import imp
@@ -38,8 +40,11 @@ compile_info = {}
 
 essential_colnames = []
 # essential_colnames += ["CPU", "CC", "CC version", "Instruction set"]
+essential_colnames += ["CPU"] ## Performance model will need to know CPU
 # essential_colnames += ["Event"]
 # essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
+essential_colnames += ["SIMD failed"]
+essential_colnames += ["ISA group"]
 
 key_loops = ["compute_flux_edge", "unstructured_stream", "compute_stream"]
 
@@ -53,7 +58,7 @@ def grep(text, filepath):
             found = True
             break
     return found
-    
+
 
 def clean_pd_read_csv(filepath):
     df = pd.read_csv(filepath, keep_default_na=False)
@@ -203,13 +208,37 @@ def calc_ins_per_iter(output_dirpath, kernel):
 
             papi_and_iters = safe_pd_merge(papi, iters)
             papi_and_iters = papi_and_iters[papi_and_iters["MG level"]==0]
-            papi_and_iters["InsPerIter"] = papi_and_iters["Count"] / papi_and_iters["NumIters"]
-            ins_per_iter = papi_and_iters.loc[0,"InsPerIter"]
+
+            f_nonzero = papi_and_iters["NumIters"] > 0
+            papi_and_iters_nonzero = papi_and_iters[papi_and_iters["NumIters"] > 0]
+            if papi_and_iters_nonzero.shape[0] == 0:
+                ## No rows left
+                return -1
+            papi_and_iters_nonzero["InsPerIter"] = papi_and_iters_nonzero["Count"] / papi_and_iters_nonzero["NumIters"]
+            ins_per_iter = papi_and_iters_nonzero.loc[0,"InsPerIter"]
 
     if ins_per_iter == -1:
         print("WARNING: Failed to calculate ins-per-iter for loop '{0}'".format(kernel))
 
     return ins_per_iter
+
+def get_isa_group(output_dirpath):
+    att_filepath = os.path.join(output_dirpath, "Attributes.csv")
+    if not os.path.isfile(att_filepath):
+        raise Exception("File not found: " + att_filepath)
+    attributes = load_attributes(output_dirpath)
+    if "ISA group" in attributes:
+        return attributes["ISA group"]
+
+    isaGrp = "Intel"
+    raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
+    if not os.path.isfile(raw_asm_filepath):
+        raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
+    for line in open(raw_asm_filepath):
+      if "aarch64" in line:
+        isaGrp = "ARM"
+        break
+    return isaGrp
 
 def infer_field(output_dirpath, field):
     value = None
@@ -225,6 +254,18 @@ def infer_field(output_dirpath, field):
         raise Exception("Cannot infer field '{0}'".format(field))
     
     return value
+
+def get_mgcfd_compile_flags(output_dirpath):
+    run_filepath = os.path.join(output_dirpath, "run.sh")
+    if not os.path.isfile(run_filepath):
+        raise Exception("Need run.sh file to get compile flags: " + run_filepath)
+
+    flags = ""
+    for line in open(run_filepath):
+        if "flags_final=" in line:
+            flags = '='.join(line.split('=')[1:])
+            break
+    return flags
 
 def did_simd_fail(output_dirpath, compiler=None):
     if infer_field(output_dirpath, "SIMD") == "N":
@@ -318,6 +359,14 @@ def analyse_object_files():
             compile_info["SIMD CA scheme"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy")
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
+            flags = get_mgcfd_compile_flags(output_dirpath)
+            compile_info["gather loop numLoads"] = NVAR*2 + 2 ## 10x variables, 2x node ids
+            compile_info["gather loop numStores"] = NVAR*2 ## 10x variables
+            compile_info["gather loop numLoads"] += NDIM ## 3D edge vector
+            compile_info["gather loop numStores"] += NDIM ## 3D edge vector
+            if "FLUX_PRECOMPUTE_EDGE_WEIGHTS" in flags:
+                compile_info["gather loop numLoads"] += 1 ## edge weight
+                compile_info["gather loop numStores"] += 1 ## edge weight
 
             if simd == "Y":
                 loop_to_object["compute_flux_edge_vecloop"] = "flux_vecloops.o"
@@ -348,6 +397,11 @@ def analyse_object_files():
                     k_pretty = "compute_stream"
 
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
+                if ins_per_iter == -1:
+                    ## Kernel 'k' was not executed
+                    continue
+                if isnan(ins_per_iter):
+                    raise Exception("calc_ins_per_iter(k='{0}') returned NaN, investigate".format(k))
 
                 obj_filepath = os.path.join(output_dirpath, "objects", loop_to_object[k])
                 try:
@@ -377,15 +431,11 @@ def analyse_object_files():
 
             loops_tally_df.to_csv(ic_filepath, index=False)
 
-            target_is_aarch64 = False
-            if simd == "Y":
-                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_vecloops.o.raw-asm")
-            else:
-                raw_asm_filepath = os.path.join(output_dirpath, "objects", "flux_loops.o.raw-asm")
-            for line in open(raw_asm_filepath):
-              if "aarch64" in line:
+            isaGrp = get_isa_group(output_dirpath)
+            if isaGrp == "ARM":
                 target_is_aarch64 = True
-                break
+            else:
+                target_is_aarch64 = False
 
             loops_tally_categorised_df = None
             loops = Set(loops_tally_df["Loop"])
@@ -437,6 +487,9 @@ def collate_csvs():
                         if cat == "Attributes":
                             simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
                             df = df.append({"Attribute":"SIMD failed", "Value":simd_failed}, ignore_index=True)
+                            if not "ISA group" in df["Attribute"]:
+                                isaGrp = get_isa_group(root)
+                                df = df.append({"Attribute":"ISA group", "Value":isaGrp}, ignore_index=True)
 
                         df['Run ID'] = run_id
                         # df = pd.pivot(df, index="Run ID", columns="Attribute", values="Value")
@@ -638,8 +691,8 @@ def aggregate():
         df_run_sums = df_grps.sum().reset_index()
         df_run_maxs = df_grps.max().reset_index()
 
-        df_grps = df_thread_means.replace(0, np.NaN).groupby(job_id_colnames)
-        df_run_means = df_grps.mean().reset_index().replace(np.NaN, 0.0)
+        df_grps = df_thread_means.groupby(job_id_colnames)
+        df_run_means = df_grps.mean().reset_index()
 
         # Calculate STDEV as % of mean:
         df_std = df_grps.std().reset_index().replace(np.NaN, 0.0)
@@ -747,6 +800,7 @@ def combine_all():
     iters_df_filepath = os.path.join(prepared_output_dirpath, "LoopNumIters.csv")
     if os.path.isfile(iters_df_filepath):
         iters_df = clean_pd_read_csv(iters_df_filepath)
+        iters_df = iters_df[iters_df["NumIters"] != 0.0]
         iters_df = safe_pd_filter(iters_df, "Metric", "#iterations_SUM")
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
@@ -755,12 +809,12 @@ def combine_all():
             data_colnames = get_data_colnames(iters_df)
             for dc in data_colnames:
                 iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
-        flux_iters_df = safe_pd_filter(iters_df, "Loop", "compute_flux_edge")
+        flux_iters_df = iters_df[iters_df["Loop"] == "compute_flux_edge"]
 
         fp_counts = count_fp_ins()
         if not fp_counts is None:
             ## Calculate GFLOPs
-            flops_total = fp_counts.drop("FP ins/iter", axis=1).merge(flux_iters_df)
+            flops_total = flux_iters_df.merge(fp_counts.drop("FP ins/iter", axis=1))
             flops_total["Metric"] = "GFLOPs"
             flops_total["Value"] = flops_total["FLOPs/iter"] * flops_total["NumIters"] / 1e9
             flops_total.drop(["NumIters", "FLOPs/iter"], axis=1, inplace=True)
@@ -772,7 +826,7 @@ def combine_all():
 
             if "PAPI_TOT_CYC.THREADS_MAX" in metrics:
                 ## Calculate IPC of FP instructions:
-                fp_total = fp_counts.drop("FLOPs/iter", axis=1).merge(flux_iters_df)
+                fp_total = flux_iters_df.merge(fp_counts.drop("FLOPs/iter", axis=1))
                 fp_total["Metric"] = "FP total"
                 fp_total["Value"] = fp_total["FP ins/iter"] * fp_total["NumIters"]
                 fp_total.drop(["NumIters", "FP ins/iter"], axis=1, inplace=True)
@@ -799,6 +853,7 @@ def combine_all():
         gb_data = data_all[data_all["Metric"]=="dram read GB"]
         gbsec_data = safe_frame_divide(gb_data, runtime_data.drop("Metric", axis=1))
         gbsec_data["Metric"] = "dram read GB/sec"
+        gbsec_data = gbsec_data[gbsec_data["Value"] != 0.0]
         data_all = safe_pd_append(data_all, gbsec_data)
     if "Runtime" in metrics and "GFLOPs" in metrics:
         ## Calculate GFLOPs/sec
@@ -806,6 +861,7 @@ def combine_all():
         gflops_data = data_all[data_all["Metric"]=="GFLOPs"]
         gflops_data = safe_frame_divide(gflops_data, runtime_data.drop("Metric", axis=1))
         gflops_data["Metric"] = "GFLOPs/sec"
+        gflops_data = gflops_data[gflops_data["Value"] != 0.0]
         data_all = safe_pd_append(data_all, gflops_data)
     if "GFLOPs" in metrics and "dram read GB" in metrics:
         ## Calculate Flops/Byte
@@ -813,6 +869,7 @@ def combine_all():
         gb_data = data_all[data_all["Metric"]=="dram read GB"]
         arith_intensity_data = safe_frame_divide(gflops_data, gb_data.drop("Metric", axis=1))
         arith_intensity_data["Metric"] = "Flops/Byte"
+        arith_intensity_data = arith_intensity_data[arith_intensity_data["Value"] != 0.0]
         data_all = safe_pd_append(data_all, arith_intensity_data)
     if "Runtime" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate GHz
@@ -821,6 +878,7 @@ def combine_all():
         ghz = safe_frame_divide(cyc_data, runtime_data.drop("Metric", axis=1))
         ghz["Value"] /= 1e9
         ghz["Metric"] = "GHz"
+        ghz = ghz[ghz["Value"] != 0.0]
         data_all = safe_pd_append(data_all, ghz)
     if "GFLOPs" in metrics and "PAPI_TOT_CYC.THREADS_MAX" in metrics:
         ## Calculate flops/cycle
@@ -830,11 +888,12 @@ def combine_all():
         flops_per_cyc = safe_frame_divide(gflops_data, cyc_data.drop("Metric", axis=1))
         flops_per_cyc["Value"] *= 1e9
         flops_per_cyc["Metric"] = "Flops/Cycle"
+        flops_per_cyc = flops_per_cyc[flops_per_cyc["Value"] != 0.0]
         data_all = safe_pd_append(data_all, flops_per_cyc)
 
-    # Drop runtime:
-    f = data_all["Metric"] == "Runtime"
-    data_all = data_all[np.logical_not(f)]
+    # # Drop runtime:
+    # f = data_all["Metric"] == "Runtime"
+    # data_all = data_all[np.logical_not(f)]
 
     # Drop PAPI events:
     f = data_all["Metric"].str.contains("PAPI_")
