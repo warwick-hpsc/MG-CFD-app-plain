@@ -550,6 +550,7 @@ if __name__=="__main__":
         py_sed(run_all_filepath, "<MINUTES>", str(est_runtime_minutes).zfill(2))
 
         py_sed(run_all_filepath, "<RUN ID>", 1)
+        py_sed(run_all_filepath, "<COMPILER>", compiler)
         py_sed(run_all_filepath, "<NUM_THREADS>", nt_max)
         py_sed(run_all_filepath, "<COMPILER>", compilers[0])
         py_sed(run_all_filepath, "<PARTITION>", job_queue)
