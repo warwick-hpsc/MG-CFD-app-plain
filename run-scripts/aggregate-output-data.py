@@ -41,6 +41,7 @@ compile_info = {}
 essential_colnames = []
 # essential_colnames += ["CPU", "CC", "CC version", "Instruction set"]
 essential_colnames += ["CPU"] ## Performance model will need to know CPU
+essential_colnames += ["Instruction set"] ## Performance model will need to know ISA
 # essential_colnames += ["Event"]
 # essential_colnames += ["SIMD failed", "SIMD conflict avoidance strategy"]
 essential_colnames += ["SIMD failed"]

@@ -37,9 +37,6 @@ inline void unstructured_stream_veckernel(
 
     const long a = edge_nodes[i*2];
     const long b = edge_nodes[i*2+1];
-    #if defined MANUAL_GATHER || defined MANUAL_SCATTER
-        const int simd_idx = i - loop_start;
-    #endif
 
     #ifdef MANUAL_GATHER
         double ex = simd_edge_vectors[0][simd_idx];
