@@ -145,9 +145,6 @@ void compute_flux_edge_vecloop(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "flux_veckernel.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
-            // Inlining call makes GNU vector log easier to parse
-            #include "flux_veckernel.elemfunc.c"
         #else
             compute_flux_edge_veckernel(
                 #if defined MANUAL_GATHER || defined MANUAL_SCATTER

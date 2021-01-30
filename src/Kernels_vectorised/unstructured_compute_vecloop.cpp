@@ -143,9 +143,6 @@ void unstructured_compute_vecloop(
             // directly include the kernel source here rather than 
             // call an inlined kernel function.
             #include "unstructured_compute_veckernel.elemfunc.c"
-        #elif defined __GNUC__ && ! defined __clang__ && ! defined __ICC
-            // Inlining call makes GNU vector log easier to parse
-            #include "unstructured_compute_veckernel.elemfunc.c"
         #else
             unstructured_compute_veckernel(
                 #if defined MANUAL_GATHER || defined MANUAL_SCATTER
