@@ -107,7 +107,7 @@ void unstructured_stream_vecloop(
                         #pragma omp simd simdlen(DBLS_PER_SIMD)
                     #endif
                     for (int n=0; n<DBLS_PER_SIMD; n++) {
-                        #pragma unroll
+                        UNROLL_LOOP_FULLY
                         for (int x=0; x<NVAR; x++) {
                             simd_variables_a[x][n] = variables[edge_nodes[(v+n)*2]  *NVAR+x];
                             simd_variables_b[x][n] = variables[edge_nodes[(v+n)*2+1]*NVAR+x];
@@ -190,10 +190,8 @@ void unstructured_stream_vecloop(
 
     #if defined MANUAL_SCATTER && (!defined FLUX_FISSION)
         // Write out fluxes:
-            // Preventing unrolling of outer loop helps assembly-loop-extractor
-            #pragma nounroll
             for (long n=0; n<DBLS_PER_SIMD; n++) {
-                #pragma unroll
+                UNROLL_LOOP_FULLY
                 for (long x=0; x<NVAR; x++) {
                     fluxes[edge_nodes[(v+n)*2]  *NVAR+x] += simd_fluxes_a[x][n];
                     fluxes[edge_nodes[(v+n)*2+1]*NVAR+x] += simd_fluxes_b[x][n];

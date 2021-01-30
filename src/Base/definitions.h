@@ -38,6 +38,12 @@
 #define FORCE_INLINE
 #endif
 
+#ifdef __GNUC__
+#define UNROLL_LOOP_FULLY _Pragma("GCC unroll 1000")
+#else
+#define UNROLL_LOOP_FULLY _Pragma("unroll")
+#endif
+
 #define DEBUGGABLE_ABORT fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); fflush(stderr); fflush(stdout); exit(EXIT_FAILURE);
 
 //////////////////////
