@@ -38,7 +38,7 @@
 #define FORCE_INLINE
 #endif
 
-#ifdef __GNUC__
+#if defined __GNUC__ && ! defined __clang__
 #define UNROLL_LOOP_FULLY _Pragma("GCC unroll 1000")
 #else
 #define UNROLL_LOOP_FULLY _Pragma("unroll")

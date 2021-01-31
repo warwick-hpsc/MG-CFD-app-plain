@@ -102,7 +102,9 @@ ifeq ($(COMPILER),gnu)
 	OPTIMISATION += -ftree-vectorize
 
 	GCC_OPT_REPORT_OPTIONS := 
-	GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-missed
+	#GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-missed
+	#GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-all
+	#GCC_OPT_REPORT_OPTIONS += -fopt-info-loop-all
 	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
@@ -115,6 +117,7 @@ ifeq ($(COMPILER),gnu)
 	CPU_AVX2_EXEC_TARGET = -mavx2
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
+	AARCH64_EXEC_TARGET = -march=armv8-a
 
 else ifeq ($(COMPILER),intel)
 	CPP := icpc
@@ -165,6 +168,7 @@ else ifeq ($(COMPILER),clang)
 	CPU_AVX2_EXEC_TARGET = -mavx2
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
+	AARCH64_EXEC_TARGET = -target=aarch64
 
 else ifeq ($(COMPILER),cray)
 	CPP := CC
@@ -205,6 +209,7 @@ else ifeq ($(COMPILER),cray)
 		CPU_AVX2_EXEC_TARGET = -mavx2
 		KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 		CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
+		AARCH64_EXEC_TARGET = -target=aarch64
 	else
 		HOST_EXEC_TARGET = 
 		# Cray does not support Intel architectures older than Sandy Bridge, so cannot 
@@ -245,6 +250,8 @@ ifdef INSN_SET
 	else ifeq ($(INSN_SET),AVX512)
 		X_EXEC_CPU=$(CPU_AVX512_EXEC_TARGET)
 		X_EXEC_KNL=$(KNL_AVX512_EXEC_TARGET)
+	else ifeq($(INSN_SET),AARCH64)
+		X_EXEC_CPU=$(AARCH64_EXEC_TARGET)
 	else
 		$(error Unknown value of 'INSN_SET')
 	endif

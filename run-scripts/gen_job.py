@@ -459,6 +459,7 @@ if __name__=="__main__":
                     estimated_total_runtime_secs += 60.0 * 10
                 else:
                     estimated_total_runtime_secs += float(mgcfd_unit_runtime_secs*mg_cycles*mesh_multi) / math.sqrt(float(nt))
+                    estimated_total_runtime_secs = int(round(estimated_total_runtime_secs))
             else:
                 if mgcfd_unit_runtime_secs == 0.0:
                     est_runtime_hours = 0
@@ -534,9 +535,9 @@ if __name__=="__main__":
         est_runtime_secs += 60
         est_runtime_secs = int(round(est_runtime_secs))
         if pyv == 3:
-            est_runtime_hours = est_runtime_secs/60/60
+            est_runtime_hours = est_runtime_secs//60//60
             est_runtime_secs -= est_runtime_hours*60*60
-            est_runtime_minutes = est_runtime_secs/60
+            est_runtime_minutes = est_runtime_secs//60
             est_runtime_secs -= est_runtime_minutes*60
         else:
             est_runtime_hours = est_runtime_secs/60/60
