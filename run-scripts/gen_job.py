@@ -3,6 +3,7 @@ import json, argparse, re
 import itertools
 import math
 from tempfile import NamedTemporaryFile
+import imp
 
 import sys
 pyv = sys.version_info[0]
@@ -10,6 +11,9 @@ pyv = sys.version_info[0]
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 template_dirpath = os.path.join(os.path.dirname(script_dirpath), "run-templates")
 app_dirpath = os.path.dirname(script_dirpath)
+
+imp.load_source('utils', os.path.join(script_dirpath, "utils.py"))
+from utils import *
 
 js_to_filename = {}
 js_to_filename[""] = ""
@@ -237,6 +241,35 @@ if __name__=="__main__":
     if not simd_lens is None:
         iteration_space["simd len"] = simd_lens
 
+    # with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
+    #     if "papi events" in profile["run"].keys():
+    #         for e in profile["run"]["papi events"]:
+    #             f.write("{0}\n".format(e))
+    #     else:
+    #         # Default events:
+    #         f.write("PAPI_TOT_INS\n")
+    #         f.write("PAPI_TOT_CYC\n")
+    ## Use 'papi_event_chooser' to check for incompatibility between events
+    papi_preset_events = []
+    papi_native_events = []
+    papi_requested_events = []
+    batched_papi_events = []
+    if "papi events" in profile["run"].keys():
+        events = profile["run"]["papi events"]
+        if events[0] is list:
+            ## User has already grouped PAPI events into batches:
+            batched_papi_events = events
+        for e in events:
+            if e.startswith("PAPI_"):
+                papi_preset_events.append(e)
+            else:
+                papi_native_events.append(e)
+    else:
+        papi_preset_events = ["PAPI_TOT_INS", "PAPI_TOT_CYC"]
+    batched_papi_events = batch_papi_events(papi_preset_events, papi_native_events)
+    if len(batched_papi_events) > 0:
+        iteration_space["batched papi events"] = batched_papi_events
+
     iterables = itertools.product(*iteration_space.values())
     iterables_labelled = []
     iteration_keys = list(iteration_space.keys())
@@ -280,9 +313,35 @@ if __name__=="__main__":
 
     num_jobs = len(iterables_labelled) * num_repeats
 
-    with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
-        f.write("PAPI_TOT_INS\n")
-        f.write("PAPI_TOT_CYC\n")
+    # with open(os.path.join(jobs_dir, "papi.conf"), "w") as f:
+    #     if "papi events" in profile["run"].keys():
+    #         for e in profile["run"]["papi events"]:
+    #             f.write("{0}\n".format(e))
+    #     else:
+    #         # Default events:
+    #         f.write("PAPI_TOT_INS\n")
+    #         f.write("PAPI_TOT_CYC\n")
+    # Use 'papi_event_chooser' to check for incompatibility between events
+    papi_preset_events = []
+    papi_native_events = []
+    papi_requested_events = []
+    batched_papi_events = []
+    if "papi events" in profile["run"].keys():
+        events = profile["run"]["papi events"]
+        if events[0] is list:
+            ## User has already grouped PAPI events into batches:
+            batched_papi_events = events
+        for e in events:
+            # papi_events.append(e)
+            if e.startswith("PAPI_"):
+                papi_preset_events.append(e)
+            else:
+                papi_native_events.append(e)
+    else:
+        papi_preset_events = ["PAPI_TOT_INS", "PAPI_TOT_CYC"]
+    batched_papi_events = batch_papi_events(papi_preset_events, papi_native_events)
+    if len(batched_papi_events) > 0:
+        iteration_space["batched papi events"] = batched_papi_events
 
     if js != "":
         js_filename = js_to_filename[js]
@@ -381,9 +440,10 @@ if __name__=="__main__":
 
             ## Link to papi config file:
             papi_dest_filepath = os.path.join(job_dir, "papi.conf")
-            if os.path.isfile(papi_dest_filepath):
-                os.remove(papi_dest_filepath)
-            os.symlink(os.path.join(jobs_dir, "papi.conf"), papi_dest_filepath)
+            if ("batched papi events" in item.keys()) and len(item["batched papi events"]) > 0:
+                with open(papi_dest_filepath, "w") as f_out:
+                    for e in item["batched papi events"]:
+                        f_out.write(e+"\n")
 
             ## Instantiate MG-CFD run script:
             job_run_filepath = os.path.join(job_dir, "run-mgcfd.sh")

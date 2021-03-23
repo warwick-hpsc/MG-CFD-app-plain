@@ -41,7 +41,6 @@ debug=<DEBUG>
 
 # File/dir paths:
 run_outdir="<RUN_OUTDIR>"
-parent_dir=`dirname "${run_outdir}"`
 app_dirpath="<APP_DIRPATH>"
 data_dirpath="<DATA_DIRPATH>"
 
@@ -174,7 +173,7 @@ if [ ! -z ${RUN_CMD+x} ]; then
 else
   exec_command=""
 fi
-exec_command+="$bin_filepath -i input.dat -m $_m -p ${parent_dir}/papi.conf -o ${run_outdir}/ -g $mg_cycles"
+exec_command+="$bin_filepath -i input.dat -m $_m -p ${run_outdir}/papi.conf -o ${run_outdir}/ -g $mg_cycles"
 if $validate_result ; then
   exec_command+=" -v"
 fi

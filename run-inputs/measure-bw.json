@@ -1,0 +1,22 @@
+{
+    "compile": {
+        "compiler": "intel",
+        "base flags": "TIME PAPI OMP OMP_SCATTERS"
+    },
+
+    "run": {
+        "data dirpath": "../MG-CFD-app-plain-datasets/m6wing",
+        "num threads": [1, 2, 4, 6, 8, 12, 16, 20, 24], 
+        "num repeats": 3,
+        "mg cycles": 5,
+        "unit walltime": 1.0,
+        "min mesh multi": 2,
+        "papi events": ["OFFCORE_RESPONSE_0:ANY_DATA:ANY_RESPONSE"]
+    },
+
+    "setup": {
+        "jobs dir": "./run-jobs.assess-memory",
+        "job scheduler": "", 
+        "partition": ""
+    }
+}
