@@ -361,6 +361,8 @@ def analyse_object_files():
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
             flags = get_mgcfd_compile_flags(output_dirpath)
+            NVAR = 5
+            NDIM = 3
             compile_info["gather loop numLoads"] = NVAR*2 + 2 ## 10x variables, 2x node ids
             compile_info["gather loop numStores"] = NVAR*2 ## 10x variables
             compile_info["gather loop numLoads"] += NDIM ## 3D edge vector

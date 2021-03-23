@@ -390,7 +390,7 @@ if __name__=="__main__":
             shutil.copyfile(os.path.join(template_dirpath, "run-mgcfd.sh"), job_run_filepath)
 
             ## Instantiate job scheduling header:
-            if not src_js_filepath is None:
+            if not src_js_filepath is None and js != "":
                 out_js_filepath = os.path.join(job_dir, js_filename)
                 shutil.copyfile(src_js_filepath, out_js_filepath)
 
