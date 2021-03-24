@@ -258,22 +258,24 @@ if __name__=="__main__":
         ## Use 'papi_event_chooser' to check for incompatibility between events
         #papi_preset_events = []
         #papi_native_events = []
-        #batched_papi_events = []
-        #if "papi events" in profile["run"].keys():
-        #    events = profile["run"]["papi events"]
-        #    if events[0] is list:
-        #        ## User has already grouped PAPI events into batches:
-        #        batched_papi_events = events
-        #    for e in events:
-        #        if e.startswith("PAPI_"):
-        #            papi_preset_events.append(e)
-        #        else:
-        #            papi_native_events.append(e)
-        #elif "PAPI" in base_flags:
-        #    papi_preset_events = ["PAPI_TOT_INS", "PAPI_TOT_CYC"]
-        #batched_papi_events = batch_papi_events(papi_preset_events, papi_native_events)
-        #batched_papi_events = [["PAPI_TOT_INS"], ["PAPI_TOT_CYC"], ["PAPI_VEC_INS"]]
-        batched_papi_events = [ ["PAPI_VEC_INS"] ]
+        batched_papi_events = []
+        if "papi events" in profile["run"].keys():
+            events = profile["run"]["papi events"]
+            if isinstance(events[0], list):
+                ## User has already grouped PAPI events into batches:
+                batched_papi_events = events
+            else:
+                for e in events:
+                    if e.startswith("PAPI_"):
+                        papi_preset_events.append(e)
+                    else:
+                        papi_native_events.append(e)
+        elif "PAPI" in base_flags:
+            papi_preset_events = ["PAPI_TOT_INS", "PAPI_TOT_CYC"]
+        if len(batched_papi_events) == 0:
+            #batched_papi_events = batch_papi_events(papi_preset_events, papi_native_events)
+            #batched_papi_events = [["PAPI_TOT_INS"], ["PAPI_TOT_CYC"], ["PAPI_VEC_INS"]]
+            batched_papi_events = [ ["PAPI_VEC_INS"] ]
         if len(batched_papi_events) > 0:
             iteration_space["batched papi events"] = batched_papi_events
 
