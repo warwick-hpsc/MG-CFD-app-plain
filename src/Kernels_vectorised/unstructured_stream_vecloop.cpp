@@ -72,10 +72,18 @@ void unstructured_stream_vecloop(
 
     #ifdef FLUX_FISSION
         // SIMD is safe
-        #ifdef __clang__
-            #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+        #ifdef DBLS_PER_SIMD
+            #ifdef __clang__
+                #pragma clang loop vectorize_width(DBLS_PER_SIMD) interleave(disable)
+            #else
+                #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #endif
         #else
-            #pragma omp simd simdlen(DBLS_PER_SIMD)
+            #ifdef __clang__
+                #pragma clang loop interleave(disable)
+            #else
+                #pragma omp simd
+            #endif
         #endif
         #pragma nounroll
     #else
@@ -136,8 +144,8 @@ void unstructured_stream_vecloop(
             #pragma omp simd simdlen(DBLS_PER_SIMD)
 
         #else
-            #pragma omp simd safelen(1)
-            #pragma nounroll
+            //#pragma omp simd safelen(1)
+            //#pragma nounroll
         #endif
     #endif
     for (long i=loop_start; i<loop_end; i++)

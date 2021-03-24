@@ -46,7 +46,9 @@
 #endif
 
 #if defined SIMD && !defined DBLS_PER_SIMD
-    #error "DBLS_PER_SIMD not defined, necessary for SIMD"
+  #if defined MANUAL_GATHER || defined MANUAL_SCATTER || defined COLOURED_CONFLICT_AVOIDANCE
+    #error "DBLS_PER_SIMD not defined, necessary for SIMD with a CA scheme"
+  #endif
 #endif
 
 #endif

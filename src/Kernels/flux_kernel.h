@@ -210,3 +210,4 @@ inline void compute_flux_edge_kernel(
         fluxes_b[VAR_DENSITY_ENERGY] += pe_b_val;
     #endif
 }
+

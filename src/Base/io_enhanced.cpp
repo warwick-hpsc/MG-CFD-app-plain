@@ -1112,7 +1112,8 @@ void write_run_attributes(int input_size)
     #ifdef DBLS_PER_SIMD
         outfile << DBLS_PER_SIMD;
     #else
-        outfile << "1" ;
+        //outfile << "1" ;
+        outfile << "" ;
     #endif
     outfile << std::endl;
 

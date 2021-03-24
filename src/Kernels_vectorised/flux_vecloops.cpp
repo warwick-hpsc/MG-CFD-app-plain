@@ -72,7 +72,11 @@ void compute_flux_edge_vecloop(
 
     #ifdef FLUX_FISSION
         // SIMD is safe
-        #pragma omp simd simdlen(DBLS_PER_SIMD)
+        #ifdef DBLS_PER_SIMD
+            #pragma omp simd simdlen(DBLS_PER_SIMD)
+        #else
+            #pragma omp simd
+        #endif
     #else
         // Conflict avoidance is required for safe SIMD
         #if defined COLOURED_CONFLICT_AVOIDANCE
@@ -128,8 +132,8 @@ void compute_flux_edge_vecloop(
             // than default auto-vectoriser triggered by absent pragma
             #pragma omp simd simdlen(DBLS_PER_SIMD)
 
-        #else
-            #pragma omp simd safelen(1)
+        //#else
+        //    #pragma omp simd safelen(1)
         #endif
     #endif
     for (long i=flux_loop_start; i<loop_end; i++)

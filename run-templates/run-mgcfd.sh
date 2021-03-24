@@ -78,6 +78,9 @@ bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
 objs_dirpath="${app_dirpath}"/obj/"${compiler}"`echo "$flags_final" | tr -d " "`
 
+if [ "$compiler" = "fujitsu" ]; then
+  rm -f "$app_dirpath"/*.lst 
+fi
 if $do_compile ; then
   export BUILD_FLAGS="$flags_final"
   cd "${app_dirpath}"
@@ -85,7 +88,7 @@ if $do_compile ; then
   if [ "$cpp_wrapper" != "" ]; then
     make_cmd+="CPP_WRAPPER=$cpp_wrapper "
   fi
-  make_cmd+="make -j4 "
+  make_cmd+="make -j 12 "
   if $debug ; then
     make_cmd+="debug"
   fi
@@ -120,10 +123,18 @@ for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
 
     ## Optimisation reports:
     for ext in lst optrpt ; do
-      if [[ "$flags_final" = *"SIMD"* ]]; then
-        opt_fp="${obj_dir}/Kernels_vectorised/${kernel}_vec${suffix}.${ext}"
+      if [ "$compiler" = "fujitsu" ]; then
+        if [[ "$flags_final" = *"SIMD"* ]]; then
+          opt_fp="${app_dirpath}/${kernel}_vec${suffix}.lst"
+        else
+          opt_fp="${app_dirpath}/${kernel}_${suffix}.lst"
+        fi
       else
-        opt_fp="${obj_dir}/Kernels/${kernel}_${suffix}.${ext}"
+        if [[ "$flags_final" = *"SIMD"* ]]; then
+          opt_fp="${obj_dir}/Kernels_vectorised/${kernel}_vec${suffix}.${ext}"
+        else
+          opt_fp="${obj_dir}/Kernels/${kernel}_${suffix}.${ext}"
+        fi
       fi
       if [ -f "$opt_fp" ]; then
         cp "$opt_fp" "${run_outdir}"/objects/
@@ -160,6 +171,9 @@ for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
     fi
   done
 done
+if [ "$compiler" = "fujitsu" ]; then
+  rm -f "$app_dirpath"/*.lst 
+fi
 
 ## Exit early if app execution not requested.
 if ! $do_execute ; then

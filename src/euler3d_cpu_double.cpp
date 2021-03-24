@@ -219,21 +219,21 @@ int main(int argc, char** argv)
 
             // Update: this .bin functionality not necessary, and is 
             //         polluting cluster filesystem.
-            // write_grid_to_bin(
-            //     (layers[i]+bin_filename_suffix).c_str(), 
-            //     nel[i], 
-            //     volumes[i], 
-            //     number_of_edges[i], 
-            //     num_internal_edges[i], 
-            //     num_boundary_edges[i], 
-            //     num_wall_edges[i], 
-            //     internal_edge_starts[i],
-            //     boundary_edge_starts[i], 
-            //     wall_edge_starts[i], 
-            //     edges[i], 
-            //     coords[i], 
-            //     mg_connectivity[i], 
-            //     mg_connectivity_size[i]);
+             write_grid_to_bin(
+                 (layers[i]+bin_filename_suffix).c_str(), 
+                 nel[i], 
+                 volumes[i], 
+                 number_of_edges[i], 
+                 num_internal_edges[i], 
+                 num_boundary_edges[i], 
+                 num_wall_edges[i], 
+                 internal_edge_starts[i],
+                 boundary_edge_starts[i], 
+                 wall_edge_starts[i], 
+                 edges[i], 
+                 coords[i], 
+                 mg_connectivity[i], 
+                 mg_connectivity_size[i]);
         }
 
         // Create intermediary arrays

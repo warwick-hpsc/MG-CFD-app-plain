@@ -32,6 +32,8 @@ else ifeq ($(COMPILER),clang)
 	CPP = clang++
 else ifeq ($(COMPILER),cray)
 	CPP = CC
+else ifeq ($(COMPILER),fujitsu)
+	CPP = FCC
 else
 $(error Compiler not specified, aborting. Set 'COMPILER' to either "intel", "gnu", "clang" or "cray")
 endif
@@ -120,6 +122,7 @@ ifeq ($(COMPILER_API),gnu)
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 	AARCH64_EXEC_TARGET = -march=armv8-a
+	A64FX_EXEC_TARGET = -mcpu=a64fx
 
 else ifeq ($(COMPILER_API),intel)
 	CFLAGS += -qopenmp
@@ -174,6 +177,8 @@ else ifeq ($(COMPILER_API),cray)
 	## Loop unroller interferes with vectorizer, disable:
 	## Todo: how does non-LLVM Cray expose loop unroller?
 
+    CFLAGS += -h omp
+
 	WARNINGS := 
 
 	OPT_REPORT_OPTIONS :=
@@ -190,6 +195,14 @@ else ifeq ($(COMPILER_API),cray)
 	CPU_AVX512_EXEC_TARGET = -target-cpu=skylake
 	KNL_AVX512_EXEC_TARGET = -target-cpu=mic-knl
 	AARCH64_EXEC_TARGET = 
+
+else ifeq ($(COMPILER_API),fujitsu)
+	CFLAGS += -Kfast
+
+	OPT_REPORT_OPTIONS = -Nlst=t
+	CFLAGS += $(OPT_REPORT_OPTIONS)
+
+	A64FX_EXEC_TARGET = -KA64FX 
 
 else
 $(error Compiler not specified, aborting. Set 'COMPILER' to either "intel", "gnu", "clang" or "cray")
@@ -221,6 +234,8 @@ else ifeq ($(INSN_SET),AVX512)
 	X_EXEC_KNL=$(KNL_AVX512_EXEC_TARGET)
 else ifeq ($(INSN_SET),AARCH64)
 	X_EXEC_CPU=$(AARCH64_EXEC_TARGET)
+else ifeq ($(INSN_SET),A64FX)
+	X_EXEC_CPU=$(A64FX_EXEC_TARGET)
 else
 $(error Unknown value of 'INSN_SET')
 endif

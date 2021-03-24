@@ -1,5 +1,13 @@
-from sets import Set
 import copy, subprocess
+from pprint import pprint
+
+import sys
+pyv = sys.version_info[0]
+if pyv == 2:
+    from sets import Set
+elif pyv == 3:
+    # Create alias:
+    Set = set
 
 def check_papi_batch_compatibility(papi_batch, event_type):
   compatible = False
@@ -13,8 +21,13 @@ def check_papi_batch_compatibility(papi_batch, event_type):
     cmd.append(e)
 
   try:
-    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-    output_lines = output.split('\n')
+    # print("cmd = {0}".format(' '.join(cmd)))
+    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, encoding='UTF-8')
+    # print(type(output))
+    output_lines = output.split("\n")
+    # print("output_lines:")
+    # pprint(output_lines)
+    # quit()
     for line in output_lines:
       if line.startswith("event_chooser.c"):
         if line.endswith("PASSED"):
