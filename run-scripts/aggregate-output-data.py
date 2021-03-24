@@ -808,7 +808,11 @@ def combine_all():
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
             ## counts the number of serial iterations.
+            iters_df["SIMD len"] = pd.to_numeric(iters_df["SIMD len"])
             simd_mask = np.invert(iters_df["SIMD failed"])
+            ## ... but if SIMD len is unknown, then cannot perform adjustment.
+            simd_len_known_f = np.invert(iters_df["SIMD len"].isnull())
+            simd_mask = np.logical_and(simd_len_known_f, simd_mask)
             data_colnames = get_data_colnames(iters_df)
             for dc in data_colnames:
                 iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]
