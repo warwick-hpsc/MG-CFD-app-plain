@@ -1015,6 +1015,10 @@ void write_run_attributes(int input_size)
     outfile << "CC,";
     #ifdef __ICC
         outfile << "intel";
+    #elif defined __arm__
+        outfile << "arm";
+    #elif defined __COMPILER_FCC__
+        outfile << "fujitsu";
     #elif defined __clang__
         outfile << "clang";
     #elif defined _CRAYC
@@ -1045,6 +1049,10 @@ void write_run_attributes(int input_size)
             }
         }
         outfile << XMACRO_TO_STR(__ICC) << "u" << intel_update_minor;
+    #elif defined __arm__
+        outfile << XMACRO_TO_STR(_ARMCC_VERSION);
+    #elif defined __COMPILER_FCC__
+        outfile << "unknown";
     #elif defined __clang__
         outfile << XMACRO_TO_STR(__clang_major__) << "." << XMACRO_TO_STR(__clang_minor__) << "." << XMACRO_TO_STR(__clang_patchlevel__);
     #elif defined _CRAYC

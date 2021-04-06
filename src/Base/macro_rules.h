@@ -30,12 +30,6 @@
   #endif
 #endif
 
-#ifdef MANUAL_GATHER
-	#ifndef MANUAL_SCATTER
-		#define MANUAL_SCATTER
-	#endif
-#endif
-
 #if defined SIMD && !(defined FLUX_FISSION)
     #ifdef COLOURED_CONFLICT_AVOIDANCE
     #elif defined MANUAL_SCATTER

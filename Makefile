@@ -32,6 +32,8 @@ else ifeq ($(COMPILER),clang)
 	CPP = clang++
 else ifeq ($(COMPILER),cray)
 	CPP = CC
+else ifeq ($(COMPILER),arm)
+	CPP = armclang++
 else ifeq ($(COMPILER),fujitsu)
 	CPP = FCC
 else
@@ -46,7 +48,7 @@ ifeq ($(COMPILER),cray)
 	    # Yes, this Cray does just wrap Clang.
 	    COMPILER_API = clang
 	endif
-else ifeq ($(COMPILER),armclang)
+else ifeq ($(COMPILER),arm)
 	COMPILER_API = clang
 endif
 
@@ -80,6 +82,8 @@ ifeq ($(PRECISE_FP),yes)
 	else ifeq ($(COMPILER_API),cray)
 		OPTIMISATION += -h fp2=noapprox
 		
+	else ifeq ($(COMPILER_API),fujitsu)
+		OPTIMISATION += -Knofp_relaxed
 	endif
 else
 	ifeq ($(COMPILER_API),gnu)
@@ -93,6 +97,44 @@ else
 
 	else ifeq ($(COMPILER_API),cray)
 		OPTIMISATION += -h fp2=approx
+
+	else ifeq ($(COMPILER_API),fujitsu)
+		OPTIMISATION += -Kfp_relaxed
+	endif
+endif
+ifeq (DSIMD,$(findstring DSIMD, $(BUILD_FLAGS)))
+	SIMD = yes
+else
+	SIMD = no
+endif
+ifeq ($(SIMD),yes)
+	ifeq ($(COMPILER_API),gnu)
+		OPTIMISATION += -ftree-vectorize
+
+	else ifeq ($(COMPILER_API),intel)
+		
+	else ifeq ($(COMPILER_API),clang)
+		## TODO: review this, is it still needed?
+		# OPTIMISATION += -mllvm -vectorizer-min-trip-count=2
+
+	else ifeq ($(COMPILER_API),cray)
+
+	else ifeq ($(COMPILER_API),fujitsu)
+		OPTIMISATION += -Ksimd 
+		OPTIMISATION += -Ksimd_packed_promotion
+		# OPTIMISATION += -fopenmp-simd
+	endif
+else
+	ifeq ($(COMPILER_API),gnu)
+
+	else ifeq ($(COMPILER_API),intel)
+
+	else ifeq ($(COMPILER_API),clang)
+
+	else ifeq ($(COMPILER_API),cray)
+
+	else ifeq ($(COMPILER_API),fujitsu)
+		OPTIMISATION += -Knosimd -KNOSVE
 	endif
 endif
 
@@ -101,15 +143,6 @@ WARNINGS := -w
 ifeq ($(COMPILER_API),gnu)
 	CFLAGS += -fopenmp
 	CFLAGS += -fmax-errors=1
-
-	## Ensure GNU vectorizer is enabled
-	OPTIMISATION += -ftree-vectorize
-
-	GCC_OPT_REPORT_OPTIONS := 
-	#GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-missed
-	#GCC_OPT_REPORT_OPTIONS += -fopt-info-vec-all
-	#GCC_OPT_REPORT_OPTIONS += -fopt-info-loop-all
-	CFLAGS += $(GCC_OPT_REPORT_OPTIONS)
 
 	# ## Enable all warnings, and treat as errors, to help cleanup code:
 	# WARNINGS := -Wall -Wunused-function -Wunused-parameter -Werror
@@ -160,7 +193,7 @@ else ifeq ($(COMPILER_API),clang)
 	OPT_REPORT_OPTIONS := 
 	OPT_REPORT_OPTIONS += -Rpass-missed=loop-vec ## Report SIMD failures
 	OPT_REPORT_OPTIONS += -Rpass="loop-(unroll|vec)" ## Report loop transformations
-	#OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vectorize ## Report WHY vectorize failed
+	OPT_REPORT_OPTIONS += -Rpass-analysis=loop-vectorize ## Report WHY vectorize failed
 	OPT_REPORT_OPTIONS += -fsave-optimization-record -gline-tables-only -gcolumn-info
 	CFLAGS += $(OPT_REPORT_OPTIONS)
 
@@ -172,6 +205,7 @@ else ifeq ($(COMPILER_API),clang)
 	KNL_AVX512_EXEC_TARGET = -mavx512f -mavx512er -mavx512cd -mavx512pf -march=knl
 	CPU_AVX512_EXEC_TARGET = -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512ifma -mavx512vbmi -march=skylake-avx512
 	AARCH64_EXEC_TARGET = --target=aarch64
+	A64FX_EXEC_TARGET = -mcpu=a64fx
 
 else ifeq ($(COMPILER_API),cray)
 	## Loop unroller interferes with vectorizer, disable:
@@ -197,7 +231,10 @@ else ifeq ($(COMPILER_API),cray)
 	AARCH64_EXEC_TARGET = 
 
 else ifeq ($(COMPILER_API),fujitsu)
-	CFLAGS += -Kfast
+	## Until I figure out what predefined macros exist, create my own:
+	CFLAGS += -D__COMPILER_FCC__
+
+	OPTIMISATION += -Kfast
 
 	OPT_REPORT_OPTIONS = -Nlst=t
 	CFLAGS += $(OPT_REPORT_OPTIONS)
@@ -260,15 +297,17 @@ ifneq (,$(findstring PAPI,$(BUILD_FLAGS)))
 	LIBS += -lpapi -lpfm
 endif
 
-# BUILD_FLAGS_COMPRESSED := $(shell echo $(BUILD_FLAGS) | tr -d " ")
 BUILD_FLAGS_COMPRESSED := $(COMPILER)$(shell echo $(BUILD_FLAGS) | tr -d " ")
 
-# BIN_DIR = bin/$(shell hostname)
-# OBJ_DIR = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)
-# OBJ_DIR_DBG = obj/$(shell hostname)/$(BUILD_FLAGS_COMPRESSED)_debug
 BIN_DIR = bin
 OBJ_DIR = obj/$(BUILD_FLAGS_COMPRESSED)
 OBJ_DIR_DBG = obj/$(BUILD_FLAGS_COMPRESSED)_debug
+
+ifeq ($(COMPILER_API),gnu)
+	OPT_REPORT_OPTIONS = 
+	OPT_REPORT_OPTIONS += -fopt-info-vec-all=$(OBJ_DIR)/gcc-opt-info
+	CFLAGS += $(OPT_REPORT_OPTIONS)
+endif
 
 #####################################################
 ## Now customise build to comply with BUILD_FLAGS: ##
@@ -314,6 +353,7 @@ BIN_NAME_SUFFIX := $(BUILD_FLAGS_COMPRESSED)
 
 main: BIN_NAME := $(BIN_DIR)/euler3d_cpu_double_$(BIN_NAME_SUFFIX).b
 main: OPTIMISATION += $(X_EXEC_CPU)
+main: clean_reports
 main: generic
 
 debug: BIN_NAME := $(BIN_DIR)/euler3d_cpu_double_debug_$(BIN_NAME_SUFFIX).b
@@ -321,13 +361,19 @@ debug: OPTIMISATION := -g -pg -O0
 debug: BUILD_FLAGS += -DDEBUG
 debug: generic_debug
 
+clean_reports:
+	rm -f *.lst
+	rm -f gcc-report*
+
 $(OBJ_DIR)/%.o: src/%.cpp
 	mkdir -p $(@D)
 	$(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES) 2>&1 | tee $@.log
+# $(CPP) $(CFLAGS) $(OPTIMISATION) -c -o $@ $< $(BUILD_FLAGS) $(INCLUDES) > $@.log 2>&1
 
 generic: $(OBJECTS)
 	mkdir -p $(BIN_DIR)
 	$(CPP) $(CFLAGS) $(OPTIMISATION) $^ -o $(BIN_NAME) $(BUILD_FLAGS) $(INCLUDES) $(LIBS)
+	if ls *.lst 2>/dev/null ; then mv *.lst $(OBJ_DIR)/ ; fi
 
 $(OBJ_DIR_DBG)/%.o: src/%.cpp
 	mkdir -p $(@D)

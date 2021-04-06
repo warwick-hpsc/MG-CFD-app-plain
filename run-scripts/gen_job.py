@@ -383,10 +383,6 @@ if __name__=="__main__":
             job_id = str(n).zfill(3)
             print("Creating job {0}/{1}".format(n, num_jobs))
 
-            job_dir = os.path.join(jobs_dir, job_id)
-            if not os.path.isdir(job_dir):
-                os.mkdir(job_dir)
-
             ## Prepare compilation flags:
             build_flags = concat_compile_flags(item.get("base flags", None))
             p = item.get("flux flags", None)
@@ -417,6 +413,10 @@ if __name__=="__main__":
             precise_fp = item.get("precise fp")
             if precise_fp:
                 build_flags += " -DPRECISE_FP"
+
+            job_dir = os.path.join(jobs_dir, job_id + '_'+build_flags.replace("-D", "").replace(' ', '-'))
+            if not os.path.isdir(job_dir):
+                os.mkdir(job_dir)
 
             bin_filename = "euler3d_cpu_double_" + compiler
             bin_filename += build_flags.replace(' ', '')+"-DINSN_SET="+isa+".b"

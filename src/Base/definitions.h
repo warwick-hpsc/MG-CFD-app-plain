@@ -38,10 +38,35 @@
 #define FORCE_INLINE
 #endif
 
-#if defined __GNUC__ && ! defined __clang__
-#define UNROLL_LOOP_FULLY _Pragma("GCC unroll 1000")
+#if defined _CRAYC
+    #define UNROLL_LOOP(X) _Pragma( MACRO_TO_STR( _CRI unroll X ) )
+    #define NOUNROLL _Pragma( MACRO_TO_STR( _CRI nounroll ) )
+#elif defined __GNUC__ && ! defined __clang__
+    #define UNROLL_LOOP(X) _Pragma( MACRO_TO_STR( GCC unroll X ) )
+    #define NOUNROLL _Pragma( MACRO_TO_STR( GCC unroll 1 ) )
 #else
-#define UNROLL_LOOP_FULLY _Pragma("unroll")
+    #define UNROLL_LOOP(X) _Pragma( MACRO_TO_STR( unroll X ) )
+    #define NOUNROLL _Pragma( MACRO_TO_STR( unroll 1 ) )
+#endif
+
+#ifdef _CRAYC
+    // Cray generates incorrect code if OMP SIMD pragma used:
+    // I should submit a bug report ...
+    #define NOSIMD _Pragma( MACRO_TO_STR( _CRI novector ) )
+#elif defined __clang__
+    #define NOSIMD _Pragma( MACRO_TO_STR( clang loop vectorize(disable) ) )
+#else
+    #define NOSIMD _Pragma( MACRO_TO_STR( omp simd safelen(1) ) )
+#endif
+
+// #ifdef __clang__
+#if defined __clang__ || defined __arm__
+    // With Clang, need to explicitly disable unrolling in case it interferes with SIMD:
+    #define SIMD_LOOP(X)   _Pragma( MACRO_TO_STR( clang loop vectorize_width(X) interleave(disable) ) )
+    #define SIMD_LOOP_AUTO _Pragma( MACRO_TO_STR( clang loop vectorize(enable)  interleave(disable) ) )
+#else
+    #define SIMD_LOOP(X)   _Pragma( MACRO_TO_STR( omp simd simdlen(DBLS_PER_SIMD) ) )
+    #define SIMD_LOOP_AUTO _Pragma( MACRO_TO_STR( omp simd ) )
 #endif
 
 #define DEBUGGABLE_ABORT fprintf(stderr, "%s:%d\n", __FILE__, __LINE__); fflush(stderr); fflush(stdout); exit(EXIT_FAILURE);

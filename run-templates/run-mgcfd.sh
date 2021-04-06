@@ -78,9 +78,6 @@ bin_filepath="${app_dirpath}/bin/${bin_filename}"
 
 objs_dirpath="${app_dirpath}"/obj/"${compiler}"`echo "$flags_final" | tr -d " "`
 
-if [ "$compiler" = "fujitsu" ]; then
-  rm -f "$app_dirpath"/*.lst 
-fi
 if $do_compile ; then
   export BUILD_FLAGS="$flags_final"
   cd "${app_dirpath}"
@@ -116,18 +113,20 @@ for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
     else
       log_fp="${obj_dir}/Kernels/${kernel}_${suffix}".o.log
     fi
-    echo "$log_fp"
     if [ -f "$log_fp" ]; then
-      cp "$log_fp" "${run_outdir}"/objects/
+      _c=`wc -l "$log_fp" | cut -d' ' -f1`
+      if [ $_c -gt 0 ]; then
+        cp "$log_fp" "${run_outdir}"/objects/
+      fi
     fi
 
     ## Optimisation reports:
     for ext in lst optrpt ; do
       if [ "$compiler" = "fujitsu" ]; then
         if [[ "$flags_final" = *"SIMD"* ]]; then
-          opt_fp="${app_dirpath}/${kernel}_vec${suffix}.lst"
+          opt_fp="${obj_dir}/${kernel}_vec${suffix}.${ext}"
         else
-          opt_fp="${app_dirpath}/${kernel}_${suffix}.lst"
+          opt_fp="${obj_dir}/${kernel}_${suffix}.${ext}"
         fi
       else
         if [[ "$flags_final" = *"SIMD"* ]]; then
@@ -137,7 +136,10 @@ for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
         fi
       fi
       if [ -f "$opt_fp" ]; then
-        cp "$opt_fp" "${run_outdir}"/objects/
+        _c=`wc -l "$opt_fp" | cut -d' ' -f1`
+        if [ $_c -gt 0 ]; then
+          cp "$opt_fp" "${run_outdir}"/objects/
+        fi
       fi
     done
 
@@ -160,19 +162,25 @@ for kernel in flux unstructured_compute unstructured_stream compute_stream ; do
     if [ -f "$obj_fp" ]; then
       objdump_raw_command="objdump -d --no-show-raw-insn ${obj_fp}"
       objdump_raw_command+=" > ${obj_fp}.raw-asm"
-      echo "$objdump_raw_command"
+      # echo "$objdump_raw_command"
       eval "$objdump_raw_command"
       objdump_command="cat ${obj_fp}.raw-asm"
       objdump_command+=' | sed "s/^Disassembly of section/ fnc: Disassembly/g"'
       objdump_command+=' | sed "s/:$//g" | grep "^ " | grep ":" | sed "s/^[ \t]*//g"'
       objdump_command+=" > ${obj_fp}.asm"
-      echo "$objdump_command"
+      # echo "$objdump_command"
       eval "$objdump_command"
     fi
   done
 done
-if [ "$compiler" = "fujitsu" ]; then
-  rm -f "$app_dirpath"/*.lst 
+if [ "$compiler" = "gnu" ]; then
+  opt_fp="${obj_dir}"/gcc-opt-info
+  if [ -f "$opt_fp" ]; then
+    _c=`wc -l "$opt_fp" | cut -d' ' -f1`
+    if [ $_c -gt 0 ]; then
+      cp "$opt_fp" "${run_outdir}"/objects/
+    fi
+  fi
 fi
 
 ## Exit early if app execution not requested.

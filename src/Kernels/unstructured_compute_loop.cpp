@@ -43,7 +43,7 @@ void unstructured_compute_loop(
     #endif
     record_iters(flux_loop_start, loop_end);
 
-    #pragma omp simd safelen(1)
+    NOSIMD
     for (long i=flux_loop_start; i<loop_end; i++)
     {
         unstructured_compute_kernel(

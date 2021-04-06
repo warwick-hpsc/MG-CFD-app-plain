@@ -45,7 +45,7 @@ void compute_flux_edge_loop(
     #endif
     record_iters(flux_loop_start, loop_end);
 
-    #pragma omp simd safelen(1)
+    NOSIMD
     for (long i=flux_loop_start; i<loop_end; i++)
     {
         compute_flux_edge_kernel(
@@ -101,7 +101,7 @@ void compute_boundary_flux_edge_loop(
         {
             openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
-    #pragma omp simd safelen(1)
+    NOSIMD
     for (long i=loop_start; i<loop_end; i++)
     {
         compute_boundary_flux_edge_kernel(
@@ -144,7 +144,7 @@ void compute_wall_flux_edge_loop(
         {
             openmp_distribute_loop_iterations(&loop_start, &loop_end);
     #endif
-    #pragma omp simd safelen(1)
+    NOSIMD
     for (long i=loop_start; i<loop_end; i++)
     {
         compute_wall_flux_edge_kernel(

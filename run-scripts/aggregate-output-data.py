@@ -4,6 +4,7 @@ import numpy as np
 import fnmatch
 import argparse
 import re
+import ast
 from math import floor, log10, isnan
 
 import sys
@@ -13,6 +14,9 @@ if pyv == 2:
 elif pyv == 3:
     # Create alias:
     Set = set
+
+# verbose = False
+verbose = True
 
 script_dirpath = os.path.join(os.getcwd(), os.path.dirname(__file__))
 mg_cfd_dirpath = os.path.join(script_dirpath, "../")
@@ -179,6 +183,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
         kernel = "unstructured_compute"
     elif "compute_stream" in kernel:
         kernel = "compute_stream"
+    simd_failed = do_logs_report_simd_fail(output_dirpath, kernel)
     ins_per_iter = -1
 
     papi_filepath = os.path.join(output_dirpath, "PAPI.csv")
@@ -187,11 +192,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
     if os.path.isfile(papi_filepath) and os.path.isfile(loop_num_iters_filepath):
         iters = clean_pd_read_csv(loop_num_iters_filepath)
         iters = iters[iters["Loop"]==kernel].drop("Loop", axis=1)
-        simd_failed = did_simd_fail(output_dirpath)
-        if simd_failed:
-            simd_len = 1
-        else:
-            simd_len = infer_field(output_dirpath, "SIMD len")
+        simd_len = 1 if simd_failed else get_attribute(output_dirpath, "SIMD len")
 
         # 'num_iters' is counting non-vectorised iterations. If code 
         # was vectorised then fewer loop iterations will have been 
@@ -218,7 +219,7 @@ def calc_ins_per_iter(output_dirpath, kernel):
             papi_and_iters_nonzero["InsPerIter"] = papi_and_iters_nonzero["Count"] / papi_and_iters_nonzero["NumIters"]
             ins_per_iter = papi_and_iters_nonzero.loc[0,"InsPerIter"]
 
-    if ins_per_iter == -1:
+    if verbose and ins_per_iter == -1:
         print("WARNING: Failed to calculate ins-per-iter for loop '{0}'".format(kernel))
 
     return ins_per_iter
@@ -241,12 +242,104 @@ def get_isa_group(output_dirpath):
         break
     return isaGrp
 
-def infer_field(output_dirpath, field):
-    value = None
+def get_simd_len(output_dirpath):
+    run_filepath = os.path.join(output_dirpath, "run.sh")
+    if not os.path.isfile(run_filepath):
+        raise Exception("Need run.sh file to get attribute '{0}: {1}".format(field, run_filepath))
 
+    value = None
+    for line in open(run_filepath):
+        res = re.match(".*DBLS_PER_SIMD=([0-9]+).*", line)
+        if res:
+            value = int(res.groups()[0])
+            break
+    if value is None:
+        raise Exception("Could not determine SIMD length in file {0}".format(run_filepath))
+
+    if value == 0:
+        raise Exception("get_simd_len() returning zero")
+    return value
+
+def get_simd(output_dirpath):
+    run_filepath = os.path.join(output_dirpath, "run.sh")
+    if not os.path.isfile(run_filepath):
+        raise Exception("Need run.sh file to get attribute '{0}: {1}".format(field, run_filepath))
+
+    value = None
+    for line in open(run_filepath):
+        res = re.match(".*-DSIMD[ \"].*", line)
+        if res:
+            value = True
+            break
+    if value is None:
+        raise Exception("Could not determine SIMD status in file {0}".format(run_filepath))
+    return value
+
+def get_simd_ca_strategy(output_dirpath):
+    run_filepath = os.path.join(output_dirpath, "run.sh")
+    if not os.path.isfile(run_filepath):
+        raise Exception("Need run.sh file to get attribute '{0}: {1}".format(field, run_filepath))
+
+    value = None
+    for line in open(run_filepath):
+        res = re.match(".*-DCOLOURED_CONFLICT_AVOIDANCE[ \"].*", line)
+        if res:
+            value = "colour"
+            break
+
+        resm = re.match(".*-DMANUAL[ \"].*", line)
+        resmg = re.match(".*-DMANUAL_GATHER[ \"].*", line)
+        resms = re.match(".*-DMANUAL_SCATTER[ \"].*", line)
+        if resm or (resmg and resms):
+            value = "manual"
+            break
+        elif resmg:
+            value = "manual-gather"
+            break
+        elif resms:
+            value = "manual-scatter"
+            break
+    if value is None:
+        raise Exception("Could not determine SIMD status in file {0}".format(run_filepath))
+    return value
+
+def get_attribute_from_runsh(output_dirpath, field):
+    run_filepath = os.path.join(output_dirpath, "run.sh")
+    if not os.path.isfile(run_filepath):
+        raise Exception("Need run.sh file to get attribute '{0}: {1}".format(field, run_filepath))
+
+    value = None
+    for line in open(run_filepath):
+        if "{0}=".format(field) in line:
+            value = '='.join(line.split('=')[1:])
+            break
+    if value is None:
+        raise Exception("Could not find attribute '{0}' assignment in file {1}".format(field, run_filepath))
+    return value
+
+def get_attribute(output_dirpath, field):
+    if field in ["flags_final"]:
+        return get_attribute_from_runsh(output_dirpath, field)
+
+    value = None
     att_filepath = os.path.join(output_dirpath, "Attributes.csv")
     if not os.path.isfile(att_filepath):
+        ## Try getting values from run.sh script:
+        if field == "SIMD len":
+            return get_simd_len(output_dirpath)
+        elif field == "SIMD":
+            return get_simd(output_dirpath)
+        elif field == "SIMD conflict avoidance strategy":
+            return get_simd_ca_strategy(output_dirpath)
+
+        run_field = ""
+        if field == "CC":
+            run_field = "compiler"
+        if run_field != "":
+            return get_attribute_from_runsh(output_dirpath, run_field)
+
         raise Exception("File not found: " + att_filepath)
+
     attributes = load_attributes(output_dirpath)
     if field in attributes:
         return attributes[field]
@@ -256,69 +349,168 @@ def infer_field(output_dirpath, field):
     
     return value
 
-def get_mgcfd_compile_flags(output_dirpath):
-    run_filepath = os.path.join(output_dirpath, "run.sh")
-    if not os.path.isfile(run_filepath):
-        raise Exception("Need run.sh file to get compile flags: " + run_filepath)
+def set_loop_attribute(output_dirpath, loop_name, attribute, value):
+    att_filepath = os.path.join(output_dirpath, "LoopAttributes.csv")
+    if not os.path.isfile(att_filepath):
+        row = pd.DataFrame([[loop_name, attribute, value]], columns=["Loop", "Attribute", "Value"])
+        row.to_csv(att_filepath, index=False)
+        return
 
-    flags = ""
-    for line in open(run_filepath):
-        if "flags_final=" in line:
-            flags = '='.join(line.split('=')[1:])
-            break
-    return flags
+    if (attribute == "SIMD failed") and (not isinstance(value, bool)):
+        raise Exception("Value for attribute '{0}' should be Boolean, not {1} (value={2})".format(attribute, type(value), value))
+    if (attribute == "True SIMD len") and (not isinstance(value, int)):
+        raise Exception("Value for attribute '{0}' should be Integer, not {1} (value={2})".format(attribute, type(value), value))
 
-def did_simd_fail(output_dirpath, compiler=None):
-    if infer_field(output_dirpath, "SIMD") == "N":
+    att_df = clean_pd_read_csv(att_filepath)
+    value = str(value)
+    f = np.logical_and(att_df["Loop"]==loop_name, att_df["Attribute"]==attribute)
+    if sum(f) > 1:
+        raise Exception("LoopAttributes.csv contains multiple values for Loop-Attibute pair {0}-{1}".format(loop_name, attribute))
+    if sum(f) == 1:
+        old_value = att_df.loc[f,"Value"].iloc[0]
+        att_df.loc[f,"Value"] = value
+    else:
+        row = pd.DataFrame([[loop_name, attribute, value]], columns=["Loop", "Attribute", "Value"])
+        att_df = att_df.append(row)
+    att_df.to_csv(att_filepath, index=False)
+
+def get_loop_attribute(output_dirpath, loop_name, attribute):
+    att_filepath = os.path.join(output_dirpath, "LoopAttributes.csv")
+    if not os.path.isfile(att_filepath):
+        raise Exception("Loop attributes csv does not exist: {0}".format(att_filepath))
+
+    att_df = clean_pd_read_csv(att_filepath)
+
+    f = np.logical_and(att_df["Loop"]==loop_name, att_df["Attribute"]==attribute)
+    if sum(f) == 0:
+        raise Exception("LoopAttributes.csv contains no value for Loop-Attibute pair {0}-{1}".format(loop_name, attribute))
+    if sum(f) > 1:
+        raise Exception("LoopAttributes.csv contains multiple values for Loop-Attibute pair {0}-{1}".format(loop_name, attribute))
+
+    value = att_df[f]["Value"].iloc[0]
+    value = ast.literal_eval(value)
+
+    return value
+
+def do_logs_report_simd_fail(output_dirpath, func_name, compiler=None):
+    if get_attribute(output_dirpath, "SIMD") == "N":
         return False
 
+    valid_funcs = ["compute_flux_edge", "compute_stream", "unstructured_stream", "unstructured_compute"]
+    if not func_name in valid_funcs:
+        raise Exception("do_logs_report_simd_fail() file prefix '{0}' should be one of: {1}".format(func_name, valid_funcs))
+    if func_name == "compute_flux_edge":
+        file_prefix = "flux"
+    else:
+        file_prefix = func_name
+
+    try:
+        val = get_loop_attribute(output_dirpath, func_name, "SIMD failed")
+        return val
+    except:
+        pass
+
     failed = False
-    log_filepath =  os.path.join(output_dirpath, "objects", "flux_vecloops.o.log")
 
     if compiler is None:
-        compiler = infer_field(output_dirpath, "CC")
+        compiler = get_attribute(output_dirpath, "CC")
 
-    if compiler == "clang":
+    if compiler in ["clang", "arm"]:
+        log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloops.o.log".format(file_prefix))
+        if not os.path.isfile(log_filepath):
+            log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloop.o.log".format(file_prefix))
         f = open(log_filepath, "r")
+        print("Parsing log: {0}".format(log_filepath))
         simd_fail_found = False
         simd_success_found = False
-        flux_loop_simd_fail = False
-        # for line in f:
+        loop_simd_fail = False
+        line_num = None
+        loop_line_num = None
         for i,line in enumerate(f):
-            if "loop not vectorized" in line:
-                simd_fail_found = True
-                simd_success_found = False
-                ## Source code snippet should be on next line, confirming which loop
-                continue
-            if "vectorized loop" in line:
-                simd_success_found = True
-                simd_fail_found = False
-                ## Source code snippet should be on next line, confirming which loop
-                continue
+            res = re.match(".*{0}_vecloops\.cpp:([0-9]+):.*".format(file_prefix), line)
+            if res:
+                line_num = int(res.groups()[0])
+
+                if "loop not vectorized" in line:
+                    simd_fail_found = True
+                    simd_success_found = False
+                    if (not loop_line_num is None) and loop_line_num == line_num:
+                        print("'{0}' loop seen previously, and 'not vectorized' on line {1}".format(func_name, i))
+                        break
+                    ## Source code snippet should be on next line, confirming which loop
+                    continue
+                elif "vectorized loop" in line:
+                    simd_success_found = True
+                    simd_fail_found = False
+                    if not loop_line_num is None and loop_line_num == line_num:
+                        print("'{0}' loop seen previously, and 'vectorized loop' on line {1}".format(func_name, i))
+                        break
+                    ## Source code snippet should be on next line, confirming which loop
+                    continue
+                else:
+                    ## Discard remarks on vectorization
+                    simd_success_found = False
+                    simd_fail_found = False
 
             if "for (long i=flux_loop_start" in line:
+                loop_line_num = line_num
                 if simd_fail_found:
-                    flux_loop_simd_fail = True
+                    loop_simd_fail = True
                     break
                 if simd_success_found:
                     break
             simd_fail_found = False
             simd_success_found = False
 
-        if flux_loop_simd_fail:
+        if loop_simd_fail:
             failed = True
 
     elif compiler == "gnu":
+        log_filepath =  os.path.join(output_dirpath, "objects", "gcc-opt-info")
+        if os.path.isfile(log_filepath):
+            f = open(log_filepath, "r")
+            for line in f:
+                if re.match("src/Kernels_vectorised/{0}_veckernel.h.*not vectorized".format(file_prefix), line):
+                    failed = True
+                    break
+
+    elif compiler == "cray":
+        log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloops.lst".format(file_prefix))
+        if not os.path.isfile(log_filepath):
+            log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloop.lst".format(file_prefix))
         f = open(log_filepath, "r")
         for line in f:
-            if re.match("src/Kernels/flux_kernel.elemfunc.c.*not vectorized", line):
-                failed = True
+            if "for (long i=flux_loop_start" in line:
+                if not re.match(".*V.*for", line):
+                    failed = True
+                    break
+
+    elif compiler == "fujitsu":
+        log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloops.lst".format(file_prefix))
+        if not os.path.isfile(log_filepath):
+            log_filepath =  os.path.join(output_dirpath, "objects", "{0}_vecloop.lst".format(file_prefix))
+        f = open(log_filepath, "r")
+        ## Sometimes the SIMD indicator appears on line following the for(..):
+        for_loop_seen = False
+        failed = True ## Assume fail
+        for line in f:
+            if "for (long i=flux_loop_start" in line:
+                for_loop_seen = True
+                if re.match(".*v.*for", line):
+                    failed = False
+                    break
+            elif for_loop_seen:
+                if re.match(".*v.*{", line):
+                    failed = False
                 break
+
+    set_loop_attribute(output_dirpath, func_name, "SIMD failed", failed)
 
     return failed
 
 def analyse_object_files():
     print("Analysing object files")
+    global verbose
 
     dirpaths = mg_cfd_output_dirpaths
 
@@ -333,7 +525,8 @@ def analyse_object_files():
             if os.path.isfile(ic_filepath) and os.path.isfile(ic_cat_filepath):
                 continue
 
-            # print("Processing: " + output_dirpath)
+            if verbose:
+                print("Processing: " + output_dirpath)
 
             loop_to_object = {}
 
@@ -346,30 +539,32 @@ def analyse_object_files():
             if run_filename == "":
                 raise IOError("Cannot find a run script for run: " + output_dirpath)
 
-            compile_info["compiler"] = infer_field(output_dirpath, "CC")
-            compile_info["SIMD len"] = infer_field(output_dirpath, "SIMD len")
-            simd = infer_field(output_dirpath, "SIMD")
+            compile_info["compiler"] = get_attribute(output_dirpath, "CC")
+            simd_len = get_attribute(output_dirpath, "SIMD len")
+            simd = get_attribute(output_dirpath, "SIMD")
             if simd == "N":
-                compile_info["SIMD len"] = 1
-            simd_failed = did_simd_fail(output_dirpath, compile_info["compiler"])
-            compile_info["SIMD failed"] = simd_failed
+                simd_len = 1
+                compile_info["SIMD failed"] = False
+            compile_info["SIMD len"] = simd_len
             avx512cd_required = compile_info["compiler"] == "intel" and \
                                 simd == "Y" and \
-                                infer_field(output_dirpath, "Instruction set") == "AVX512" and \
-                                infer_field(output_dirpath, "SIMD conflict avoidance strategy") == "None"
-            compile_info["SIMD CA scheme"] = infer_field(output_dirpath, "SIMD conflict avoidance strategy")
+                                get_attribute(output_dirpath, "Instruction set") == "AVX512" and \
+                                get_attribute(output_dirpath, "SIMD conflict avoidance strategy") == "None"
+            compile_info["SIMD CA scheme"] = get_attribute(output_dirpath, "SIMD conflict avoidance strategy")
             compile_info["scatter loop present"] = "manual" in compile_info["SIMD CA scheme"].lower() and "scatter" in compile_info["SIMD CA scheme"].lower()
             compile_info["gather loop present"]  = "manual" in compile_info["SIMD CA scheme"].lower() and "gather"  in compile_info["SIMD CA scheme"].lower()
-            flags = get_mgcfd_compile_flags(output_dirpath)
+            flags = get_attribute(output_dirpath, "flags_final")
             NVAR = 5
             NDIM = 3
-            compile_info["gather loop numLoads"] = NVAR*2 + 2 ## 10x variables, 2x node ids
+            compile_info["gather loop numLoads" ] = NVAR*2 + 2 ## 10x variables, 2x node ids
             compile_info["gather loop numStores"] = NVAR*2 ## 10x variables
-            compile_info["gather loop numLoads"] += NDIM ## 3D edge vector
-            compile_info["gather loop numStores"] += NDIM ## 3D edge vector
+            compile_info["gather loop numLoads" ] += NDIM  ## 3D edge vector
+            compile_info["gather loop numStores"] += NDIM  ## 3D edge vector
             if "FLUX_PRECOMPUTE_EDGE_WEIGHTS" in flags:
-                compile_info["gather loop numLoads"] += 1 ## edge weight
+                compile_info["gather loop numLoads" ] += 1 ## edge weight
                 compile_info["gather loop numStores"] += 1 ## edge weight
+            compile_info["scatter loop numLoads" ] = NVAR*2 + NVAR*2 + 2 ## 10x variables, 10x fluxes, 2x node ids
+            compile_info["scatter loop numStores"] = NVAR*2              ## 10x fluxes
 
             if simd == "Y":
                 loop_to_object["compute_flux_edge_vecloop"] = "flux_vecloops.o"
@@ -399,6 +594,10 @@ def analyse_object_files():
                 elif "compute_stream" in k:
                     k_pretty = "compute_stream"
 
+                if simd == "Y":
+                    compile_info["SIMD failed"] = do_logs_report_simd_fail(output_dirpath, k_pretty, compile_info["compiler"])
+                    compile_info["SIMD len"] = simd_len
+
                 ins_per_iter = calc_ins_per_iter(output_dirpath, k)
                 if ins_per_iter == -1:
                     ## Kernel 'k' was not executed
@@ -408,62 +607,99 @@ def analyse_object_files():
 
                 obj_filepath = os.path.join(output_dirpath, "objects", loop_to_object[k])
                 try:
-                    asm_loop_filepath = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
+                    loop_asm = extract_loop_kernel_from_obj(obj_filepath, compile_info, ins_per_iter, k, avx512cd_required, 10)
                 except:
                     raise
                     # continue
-                loop_tally = count_loop_instructions(asm_loop_filepath)
-
+                loop_tally = loop_asm.count_loop_instructions()
                 df_data = [ [k_pretty, k, float(v)] for k,v in loop_tally.items()]
                 loop_tally_df = pd.DataFrame(df_data, columns=["Loop", "Instruction", "Count"])
+
+                arch = loop_asm.metadata["ARCH"]
+
+                if "SIMD failed" in loop_asm.metadata.keys():
+                    simd_failed = loop_asm.metadata["SIMD failed"]
+                else:
+                    simd_failed = compile_info["SIMD failed"]
+                set_loop_attribute(output_dirpath, k_pretty, "SIMD failed", simd_failed)
+
+                if "True SIMD len" in loop_asm.metadata.keys():
+                    true_simd_len = loop_asm.metadata["True SIMD len"]
+                elif simd_failed:
+                    true_simd_len = 1
+                else:
+                    true_simd_len = compile_info["SIMD len"]
+                set_loop_attribute(output_dirpath, k_pretty, "True SIMD len", true_simd_len)
+
+                # if "Unroll factor" in loop_asm.metadata.keys():
+                #     unroll_factor = loop_asm.metadata["Unroll factor"]
+                # else:
+                #     unroll_factor = -1
+                # set_loop_attribute(output_dirpath, k_pretty, "Unroll factor", unroll_factor)
+                set_loop_attribute(output_dirpath, k_pretty, "#edges per asm pass", loop_asm.metadata["#edges per asm pass"])
+
                 if loops_tally_df is None:
                     loops_tally_df = loop_tally_df
                 else:
                     loops_tally_df = loops_tally_df.append(loop_tally_df)
 
-            if "LOAD_SPILLS" in loops_tally_df["Instruction"].values:
-                if "unstructured_stream" in loops_tally_df["Loop"].values:
-                    ## This loop does not actually have any register spilling, so 
-                    ## any that were identified by 'assembly-loop-extractor' are false positives. 
-                    ## Assume that the same number of false positives are identified in the 'flux' kernel, 
-                    ## so remove those:
-                    f = np.logical_and(loops_tally_df["Loop"]=="unstructured_stream", loops_tally_df["Instruction"]=="LOAD_SPILLS")
-                    claimed_unstructured_stream_spills = loops_tally_df.loc[f,"Count"].iloc[0]
-                    f = loops_tally_df["Instruction"]=="LOAD_SPILLS"
-                    loops_tally_df.loc[f,"Count"] -= claimed_unstructured_stream_spills
+            if not loops_tally_df is None:
+                if "LOAD_SPILLS" in loops_tally_df["Instruction"].values:
+                    if "unstructured_stream" in loops_tally_df["Loop"].values:
+                        ## This loop does not actually have any register spilling, so 
+                        ## any that were identified by 'assembly-loop-extractor' are false positives. 
+                        ## Assume that the same number of false positives are identified in the 'flux' kernel, 
+                        ## so remove those:
+                        f = np.logical_and(loops_tally_df["Loop"]=="unstructured_stream", loops_tally_df["Instruction"]=="LOAD_SPILLS")
+                        claimed_unstructured_stream_spills = loops_tally_df.loc[f,"Count"].iloc[0]
+                        f = loops_tally_df["Instruction"]=="LOAD_SPILLS"
+                        loops_tally_df.loc[f,"Count"] -= claimed_unstructured_stream_spills
 
-            loops_tally_df.to_csv(ic_filepath, index=False)
+                loops_tally_df.to_csv(ic_filepath, index=False)
 
-            isaGrp = get_isa_group(output_dirpath)
-            if isaGrp == "ARM":
-                target_is_aarch64 = True
-            else:
-                target_is_aarch64 = False
+                target_is_aarch64 = (arch == Architectures.AARCH64)
 
-            loops_tally_categorised_df = None
-            loops = Set(loops_tally_df["Loop"])
-            for l in loops:
-                df = loops_tally_df[loops_tally_df["Loop"]==l]
-                tally = {}
-                for i in range(df.shape[0]):
-                    row = df.iloc[i]
-                    k = row["Instruction"]
-                    v = row["Count"]
-                    tally[k] = v
+                loops_tally_categorised_df = None
+                loops = Set(loops_tally_df["Loop"])
+                for l in loops:
+                    df = loops_tally_df[loops_tally_df["Loop"]==l]
+                    tally = {}
+                    for i in range(df.shape[0]):
+                        row = df.iloc[i]
+                        tally[row["Instruction"]] = row["Count"]
+                    df_metadata_cols = [c for c in df.columns.values if not c in ["Instruction", "Count"]]
+                    df_metadata = df[df_metadata_cols].drop_duplicates()
 
-                if target_is_aarch64:
-                    tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_aarch64=True)
-                else:
-                    tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_intel64=True)
+                    if target_is_aarch64:
+                        tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_aarch64=True)
+                    else:
+                        tally_categorised = categorise_aggregated_instructions_tally_dict(tally, is_intel64=True)
 
-                df_data = [ [l, k, float(v)] for k,v in tally_categorised.items()]
-                df = pd.DataFrame(df_data, columns=["Loop", "Instruction", "Count"])
-                if loops_tally_categorised_df is None:
-                    loops_tally_categorised_df = df
-                else:
-                    loops_tally_categorised_df = loops_tally_categorised_df.append(df)
+                    ## Don't care about instructions that go straight to load/store execution:
+                    for k in ["eu.address", "eu.simd_address"]:
+                        if k in tally_categorised:
+                            del tally_categorised[k]
 
-            loops_tally_categorised_df.to_csv(ic_cat_filepath, index=False)
+                    num_instructions = 0
+                    for k in tally_categorised.keys():
+                        if k.startswith("eu."):
+                            num_instructions += tally_categorised[k]
+                    simd_failed = bool(get_loop_attribute(output_dirpath, l, "SIMD failed"))
+                    true_simd_len = int(get_loop_attribute(output_dirpath, l, "True SIMD len"))
+                    width = int(get_loop_attribute(output_dirpath, l, "#edges per asm pass"))
+                    instructions_per_edge = round(num_instructions/width, 1)
+                    tally_categorised["#edges per asm pass"] = width
+                    tally_categorised["#instructions per edge"] = instructions_per_edge
+
+                    df_data = [ [l, k, float(v)] for k,v in tally_categorised.items()]
+                    df = pd.DataFrame(df_data, columns=["Loop", "Instruction", "Count"])
+                    df = df.merge(df_metadata)
+                    if loops_tally_categorised_df is None:
+                        loops_tally_categorised_df = df
+                    else:
+                        loops_tally_categorised_df = loops_tally_categorised_df.append(df)
+
+                loops_tally_categorised_df.to_csv(ic_cat_filepath, index=False)
 
 def collate_csvs():
     cats = ["Attributes", "Times", "PAPI", "instruction-counts", "instruction-counts-categorised", "LoopNumIters"]
@@ -488,8 +724,6 @@ def collate_csvs():
                         df = clean_pd_read_csv(df_filepath)
 
                         if cat == "Attributes":
-                            simd_failed = did_simd_fail(root, infer_field(root, "CC")) and (infer_field(root, "SIMD")=="Y")
-                            df = df.append({"Attribute":"SIMD failed", "Value":simd_failed}, ignore_index=True)
                             if not "ISA group" in df["Attribute"]:
                                 isaGrp = get_isa_group(root)
                                 df = df.append({"Attribute":"ISA group", "Value":isaGrp}, ignore_index=True)
@@ -500,12 +734,34 @@ def collate_csvs():
                         new_col_ordering_template = ["Run ID", "Attribute", "Event", "MG level", "Loop", "ThreadNum", "Instruction", "Value", "Count", "Time", "NumIters"]
                         new_col_ordering = [c for c in new_col_ordering_template if c in df.columns.values]
                         if len(new_col_ordering) != len(df.columns.values):
-                            raise Exception("New column ordering is missing {0} columns: {1}", len(df.columns.values)-len(new_col_ordering), Set(df.columns.values).difference(new_col_ordering))
+                            raise Exception("cat={0}: New column ordering is missing {1} columns: {2}".format(cat, len(df.columns.values)-len(new_col_ordering), Set(df.columns.values).difference(new_col_ordering)))
                         df = df[new_col_ordering]
+
+                        attributes_cols = ["SIMD failed", "True SIMD len"]
+                        attributes_cols_defaults = {"SIMD failed":False, "True SIMD len":-1}
+                        if not cat == "Attributes":
+                            ## Also merge in loop-attributes:
+                            loops_att_df_filepath = os.path.join(root, "LoopAttributes.csv")
+                            if os.path.isfile(loops_att_df_filepath):
+                                loops_att_df = clean_pd_read_csv(loops_att_df_filepath)
+                                loops_att_df = loops_att_df[loops_att_df["Attribute"].isin(attributes_cols)]
+                                pivot_id_col = "Attribute" ; pivot_val_col = "Value"
+                                index_cols = [c for c in loops_att_df.columns.values if not c in [pivot_id_col, pivot_val_col]]
+                                loops_att_df = loops_att_df.pivot(index="Loop", columns="Attribute", values="Value")
+                                loops_att_df = loops_att_df.reset_index(drop=False)
+                                df = df.merge(loops_att_df, "left")
+                                for c in attributes_cols:
+                                    df.loc[df[c].isna(),c] = attributes_cols_defaults[c]
 
                         if agg_dfs[cat] is None:
                             agg_dfs[cat] = df
                         else:
+                            for c in attributes_cols:
+                                cv = attributes_cols_defaults[c]
+                                if (c in agg_dfs[cat].columns.values) and (not c in df.columns.values):
+                                    df[c] = cv
+                                elif (not c in agg_dfs[cat].columns.values) and (c in df.columns.values):
+                                    agg_dfs[cat][c] = cv
                             agg_dfs[cat] = safe_pd_append(agg_dfs[cat], df)
                         agg_dfs[cat] = agg_dfs[cat].sort_values(by=new_col_ordering)
 
@@ -715,6 +971,38 @@ def aggregate():
         out_filepath = os.path.join(prepared_output_dirpath, cat+".std_pct.csv")
         df_std_pct.to_csv(out_filepath, index=False)
 
+    ## Finally, create wide versions of select key-value tables:
+    cat = "instruction-counts-categorised"
+    df_in_filepath = os.path.join(prepared_output_dirpath,cat+".csv")
+    if os.path.isfile(df_in_filepath):
+        pivot_id_col = "Instruction"
+        pivot_val_col = "Count"
+        print("Reshaping " + cat)
+        df_out_filepath = os.path.join(prepared_output_dirpath,cat+".wide.csv")
+        df = clean_pd_read_csv(df_in_filepath)
+        index_cols = [c for c in df.columns.values if not c in [pivot_id_col, pivot_val_col]]
+        df2 = df.pivot_table(index=index_cols, columns=pivot_id_col, values=pivot_val_col)
+        df2 = df2.reset_index(drop=False)
+
+        times_filepath = os.path.join(prepared_output_dirpath, "Times.mean.csv")
+        if os.path.isfile(times_filepath):
+            times_df = pd.read_csv(times_filepath, keep_default_na=False)
+            times_df = times_df[times_df["Loop"].isin(df2["Loop"].values)]
+            times_df = times_df.drop("MG level", axis=1)
+            job_id_colnames = get_job_id_colnames(times_df)
+            data_colnames = [c for c in times_df.columns.values if not c in job_id_colnames]
+            times_df = times_df.groupby(job_id_colnames).sum().reset_index()
+            df2 = df2.merge(times_df, validate="one_to_one")
+            # Reorder columns:
+            final_cols = ["#instructions per edge", "Time"]
+            reserved_cols = ["#edges per asm pass"]
+            insn_cols = [c for c in df2.columns.values if "eu." in c or "mem." in c]
+            id_cols = [c for c in df2.columns.values if not (c in insn_cols+final_cols+reserved_cols)]
+            if "#edges per asm pass" in df2.columns.values:
+                id_cols.append("#edges per asm pass")
+            df2 = df2[id_cols + insn_cols + final_cols]
+        df2.to_csv(df_out_filepath, index=False)
+
 def count_fp_ins():
     insn_df_filepath = os.path.join(prepared_output_dirpath, "instruction-counts.csv")
     if not os.path.isfile(insn_df_filepath):
@@ -768,6 +1056,9 @@ def count_fp_ins():
     fp_df_sum = fp_df_grps.sum().reset_index().replace(np.NaN, 0.0)
 
     if "SIMD len" in fp_df_sum.columns.values:
+        if "True SIMD len" in fp_df_sum.columns.values:
+            f = fp_df_sum["True SIMD len"] != -1
+            fp_df_sum.loc[f,"SIMD len"] = fp_df_sum.loc[f,"True SIMD len"]
         simd_mask = np.invert(fp_df_sum["SIMD failed"])
         fp_df_sum.loc[simd_mask, "FLOPs/iter"] *= fp_df_sum.loc[simd_mask, "SIMD len"]
 
@@ -808,11 +1099,10 @@ def combine_all():
         if "SIMD len" in iters_df.columns.values:
             ## Need the number of SIMD iterations. Currently 'iterations_SUM'
             ## counts the number of serial iterations.
-            iters_df["SIMD len"] = pd.to_numeric(iters_df["SIMD len"])
+            if "True SIMD len" in iters_df.columns.values:
+                f = iters_df["True SIMD len"] != -1
+                iters_df.loc[f,"SIMD len"] = iters_df.loc[f,"True SIMD len"]
             simd_mask = np.invert(iters_df["SIMD failed"])
-            ## ... but if SIMD len is unknown, then cannot perform adjustment.
-            simd_len_known_f = np.invert(iters_df["SIMD len"].isnull())
-            simd_mask = np.logical_and(simd_len_known_f, simd_mask)
             data_colnames = get_data_colnames(iters_df)
             for dc in data_colnames:
                 iters_df.loc[simd_mask, dc] /= iters_df.loc[simd_mask, "SIMD len"]

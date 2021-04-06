@@ -45,11 +45,7 @@ void unstructured_stream_loop(
     #endif
     record_iters(loop_start, loop_end);
 
-    #ifdef __clang__
-        #pragma clang loop vectorize(disable)
-    #else
-        #pragma omp simd safelen(1)
-    #endif
+    NOSIMD
     #pragma nounroll
     for (long i=loop_start; i<loop_end; i++)
     {

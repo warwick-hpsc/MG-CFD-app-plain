@@ -45,20 +45,13 @@ void compute_stream_loop(
     #endif
     record_iters(loop_start, loop_end);
 
-    const int batch = 8;
-    #ifdef __clang__
-        #pragma clang loop vectorize(disable)
-    #else
-        #pragma omp simd safelen(1)
-    #endif
+    const int batch = 16;
+    NOSIMD
     #pragma nounroll
-    // for (long i=loop_start; i<loop_end; i++)
     for (long i=loop_start; i<loop_end; i+=batch)
     {
-        // const long idx = i;
         // Loop over same handful of edges, which should remain in L1 cache:
-        // Each edge reads/writes 23 doubles, x8 edges = 1.44 KB
-        // const long idx = i%batch;
+        // Each edge reads/writes 23 doubles, x16 edges = 3 KB
         for (long idx=loop_start; idx<loop_start+batch; idx++) {
             compute_flux_edge_kernel(
                 #ifdef FLUX_PRECOMPUTE_EDGE_WEIGHTS
